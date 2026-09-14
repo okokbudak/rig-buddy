@@ -73,14 +73,17 @@ o oyunun haritası ve bilgileri gelir.
 ### 1. PC
 
 1. [Releases](../../releases) sayfasından **RigBuddy-Setup.exe** dosyasını indirip çalıştırın.
-2. Kurulum sırasında sırasıyla şunlar yapılır:
-   - Rig Buddy kurulur ve Başlat menüsüne eklenir.
+2. Kurulum sırasında şunlar yapılır:
+   - Rig Buddy kurulur ve Başlat menüsüne eklenir. Ayrıca .NET ya da Node.js
+     kurmanıza gerek yoktur; gerekenler kurulumla birlikte gelir.
    - Telemetri eklentisi, bilgisayarınızda kurulu olan oyunlara yüklenir.
    - Windows Güvenlik Duvarı'nda yalnızca özel ağlar için gerekli izin verilir.
-   - **Harita, kurulu oyunlarınızın dosyalarından üretilir.** Bu işlem
-     yalnızca ilk kurulumda yapılır ve birkaç dakika sürebilir. <!-- TODO: süre, yöntem kararına göre -->
-3. Kurulum bittiğinde Rig Buddy açılır. Penceredeki çubuk dolup **Hazır**
-   yazısını gördüğünüzde PC tarafı tamamdır.
+3. Kurulum bittiğinde Rig Buddy açılır ve ilk açılışta **haritayı kurulu
+   oyunlarınızın dosyalarından hazırlar**. Bu işlem yalnızca bir kez yapılır;
+   tüm harita DLC'leriyle ETS2 için yaklaşık 5, ATS için yaklaşık 3 dakika
+   sürer. ETS2 haritası hazır olur olmaz navigasyonu kullanmaya
+   başlayabilirsiniz.
+4. Penceredeki çubuk dolup **Hazır** yazısını gördüğünüzde PC tarafı tamamdır.
 
 ### 2. Telefon, tablet ya da araç ekranı
 
@@ -109,8 +112,11 @@ ekranında bir ilanı seçtiğinizde rotası kendiliğinden çizilir.
 - **Uygulama ayarları:** Sol menüdeki dişli simgesinden PC adresini
   değiştirebilir, yeniden eşleştirme yapabilir, temayı (Sistem, Açık, Koyu)
   ve dili seçebilirsiniz.
-- **Yeni bir DLC ya da oyun güncellemesi sonrasında** haritanın da
-  güncellenmesi gerekir: <!-- TODO: kurulum yöntemi kesinleşince (ör. Başlat menüsü > "Rig Buddy haritayı güncelle") -->
+- **Yeni bir DLC ya da oyun güncellemesi sonrasında** Rig Buddy bunu
+  açılışta fark eder ve penceresinde **"Harita güncellemesi var · Güncelle"**
+  bağlantısını gösterir. Tıkladığınızda yalnızca değişen oyunun haritası
+  yeniden hazırlanır. Aynı işlemi istediğiniz zaman simgenin menüsündeki
+  **Haritayı yeniden oluştur** ile de başlatabilirsiniz.
 - Aynı anda birden fazla cihaz bağlanabilir.
 
 ## Sorun giderme
@@ -119,6 +125,8 @@ ekranında bir ilanı seçtiğinizde rotası kendiliğinden çizilir.
 |---|---|
 | Uygulama PC'yi bulamıyor | PC ile cihazın aynı Wi-Fi ağında olduğundan emin olun. Windows'ta ağ türü "Özel" olmalıdır. Misafir ağlarında cihazlar birbirini göremeyebilir; bu durumda PC penceresindeki adresi elle girin. |
 | Bağlantı var ama veri gelmiyor | Oyunun açık olduğundan emin olun. PC penceresinde "Araç bilgisayarı: Oyundan veri geliyor" yazmalıdır. Yazmıyorsa kurulumu yeniden çalıştırarak telemetri eklentisini tekrar yükleyin. |
+| PC penceresinde "Oyun bulunamadı" yazıyor | Rig Buddy oyunları Steam kütüphanelerinizde arar. ETS2 ya da ATS'nin Steam üzerinden kurulu olduğundan emin olun. |
+| "Harita hazırlanamadı" | Penceredeki **Tekrar dene** bağlantısına tıklayın. Sorun sürerse **Loglar** penceresindeki harita kaydını [Issues](../../issues) sayfasında paylaşın. Diskte en az 3 GB boş alan olmalıdır. |
 | Harita boş görünüyor | Harita ilk bağlantıda indirilir; indirmenin tamamlanmasını bekleyin. Sorun sürerse Ayarlar'dan yeniden eşleştirme yapın. |
 | İşler ya da Profil ekranı boş | Bu bilgiler oyunun kayıt dosyasından okunur. Oyun ilk otomatik kaydını yaptığında (yaklaşık 3 dakika) ekranlar dolacaktır. |
 | Başka bir sorun | PC penceresinde **Loglar**'ı açın, ilgili sekmeyi seçip **Kopyala**'ya tıklayın ve [Issues](../../issues) sayfasında paylaşın. |
@@ -146,8 +154,9 @@ ayrıntılar için aşağıdaki "Çeviriler" bölümüne bakabilirsiniz.
 | `pc/host/` | PC uygulaması `RigBuddy.exe` (C#/.NET 8; tepsi simgesi ve pencere). Telemetri köprüsü, medya, PC keşfi ve Node servislerinin yönetimi |
 | `pc/agent/` | Node servisi: tam telemetri, kayıt dosyası (işler, profil), medya, radyo ve haritanın cihazlara aktarılması |
 | `pc/patches/` | [truckermudgeon/maps](https://github.com/truckermudgeon/maps) üzerine uygulanan yamalar ve telemetri eklentisinin yerini alan `scsSDKTelemetry.js` |
-| `pipeline/` | Oyun dosyalarından harita, rota ve ikon verisini üreten betikler (WSL) |
-| `setup/` | Geliştirme ortamı kurulum betikleri |
+| `pipeline/` | Oyun dosyalarından harita, rota ve ikon verisini üreten betikler (`build-map-data.mjs`, `make-tiles.mjs`) |
+| `pc/native/` | Ayrıştırıcının iki yerel eklentisini (cityhash, gdeflate) Windows için MinGW ile derleyen betik |
+| `setup/` | Geliştirme ortamı kurulumu, Node paketleme (`bundle.mjs`) ve sürüm betikleri, Inno Setup kurulum dosyası |
 | `art/` | Uygulama ikonu (`rigbuddy.svg`) ve Android/Windows ikonlarını üreten `MakeIcon.java` |
 | `dev/` | Simülasyon, dağıtım ve protokol testi araçları |
 
@@ -157,14 +166,45 @@ Kurulum sırasında oluşturulan ve depoya eklenmeyen klasörler: `vendor/`
 
 ### Kaynaktan kurulum
 
-Gerekenler: Git, .NET 8 SDK, JDK 17, Android SDK; veri üretimi için WSL
-üzerinde Ubuntu ve Node.js 22 veya üzeri.
+Gerekenler: Git, .NET 8 SDK, JDK 17, Android SDK. Yerel eklentileri
+derlemek için WSL üzerinde Ubuntu ve `g++-mingw-w64-x86-64-posix` paketi
+(yalnızca bir kez).
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File setup\setup-pc.ps1          # Node, Gradle, tm-maps ve yamalar, RigBuddy.exe, eklenti, güvenlik duvarı
-powershell -ExecutionPolicy Bypass -File pipeline\build-map-data.ps1 # kurulu oyunların dosyalarından veri üretimi (WSL)
+wsl bash pc/native/build-addons.sh vendor/tm-maps                    # cityhash.node, gdeflate.node -> pc\native\win-x64
+vendor\node\node.exe setup\bundle.mjs                                # Node servisleri -> dist\
 powershell -ExecutionPolicy Bypass -File setup\install-headunit.ps1 -Device <ip:port> -PcHost <pc ip>  # APK'yı ADB ile kurma
 ```
+
+`bin\RigBuddy.exe` ilk açılışta haritayı kendisi hazırlar (veri `data\`
+klasörüne yazılır). `dist\` yoksa servisler kaynaktan, tsx ile çalıştırılır.
+
+### Sürüm oluşturma
+
+`v1.2.3` biçiminde bir etiket gönderildiğinde GitHub Actions
+(`.github/workflows/release.yml`) **RigBuddy-Setup.exe** ile **RigBuddy.apk**
+dosyalarını derler ve taslak bir sürüme ekler; taslağı kontrol ettikten sonra
+yayımlayabilirsiniz. Aynı dosyalar yerelde şu komutla `local\release`
+klasörüne üretilir:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File setup\build-release.ps1 -Version 1.2.3
+```
+
+APK'nın imzalanması için bir kez anahtar oluşturmanız gerekir. Bu anahtarı
+ve parolalarını **güvenli bir yerde yedekleyin**: anahtar kaybolursa
+kullanıcılar sonraki sürümleri mevcut uygulamanın üzerine kuramaz.
+
+```powershell
+keytool -genkeypair -v -keystore rigbuddy.jks -alias rigbuddy -keyalg RSA -keysize 4096 -validity 10000
+```
+
+- Yerel derleme için `android\keystore.properties` dosyası (depoya eklenmez):
+  `storeFile`, `storePassword`, `keyAlias`, `keyPassword`
+- GitHub için depo gizli değişkenleri (Settings > Secrets and variables >
+  Actions): `RIGBUDDY_KEYSTORE_BASE64` (`[Convert]::ToBase64String([IO.File]::ReadAllBytes('rigbuddy.jks'))`),
+  `RIGBUDDY_KEYSTORE_PASSWORD`, `RIGBUDDY_KEY_ALIAS`, `RIGBUDDY_KEY_PASSWORD`
 
 ### Faydalı komutlar
 
