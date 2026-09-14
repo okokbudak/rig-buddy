@@ -74,7 +74,7 @@ public final class HomeScreen {
     nowPlaying.addView(ncol, Ui.margins(new LinearLayout.LayoutParams(Ui.dp(c, 260), LinearLayout.LayoutParams.WRAP_CONTENT), c, 10, 0, 10, 0));
     npButton = new ImageView(c);
     npButton.setImageResource(R.drawable.ic_play);
-    npButton.setColorFilter(0xff101316);
+    npButton.setColorFilter(Ui.ON_ACCENT);
     int bp = Ui.dp(c, 8);
     npButton.setPadding(bp, bp, bp, bp);
     npButton.setBackground(Ui.rounded(Ui.ACCENT, Ui.dp(c, 22)));
@@ -145,7 +145,7 @@ public final class HomeScreen {
     bottom.addView(job, Ui.weight(1.25f));
 
     // profile tile
-    LinearLayout prof = tile(c, R.drawable.ic_person, "Profil", 0xffc58af9);
+    LinearLayout prof = tile(c, R.drawable.ic_person, "Profil", Ui.PURPLE);
     company = Ui.text(c, 22, Ui.TEXT, true);
     money = Ui.text(c, 32, Ui.GREEN, false);
     xp = Ui.text(c, 16, Ui.TEXT2, false);

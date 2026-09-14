@@ -131,13 +131,19 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
+    prefs = getSharedPreferences("ets2nav", MODE_PRIVATE);
+    // theme first: every screen reads Ui's palette while it is built
+    Ui.applyTheme(Ui.resolveDark(this, Ui.themeSetting(prefs)));
+    setTheme(Ui.dark ? R.style.AppTheme_Dark : R.style.AppTheme);
     super.onCreate(savedInstanceState);
     Mapbox.getInstance(getApplicationContext());
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     setContentView(R.layout.activity_main);
+    ((ViewGroup) findViewById(android.R.id.content)).getChildAt(0).setBackgroundColor(Ui.BG);
+    findViewById(R.id.rail).setBackgroundColor(Ui.BG);
+    findViewById(R.id.screenHost).setBackgroundColor(Ui.BG);
     hideSystemUi();
 
-    prefs = getSharedPreferences("ets2nav", MODE_PRIVATE);
     applyIntent(getIntent());
 
     mapView = findViewById(R.id.map);
@@ -367,7 +373,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     }
     for (Map.Entry<String, ImageView> e : railIcons.entrySet()) {
       boolean on = e.getKey().equals(name);
-      e.getValue().setColorFilter(on ? 0xff101316 : Ui.TEXT2);
+      e.getValue().setColorFilter(on ? Ui.ON_ACCENT : Ui.TEXT2);
       e.getValue().setBackground(on ? Ui.rounded(Ui.ACCENT, Ui.dp(this, 23)) : null);
     }
     if ("vehicle".equals(name)) vehicle.onTelemetry(lastTelemetry);
@@ -1024,18 +1030,51 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     String[] items = {
         "PC adresi: " + host(),
         "Yeniden eşleş",
+        "Tema: " + themeLabel(Ui.themeSetting(prefs)),
     };
     new AlertDialog.Builder(this)
         .setTitle("Ayarlar")
         .setItems(items, (d, which) -> {
           if (which == 0) showHostDialog();
-          else {
+          else if (which == 1) {
             prefs.edit().remove("viewerId").apply();
             restartClients();
-          }
+          } else showThemeDialog();
         })
         .setNegativeButton("Kapat", null)
         .show();
+  }
+
+  private static final String[] THEMES = {"system", "light", "dark"};
+
+  private static String themeLabel(String theme) {
+    return "light".equals(theme) ? "Açık" : "dark".equals(theme) ? "Koyu" : "Sistem";
+  }
+
+  private void showThemeDialog() {
+    String current = Ui.themeSetting(prefs);
+    String[] labels = new String[THEMES.length];
+    int checked = 0;
+    for (int i = 0; i < THEMES.length; i++) {
+      labels[i] = themeLabel(THEMES[i]) + ("system".equals(THEMES[i]) ? " (cihazın temasını izler)" : "");
+      if (THEMES[i].equals(current)) checked = i;
+    }
+    new AlertDialog.Builder(this)
+        .setTitle("Tema")
+        .setSingleChoiceItems(labels, checked, (d, which) -> {
+          d.dismiss();
+          prefs.edit().putString("theme", THEMES[which]).apply();
+          if (Ui.resolveDark(this, THEMES[which]) != Ui.dark) recreate();
+        })
+        .setNegativeButton("İptal", null)
+        .show();
+  }
+
+  /** The device switched light/dark (uiMode is in configChanges, so no automatic restart). */
+  @Override
+  public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+    super.onConfigurationChanged(newConfig);
+    if (Ui.resolveDark(this, Ui.themeSetting(prefs)) != Ui.dark) recreate();
   }
 
   private void showHostDialog() {

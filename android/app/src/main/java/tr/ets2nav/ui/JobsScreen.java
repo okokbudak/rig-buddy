@@ -66,7 +66,7 @@ public final class JobsScreen {
     currentJob = Ui.text(c, 18, Ui.TEXT, false);
     int p = Ui.dp(c, 14);
     currentJob.setPadding(p, p, p, p);
-    currentJob.setBackground(Ui.rounded(0xff1e3a2b, Ui.dp(c, 14)));
+    currentJob.setBackground(Ui.rounded(Ui.GREEN_BG, Ui.dp(c, 14)));
     currentJob.setVisibility(View.GONE);
     root.addView(currentJob, Ui.margins(Ui.matchWrap(), c, 0, 0, 0, 12));
 
@@ -89,7 +89,7 @@ public final class JobsScreen {
     detail.addView(detailLine2, Ui.margins(Ui.matchWrap(), c, 0, 8, 0, 0));
     detail.addView(detailLine3, Ui.margins(Ui.matchWrap(), c, 0, 8, 0, 0));
     detail.addView(Ui.spacer(c), Ui.hweight(1));
-    TextView full = button("Yükle ve teslim et: rotayı çiz", Ui.ACCENT, 0xff101316);
+    TextView full = button("Yükle ve teslim et: rotayı çiz", Ui.ACCENT, Ui.ON_ACCENT);
     full.setOnClickListener(v -> {
       if (selected == null) return;
       JSONObject s = selected.optJSONObject("source"), d = selected.optJSONObject("destination");
@@ -208,7 +208,7 @@ public final class JobsScreen {
     for (int i = 0; i < sortChips.size(); i++) {
       boolean on = i == sort;
       sortChips.get(i).setBackground(Ui.rounded(on ? Ui.ACCENT : Ui.TRACK, Ui.dp(c, 20)));
-      sortChips.get(i).setTextColor(on ? 0xff101316 : Ui.TEXT);
+      sortChips.get(i).setTextColor(on ? Ui.ON_ACCENT : Ui.TEXT);
     }
   }
 

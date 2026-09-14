@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Light theme (dialogs, system widgets); screens take their colors from Ui. -->
     <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar.Fullscreen">
         <item name="android:windowBackground">@android:color/white</item>
         <item name="android:colorAccent">#1a73e8</item>
+    </style>
+
+    <style name="AppTheme.Dark" parent="android:Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:colorAccent">#8ab4f8</item>
     </style>
 </resources>

@@ -15,20 +15,68 @@ import android.widget.TextView;
 import java.text.NumberFormat;
 import java.util.Locale;
 
-/** Small helpers for the programmatic, car-style dark screens. */
+/** Small helpers for the programmatic, car-style screens (light or dark theme). */
 public final class Ui {
   private Ui() {}
 
-  public static final int BG = 0xff121518;
-  public static final int CARD = 0xff1d2228;
-  public static final int CARD_PRESSED = 0xff2a3139;
-  public static final int TEXT = 0xffe8eaed;
-  public static final int TEXT2 = 0xff9aa0a6;
-  public static final int ACCENT = 0xff8ab4f8;
-  public static final int GREEN = 0xff81c995;
-  public static final int YELLOW = 0xfffdd663;
-  public static final int RED = 0xfff28b82;
-  public static final int TRACK = 0xff2e353d;
+  // Palette of the current theme; set by applyTheme() before any screen is built.
+  public static int BG, CARD, CARD_PRESSED, TEXT, TEXT2, ACCENT, ON_ACCENT;
+  public static int GREEN, GREEN_BG, YELLOW, RED, PURPLE, TRACK;
+  public static boolean dark;
+
+  static {
+    applyTheme(true);
+  }
+
+  public static void applyTheme(boolean darkTheme) {
+    dark = darkTheme;
+    if (darkTheme) {
+      BG = 0xff121518;
+      CARD = 0xff1d2228;
+      CARD_PRESSED = 0xff2a3139;
+      TEXT = 0xffe8eaed;
+      TEXT2 = 0xff9aa0a6;
+      ACCENT = 0xff8ab4f8;
+      ON_ACCENT = 0xff101316;
+      GREEN = 0xff81c995;
+      GREEN_BG = 0xff1e3a2b;
+      YELLOW = 0xfffdd663;
+      RED = 0xfff28b82;
+      PURPLE = 0xffc58af9;
+      TRACK = 0xff2e353d;
+    } else {
+      BG = 0xfff1f3f4;
+      CARD = 0xffffffff;
+      CARD_PRESSED = 0xffe8eaed;
+      TEXT = 0xff202124;
+      TEXT2 = 0xff5f6368;
+      ACCENT = 0xff1a73e8;
+      ON_ACCENT = 0xffffffff;
+      GREEN = 0xff188038;
+      GREEN_BG = 0xffe6f4ea;
+      YELLOW = 0xffb06000;
+      RED = 0xffd93025;
+      PURPLE = 0xff9334e6;
+      TRACK = 0xffdadce0;
+    }
+  }
+
+  /** Theme setting: "system" (default), "light" or "dark". */
+  public static String themeSetting(android.content.SharedPreferences prefs) {
+    return prefs.getString("theme", "system");
+  }
+
+  /**
+   * Resolves the setting against the device. Android before 10 has no system
+   * dark mode; those (mostly head units) get the dark, car-style theme.
+   */
+  public static boolean resolveDark(Context c, String setting) {
+    if ("light".equals(setting)) return false;
+    if ("dark".equals(setting)) return true;
+    if (android.os.Build.VERSION.SDK_INT < 29) return true;
+    int night = c.getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+    return night != android.content.res.Configuration.UI_MODE_NIGHT_NO;
+  }
 
   public static final Locale TR = new Locale("tr", "TR");
 
