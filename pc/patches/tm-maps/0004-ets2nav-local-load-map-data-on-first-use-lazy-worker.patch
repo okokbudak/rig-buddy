@@ -1,0 +1,397 @@
+From be56f027c8bbe70129946087e9c249c940a179b9 Mon Sep 17 00:00:00 2001
+From: ets2nav <ets2nav@localhost>
+Date: Mon, 14 Sep 2026 21:26:10 +0300
+Subject: [PATCH 4/4] ets2nav-local: load map data on first use; lazy worker
+ pools; no env dump
+
+The server loaded both maps (ETS2 + ATS) and spun up 24 workers, each with a
+copy of its map's data, before listening (~38 s). Now only PRELOAD_MAPS
+(default europe) is loaded up front, other maps / search indexes / job data /
+worker pools are created on first use, pools start with one worker (~17 s).
+Also drop the raw process.env dump (user paths in shared logs).
+---
+ .../domain/actor/detect-job-events.ts         | 49 +++++++++--------
+ .../apis/navigation/domain/actor/search.ts    | 53 +++++++------------
+ packages/apis/navigation/env.ts               |  2 +-
+ .../apis/navigation/infra/lookups/service.ts  | 35 +++++++-----
+ packages/apis/navigation/infra/per-map.ts     | 17 ++++++
+ .../apis/navigation/infra/routing/service.ts  |  9 ++--
+ .../apis/navigation/infra/search/service.ts   | 14 ++---
+ packages/apis/navigation/infra/services.ts    | 17 ++++--
+ 8 files changed, 114 insertions(+), 82 deletions(-)
+ create mode 100644 packages/apis/navigation/infra/per-map.ts
+
+diff --git a/packages/apis/navigation/domain/actor/detect-job-events.ts b/packages/apis/navigation/domain/actor/detect-job-events.ts
+index 05fd249..ba57a21 100644
+--- a/packages/apis/navigation/domain/actor/detect-job-events.ts
++++ b/packages/apis/navigation/domain/actor/detect-job-events.ts
+@@ -24,22 +24,35 @@ export function detectJobEvents(opts: {
+   jobEventEmitter: JobEventEmitter;
+ } {
+   const { telemetryEventEmitter, getJobMappedData } = opts;
+-  const atsJobMappedData = getJobMappedData({ map: 'usa' });
+-  const ets2JobMappedData = getJobMappedData({ map: 'europe' });
+   const jobEventEmitter: JobEventEmitter = new EventEmitter();
+ 
+   let jobState: JobState | undefined;
+   const readJobState = () => jobState;
+-  const atsCompaniesByKey = new Map<string, CompanyItem>(
+-    atsJobMappedData.companies
+-      .values()
+-      .map(c => [`${c.token}.${c.cityToken}`, c]),
+-  );
+-  const ets2CompaniesByKey = new Map<string, CompanyItem>(
+-    ets2JobMappedData.companies
+-      .values()
+-      .map(c => [`${c.token}.${c.cityToken}`, c]),
+-  );
++  // ets2nav-local: per-map data is looked up when a job in that map shows up
++  // (was: both maps at actor creation, forcing both maps' data to load).
++  const byMap = new Map<
++    GameContext['map'],
++    {
++      jobMappedData: ReturnType<typeof getJobMappedData>;
++      companiesByKey: Map<string, CompanyItem>;
++    }
++  >();
++  const forMap = (map: GameContext['map']) => {
++    let entry = byMap.get(map);
++    if (!entry) {
++      const jobMappedData = getJobMappedData({ map });
++      entry = {
++        jobMappedData,
++        companiesByKey: new Map<string, CompanyItem>(
++          jobMappedData.companies
++            .values()
++            .map(c => [`${c.token}.${c.cityToken}`, c]),
++        ),
++      };
++      byMap.set(map, entry);
++    }
++    return entry;
++  };
+ 
+   telemetryEventEmitter.on('telemetry', function detectJobEvents(telemetry) {
+     const curDestKey = toKey(jobState?.destination);
+@@ -48,10 +61,9 @@ export function detectJobEvents(opts: {
+       return;
+     }
+ 
+-    const companiesByKey =
+-      telemetry.game.game.name === 'ats'
+-        ? atsCompaniesByKey
+-        : ets2CompaniesByKey;
++    const { companiesByKey, jobMappedData } = forMap(
++      telemetry.game.game.name === 'ats' ? 'usa' : 'europe',
++    );
+ 
+     if (newDestKey == null) {
+       jobState = undefined;
+@@ -61,11 +73,6 @@ export function detectJobEvents(opts: {
+       // ignore for now.
+       jobState = undefined;
+     } else {
+-      const jobMappedData =
+-        telemetry.game.game.name === 'ats'
+-          ? atsJobMappedData
+-          : ets2JobMappedData;
+-
+       const company = assertExists(
+         companiesByKey.get(newDestKey),
+         `unknown company key ${newDestKey}`,
+diff --git a/packages/apis/navigation/domain/actor/search.ts b/packages/apis/navigation/domain/actor/search.ts
+index 96781a7..e8ee16f 100644
+--- a/packages/apis/navigation/domain/actor/search.ts
++++ b/packages/apis/navigation/domain/actor/search.ts
+@@ -255,37 +255,25 @@ export class SearchServiceImpl implements SearchService {
+       }>;
+     },
+   ) {
+-    const atsSearchData = this.getLookup({ map: 'usa' }).processedSearchData
+-      .searchData;
+-    const ets2SearchData = this.getLookup({
+-      map: 'europe',
+-    }).processedSearchData.searchData;
+-    SearchServiceImpl.validateSearchResults(atsSearchData);
+-    SearchServiceImpl.validateSearchResults(ets2SearchData);
+-
+-    const atsFuse = new Fuse<SearchResult>(
+-      atsSearchData.map(s => ({
+-        ...s,
+-        tags: s.tags.concat(s.description ? [s.description] : []),
+-      })),
+-      {
+-        distance: 0,
+-        threshold: 0.2,
+-        findAllMatches: true,
+-        ignoreLocation: true, // so that 'san francisco' can be searched for without quotes
+-        ignoreDiacritics: true,
+-        sortFn: sortSearchResults,
+-        keys: [
+-          { name: 'label', weight: 3 },
+-          { name: 'city.name', weight: 2 },
+-          { name: 'stateName', weight: 1.5 },
+-          'stateCode',
+-          'tags',
+-        ],
+-      },
+-    );
+-    const ets2Fuse = new Fuse<SearchResult>(
+-      ets2SearchData.map(s => ({
++    // ets2nav-local: build each map's index on first search in that map
++    // (was: both maps in the constructor, forcing both maps' data to load).
++    const fuses = new Map<GameContext['map'], Fuse<SearchResult>>();
++    this.fuse = (gameContext: GameContext) => {
++      let fuse = fuses.get(gameContext.map);
++      if (!fuse) {
++        fuse = this.buildFuse(gameContext);
++        fuses.set(gameContext.map, fuse);
++      }
++      return fuse;
++    };
++  }
++
++  private buildFuse(gameContext: GameContext): Fuse<SearchResult> {
++    const searchData =
++      this.getLookup(gameContext).processedSearchData.searchData;
++    SearchServiceImpl.validateSearchResults(searchData);
++    return new Fuse<SearchResult>(
++      searchData.map(s => ({
+         ...s,
+         tags: s.tags.concat(s.description ? [s.description] : []),
+       })),
+@@ -305,9 +293,6 @@ export class SearchServiceImpl implements SearchService {
+         ],
+       },
+     );
+-
+-    this.fuse = (gameContext: GameContext) =>
+-      gameContext.map === 'usa' ? atsFuse : ets2Fuse;
+   }
+ 
+   private static validateSearchResults(searchResults: SearchResult[]) {
+diff --git a/packages/apis/navigation/env.ts b/packages/apis/navigation/env.ts
+index ecf2de5..2f783ff 100644
+--- a/packages/apis/navigation/env.ts
++++ b/packages/apis/navigation/env.ts
+@@ -35,7 +35,7 @@ const EnvSchema = z.object({
+     .default('info'),
+ });
+ 
+-console.log('raw, process.env', process.env);
++// ets2nav-local: no raw process.env dump (user paths end up in shared logs)
+ const parsed = EnvSchema.safeParse(process.env);
+ if (!parsed.success) {
+   console.error('Invalid environment variables');
+diff --git a/packages/apis/navigation/infra/lookups/service.ts b/packages/apis/navigation/infra/lookups/service.ts
+index dd600b0..4894ea6 100644
+--- a/packages/apis/navigation/infra/lookups/service.ts
++++ b/packages/apis/navigation/infra/lookups/service.ts
+@@ -1,21 +1,32 @@
+-import { UnreachableError } from '@truckermudgeon/base/precon';
+ import type { GameContext } from '../../domain/game-context';
+ import type { LookupData, LookupService } from '../../domain/lookup-data';
++import { loadLookupData } from './loader';
+ 
++type GameMap = GameContext['map'];
++
++// ets2nav-local: each map's lookup data is loaded on first use instead of
++// both maps at startup, so an ETS2-only player never waits for (or holds in
++// memory) the ATS data. `preload` lets the server load the likely map before
++// it starts listening.
+ export class LookupServiceImpl implements LookupService {
+-  constructor(
+-    private readonly atsLookups: LookupData,
+-    private readonly ets2Lookups: LookupData,
+-  ) {}
++  private readonly loaded = new Map<GameMap, LookupData>();
++
++  constructor(private readonly dataDir: string) {}
+ 
+   getData(context: GameContext): LookupData {
+-    switch (context.map) {
+-      case 'usa':
+-        return this.atsLookups;
+-      case 'europe':
+-        return this.ets2Lookups;
+-      default:
+-        throw new UnreachableError(context.map);
++    let data = this.loaded.get(context.map);
++    if (!data) {
++      const start = Date.now();
++      data = loadLookupData(this.dataDir, context.map);
++      this.loaded.set(context.map, data);
++      console.log(
++        `${context.map} lookup data loaded in ${((Date.now() - start) / 1000).toFixed(1)} s`,
++      );
+     }
++    return data;
++  }
++
++  preload(map: GameMap): void {
++    this.getData({ map });
+   }
+ }
+diff --git a/packages/apis/navigation/infra/per-map.ts b/packages/apis/navigation/infra/per-map.ts
+new file mode 100644
+index 0000000..6b878b1
+--- /dev/null
++++ b/packages/apis/navigation/infra/per-map.ts
+@@ -0,0 +1,17 @@
++import type { GameContext } from '../domain/game-context';
++
++type GameMap = GameContext['map'];
++
++// ets2nav-local: memoizes a per-map factory, so a map's worker pools (which
++// get a copy of that map's data) are only created once the map is in use.
++export function perMap<T>(create: (map: GameMap) => T): (map: GameMap) => T {
++  const made = new Map<GameMap, T>();
++  return map => {
++    let value = made.get(map);
++    if (value === undefined) {
++      value = create(map);
++      made.set(map, value);
++    }
++    return value;
++  };
++}
+diff --git a/packages/apis/navigation/infra/routing/service.ts b/packages/apis/navigation/infra/routing/service.ts
+index c05abf7..2a17030 100644
+--- a/packages/apis/navigation/infra/routing/service.ts
++++ b/packages/apis/navigation/infra/routing/service.ts
+@@ -5,6 +5,7 @@ import type { RoutingService } from '../../domain/actor/generate-routes';
+ import type { GameContext } from '../../domain/game-context';
+ import type { LookupService } from '../../domain/lookup-data';
+ import type { MetricsService } from '../metrics/service';
++import { perMap } from '../per-map';
+ import type { Options } from '../workers/find-route-worker';
+ 
+ type RouteOptions = Omit<Options, 'routeContext'>;
+@@ -38,7 +39,7 @@ export function createRoutingService(
+   lookups: LookupService,
+   metrics: MetricsService['worker'],
+ ): RoutingService {
+-  const [atsPool, ets2Pool] = (['usa', 'europe'] as const).map(game => {
++  const poolFor = perMap(game => {
+     const lookupData = lookups.getData({ map: game });
+     const routeContext: Context = {
+       nodeLUT: lookupData.graphAndMapData.tsMapData.nodes,
+@@ -48,6 +49,9 @@ export function createRoutingService(
+     };
+ 
+     return new Tinypool({
++      // ets2nav-local: start one worker, grow on demand (each worker gets a
++      // copy of the whole graph)
++      minThreads: 1,
+       maxThreads: 4,
+       filename: new URL(
+         '../workers/find-route-worker-wrapper.js',
+@@ -64,8 +68,7 @@ export function createRoutingService(
+     const meta = { name: 'find-route', game: opts.gameContext.map };
+     try {
+       metrics.workerCalls.inc(meta);
+-      const pool = opts.gameContext.map === 'usa' ? atsPool : ets2Pool;
+-      return (await pool.run(opts)) as Route;
++      return (await poolFor(opts.gameContext.map).run(opts)) as Route;
+     } finally {
+       metrics.workerDuration.observe(meta, Date.now() - start);
+     }
+diff --git a/packages/apis/navigation/infra/search/service.ts b/packages/apis/navigation/infra/search/service.ts
+index 2b12e08..f5c72d0 100644
+--- a/packages/apis/navigation/infra/search/service.ts
++++ b/packages/apis/navigation/infra/search/service.ts
+@@ -9,6 +9,7 @@ import type { GameContext } from '../../domain/game-context';
+ import type { LookupService } from '../../domain/lookup-data';
+ import type { SearchResult } from '../../types';
+ import type { MetricsService } from '../metrics/service';
++import { perMap } from '../per-map';
+ 
+ // searchData: ProcessedSearchData,
+ // graphNodeRTree: PointRBush<{ x: number; y: number; z: number; node: Node }>,
+@@ -17,9 +18,11 @@ export function createSearchService(
+   lookups: LookupService,
+   metrics: MetricsService['worker'],
+ ): SearchService {
+-  const [atsSearcherPool, ets2SearcherPool] = (['usa', 'europe'] as const).map(
++  // ets2nav-local: pools per map, created on first use, one worker to start
++  const searcherPoolFor = perMap(
+     game =>
+       new Tinypool({
++        minThreads: 1,
+         maxThreads: 4,
+         filename: new URL(
+           '../workers/search-worker-wrapper.js',
+@@ -38,17 +41,17 @@ export function createSearchService(
+     const meta = { name: 'search', game: opts.gameContext.map };
+     try {
+       metrics.workerCalls.inc(meta);
+-      const pool =
+-        opts.gameContext.map === 'usa' ? atsSearcherPool : ets2SearcherPool;
++      const pool = searcherPoolFor(opts.gameContext.map);
+       return (await pool.run({ bbox: opts.bbox })) as SearchResult[];
+     } finally {
+       metrics.workerDuration.observe(meta, Date.now() - start);
+     }
+   };
+ 
+-  const [atsReducerPool, ets2ReducerPool] = (['usa', 'europe'] as const).map(
++  const reducerPoolFor = perMap(
+     game =>
+       new Tinypool({
++        minThreads: 1,
+         maxThreads: 4,
+         filename: new URL(
+           '../workers/search-results-worker-wrapper.js',
+@@ -70,8 +73,7 @@ export function createSearchService(
+     };
+     try {
+       metrics.workerCalls.inc(meta);
+-      const pool =
+-        opts.gameContext.map === 'usa' ? atsReducerPool : ets2ReducerPool;
++      const pool = reducerPoolFor(opts.gameContext.map);
+       return (await pool.run(opts)) as SearchResult[];
+     } finally {
+       metrics.workerDuration.observe(meta, Date.now() - start);
+diff --git a/packages/apis/navigation/infra/services.ts b/packages/apis/navigation/infra/services.ts
+index 35ae1fa..85cf119 100644
+--- a/packages/apis/navigation/infra/services.ts
++++ b/packages/apis/navigation/infra/services.ts
+@@ -1,4 +1,6 @@
+ import { UnreachableError } from '@truckermudgeon/base/precon';
++import fs from 'node:fs';
++import path from 'node:path';
+ import type { RoutingService } from '../domain/actor/generate-routes';
+ import type { SearchService } from '../domain/actor/search';
+ import type { DomainEventSink } from '../domain/events';
+@@ -11,7 +13,6 @@ import {
+ import type { KvStore } from './kv/store';
+ import { createCacheableKv } from './kv/store';
+ import { logger } from './logging/logger';
+-import { loadLookupData } from './lookups/loader';
+ import { LookupServiceImpl } from './lookups/service';
+ import type { MetricsService } from './metrics/service';
+ import { createMetricsService } from './metrics/service';
+@@ -32,10 +33,16 @@ export interface Services {
+ }
+ 
+ export function initServices(dataDir: string): Services {
+-  const lookups = new LookupServiceImpl(
+-    loadLookupData(dataDir, 'usa'),
+-    loadLookupData(dataDir, 'europe'),
+-  );
++  // ets2nav-local: maps load on first use; PRELOAD_MAPS (default "europe")
++  // are loaded now, before the server starts listening.
++  const lookups = new LookupServiceImpl(dataDir);
++  const preload = (process.env.PRELOAD_MAPS ?? 'europe').split(',');
++  for (const map of ['europe', 'usa'] as const) {
++    if (!preload.includes(map)) continue;
++    if (fs.existsSync(path.join(dataDir, `${map}-navigation.zip`))) {
++      lookups.preload(map);
++    }
++  }
+ 
+   const kv = createCacheableKv();
+   const rateLimit = createRateLimitService(kv);
+-- 
+2.55.0.windows.5
+

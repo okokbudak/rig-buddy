@@ -1,7 +1,7 @@
 From 6dbf729f01ab2fc62e2fadaa06799777d15e7930 Mon Sep 17 00:00:00 2001
 From: ets2nav <ets2nav@localhost>
 Date: Mon, 14 Sep 2026 02:08:07 +0300
-Subject: [PATCH 3/3] ets2nav-local: don't crash route detection after the
+Subject: [PATCH 3/4] ets2nav-local: don't crash route detection after the
  route is completed
 
 ---

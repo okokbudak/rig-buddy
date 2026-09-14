@@ -368,7 +368,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     else if (destCard.getVisibility() == View.VISIBLE) hideDestCard();
     else if ("map".equals(screen) && !following) setFollowing(true);
     else if (!"home".equals(screen)) showScreen("home");
-    // on the home screen: stay (this app is the head unit's main screen)
+    else moveTaskToBack(true); // keep the connections warm instead of finishing
   }
 
   @Override
@@ -941,18 +941,15 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     String[] items = {
         "PC adresi: " + host(),
         "Yeniden eşleş",
-        "Ünitenin kendi menüsü (radyo, ayarlar…)",
-        "Android ayarları",
     };
     new AlertDialog.Builder(this)
         .setTitle("Ayarlar")
         .setItems(items, (d, which) -> {
           if (which == 0) showHostDialog();
-          else if (which == 1) {
+          else {
             prefs.edit().remove("viewerId").apply();
             restartClients();
-          } else if (which == 2) openStockLauncher();
-          else startActivity(new Intent(android.provider.Settings.ACTION_SETTINGS));
+          }
         })
         .setNegativeButton("Kapat", null)
         .show();
@@ -973,24 +970,6 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
         })
         .setNegativeButton("İptal", null)
         .show();
-  }
-
-  /** We are the default home screen, so open the unit's own launcher explicitly. */
-  private void openStockLauncher() {
-    Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
-    for (android.content.pm.ResolveInfo ri : getPackageManager().queryIntentActivities(home, 0)) {
-      if (ri.activityInfo.packageName.equals(getPackageName())) continue;
-      Intent i = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-          .setClassName(ri.activityInfo.packageName, ri.activityInfo.name)
-          .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      try {
-        startActivity(i);
-        return;
-      } catch (RuntimeException e) {
-        Log.w(TAG, "could not open " + ri.activityInfo.name, e);
-      }
-    }
-    flashMessage("Ünitenin ana menüsü bulunamadı");
   }
 
   private void showMessage(String text) {
