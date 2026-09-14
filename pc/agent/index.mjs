@@ -3,8 +3,12 @@
 //   ws://PC:62843/ws      -> {"type":"telemetry","data":{...}} at 5 Hz, {"type":"save",...} on new autosave
 //   GET  /profile         -> profile/economy summary from the latest save
 //   GET  /jobs            -> freight-market offers, nearest pickup first
+//   GET  /tiles           -> {"ets2": {size, version}}: map files the app can download
+//   GET  /tiles/ets2.mbtiles -> the map file itself
 //   POST /key {"action"}  -> (reserved) key emulation via RigBuddy.exe
+import fs from 'node:fs';
 import http from 'node:http';
+import path from 'node:path';
 import tst from 'trucksim-telemetry';
 import { WebSocketServer } from 'ws';
 import { createMedia } from './media.mjs';
@@ -183,6 +187,46 @@ function readBody(req) {
   });
 }
 
+// --- map tiles for the app -----------------------------------------------------------------
+// Phones and tablets can't `adb push` the map: the app downloads data/<game>.mbtiles
+// from here on first connect and again whenever `version` (size + mtime) changes.
+
+const DATA_DIR = process.env.ETS2NAV_DATA || path.resolve(import.meta.dirname, '../../data');
+
+function tileFile(g) {
+  const file = path.join(DATA_DIR, `${g}.mbtiles`);
+  try {
+    const st = fs.statSync(file);
+    return { file, size: st.size, version: `${st.size}-${Math.floor(st.mtimeMs)}` };
+  } catch {
+    return null;
+  }
+}
+
+function tilesIndex() {
+  const out = {};
+  for (const g of ['ets2', 'ats']) {
+    const t = tileFile(g);
+    if (t) out[g] = { size: t.size, version: t.version };
+  }
+  return out;
+}
+
+function sendTiles(req, res, g) {
+  const t = tileFile(g);
+  if (!t) {
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: `no ${g}.mbtiles` }));
+  }
+  res.writeHead(200, {
+    'Content-Type': 'application/octet-stream',
+    'Content-Length': t.size,
+    ETag: `"${t.version}"`,
+  });
+  if (req.method === 'HEAD') return res.end();
+  fs.createReadStream(t.file).pipe(res);
+}
+
 // --- HTTP + WebSocket --------------------------------------------------------------------
 
 const server = http.createServer((req, res) => {
@@ -204,6 +248,9 @@ const server = http.createServer((req, res) => {
     const limit = Math.min(500, Number(url.searchParams.get('limit') || 200));
     return send(200, { savedAt: save.savedAt, gameTime: save.gameTime, currency: save.currency, jobs: jobsForApp(limit) });
   }
+  if (url.pathname === '/tiles') return send(200, tilesIndex());
+  const tile = /^\/tiles\/(ets2|ats)\.mbtiles$/.exec(url.pathname);
+  if (tile) return sendTiles(req, res, tile[1]);
   if (url.pathname === '/media') return send(200, mediaPayload());
   if (url.pathname.startsWith('/media/art/')) {
     const a = media.art(url.pathname.slice('/media/art/'.length));

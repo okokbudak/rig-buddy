@@ -51,9 +51,14 @@ public final class AgentClient {
   private String host;
   private WebSocket ws;
   private boolean running;
+  private boolean connected;
 
   public AgentClient(Listener listener) {
     this.listener = listener;
+  }
+
+  public boolean isConnected() {
+    return connected;
   }
 
   public void start(String host) {
@@ -64,6 +69,7 @@ public final class AgentClient {
 
   public void stop() {
     running = false;
+    connected = false;
     main.removeCallbacksAndMessages(null);
     if (ws != null) ws.close(1000, "bye");
     ws = null;
@@ -75,7 +81,10 @@ public final class AgentClient {
     ws = http.newWebSocket(req, new WebSocketListener() {
       @Override
       public void onOpen(WebSocket s, Response r) {
-        main.post(() -> listener.onAgentConnected(true));
+        main.post(() -> {
+          connected = true;
+          listener.onAgentConnected(true);
+        });
       }
 
       @Override
@@ -110,6 +119,7 @@ public final class AgentClient {
   private void reconnect(WebSocket s) {
     if (s != ws || !running) return;
     ws = null;
+    connected = false;
     listener.onAgentConnected(false);
     listener.onTelemetry(null);
     main.postDelayed(this::connect, 3000);

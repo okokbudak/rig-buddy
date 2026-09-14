@@ -8,14 +8,15 @@ android {
 
     defaultConfig {
         applicationId 'tr.ets2nav'
-        // The head unit runs Android 8.1 (API 27); keep older units working too.
+        // Phones, tablets and head units: Android 5.0+ (old head units run 8.1).
         minSdk 21
-        targetSdk 27
+        targetSdk 34
         versionCode 1
         versionName '0.1.0'
         ndk {
-            // AC8227L is 32-bit only; shipping one ABI keeps the APK small.
-            abiFilters 'armeabi-v7a'
+            // 32-bit ARM (older head units), 64-bit ARM (phones, tablets),
+            // x86_64 (emulators, Chromebooks)
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
         }
     }
 

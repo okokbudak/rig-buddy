@@ -40,6 +40,7 @@ static class Program
         var bridge = new TelemetryBridge();
         try { bridge.Start(); }
         catch (Exception e) { Console.WriteLine($"bridge: disabled ({e.Message}); is another Rig Buddy running?"); }
+        Discovery.Start();
         _ = Task.Run(async () =>
         {
             try { await new MediaService().RunAsync(); }

@@ -55,8 +55,10 @@ import java.util.Locale;
 import java.util.Map;
 
 import tr.ets2nav.agent.AgentClient;
+import tr.ets2nav.agent.PcFinder;
 import tr.ets2nav.map.LocalTileServer;
 import tr.ets2nav.map.MapStyle;
+import tr.ets2nav.map.TileDownloader;
 import tr.ets2nav.nav.NavClient;
 import tr.ets2nav.nav.Route;
 import tr.ets2nav.nav.TruckTracker;
@@ -97,6 +99,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private final TruckTracker.Pose pose = new TruckTracker.Pose();
   private final Route.Progress progress = new Route.Progress();
   private final Map<String, LocalTileServer> tileServers = new HashMap<>();
+  private TileDownloader tiles;
 
   private String game = "ets2";
   private boolean darkMode;
@@ -189,7 +192,39 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
 
     nav = new NavClient(prefs, this);
     searchPanel = new SearchPanel(findViewById(R.id.searchPanel), nav, this::showDestCard);
+    tiles = new TileDownloader(prefs, mapDir(), new TileDownloader.Listener() {
+      @Override
+      public void onProgress(String g, double fraction, long total) {
+        showMessage(String.format(Ui.TR, "Harita PC'den indiriliyor… %%%d\n%d MB", Math.round(fraction * 100), total / 1_000_000));
+      }
+
+      @Override
+      public void onUpdated(String g, File file) {
+        LocalTileServer old = tileServers.remove(g);
+        if (old != null) old.stop();
+        tileUrlCache.remove(g);
+        if (g.equals(game)) loadStyle();
+        flashMessage("Harita güncellendi");
+      }
+
+      @Override
+      public void onFailed(String g, String error) {
+        if (!TileDownloader.fileFor(mapDir(), g).exists()) {
+          showMessage("Harita indirilemedi: " + error + "\nPC bağlantısı kurulunca yeniden denenecek.");
+        }
+      }
+    });
     setupShell();
+  }
+
+  /** Where the map files live: app-specific external storage, or internal if there is none. */
+  private File mapDir() {
+    File d = getExternalFilesDir(null);
+    return d != null ? d : getFilesDir();
+  }
+
+  private void syncTiles() {
+    if (!host().isEmpty()) tiles.sync(host(), AgentClient.PORT, game);
   }
 
   // --- head-unit shell: rail + screens ---------------------------------------------
@@ -224,7 +259,12 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
       @Override
       public void onAgentConnected(boolean connected) {
         railAgentDot.setBackground(Ui.rounded(connected ? Ui.GREEN : Ui.RED, Ui.dp(MainActivity.this, 5)));
-        if (connected) profile.load();
+        if (connected) {
+          profile.load();
+          syncTiles();
+        } else {
+          scheduleRediscovery();
+        }
       }
     });
 
@@ -250,7 +290,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     addRailButton(rail, "profile", R.drawable.ic_person, "Profil");
     addRailAction(rail, R.drawable.ic_settings, "Ayarlar", this::showSettings);
     rail.addView(Ui.spacer(this), Ui.hweight(1));
-    railClock = Ui.text(this, 22, Ui.TEXT, true);
+    railClock = Ui.text(this, compactRail() ? 16 : 22, Ui.TEXT, true);
     railClock.setGravity(Gravity.CENTER);
     rail.addView(railClock, Ui.matchWrap());
     LinearLayout dots = Ui.row(this);
@@ -292,18 +332,25 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     railIcons.put(name, addRailAction(rail, icon, label, () -> showScreen(name)));
   }
 
+  /** Phones in landscape (~400 dp tall): icons only, so the rail fits without scrolling. */
+  private boolean compactRail() {
+    return getResources().getConfiguration().screenHeightDp < 560;
+  }
+
   private ImageView addRailAction(LinearLayout rail, int icon, String label, Runnable action) {
     LinearLayout b = Ui.column(this);
     b.setGravity(Gravity.CENTER);
-    // 7 entries must fit a 720 px tall screen with the clock: keep them compact
-    int p = Ui.dp(this, 5);
+    // 7 entries must fit a 720 px tall head unit with the clock: keep them compact
+    boolean compact = compactRail();
+    int p = Ui.dp(this, compact ? 3 : 5);
     b.setPadding(0, p, 0, p);
     ImageView iv = new ImageView(this);
     iv.setImageResource(icon);
     int ip = Ui.dp(this, 7);
     iv.setPadding(Ui.dp(this, 18), ip, Ui.dp(this, 18), ip);
-    b.addView(iv, new LinearLayout.LayoutParams(Ui.dp(this, 72), Ui.dp(this, 42)));
-    b.addView(Ui.text(this, label, 13, Ui.TEXT2, false), Ui.margins(Ui.wrap(), this, 0, 3, 0, 0));
+    iv.setContentDescription(label);
+    b.addView(iv, new LinearLayout.LayoutParams(Ui.dp(this, 72), Ui.dp(this, compact ? 40 : 42)));
+    if (!compact) b.addView(Ui.text(this, label, 13, Ui.TEXT2, false), Ui.margins(Ui.wrap(), this, 0, 3, 0, 0));
     b.setOnClickListener(v -> action.run());
     rail.addView(b, Ui.margins(Ui.matchWrap(), this, 0, 2, 0, 2));
     iv.setColorFilter(Ui.TEXT2);
@@ -400,11 +447,45 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
 
   private void startClients() {
     if (host().isEmpty()) {
-      showHostDialog();
+      // first run: look for the PC on the LAN before asking for its address
+      showMessage("PC aranıyor…\nPC'de Rig Buddy açık olmalı.");
+      PcFinder.find((found, name) -> {
+        if (found != null) {
+          useHost(found, name);
+        } else {
+          hideMessage();
+          showHostDialog();
+        }
+      });
       return;
     }
     nav.start(host());
     agent.start(host());
+    scheduleRediscovery();
+  }
+
+  private void useHost(String found, String name) {
+    prefs.edit().putString("host", found).apply();
+    hideMessage();
+    flashMessage("PC bulundu: " + (name != null ? name + " (" + found + ")" : found));
+    restartClients();
+  }
+
+  /**
+   * The PC's IP can change (DHCP). While the agent stays unreachable, look for
+   * the PC again every 30 s and switch to it if it moved.
+   */
+  private final Runnable rediscover = () -> {
+    if (agent.isConnected() || isFinishing()) return;
+    PcFinder.find((found, name) -> {
+      if (found != null && !found.equals(host())) useHost(found, name);
+      else scheduleRediscovery();
+    });
+  };
+
+  private void scheduleRediscovery() {
+    screenHost.removeCallbacks(rediscover);
+    screenHost.postDelayed(rediscover, 30_000);
   }
 
   // --- map setup -------------------------------------------------------------
@@ -432,7 +513,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
 
   private void loadStyle() {
     if (map == null) return;
-    File mbtiles = new File(getExternalFilesDir(null), game + ".mbtiles");
+    File mbtiles = TileDownloader.fileFor(mapDir(), game);
     String tileUrl = "http://127.0.0.1:1/none/{z}/{x}/{y}.pbf";
     if (mbtiles.exists()) {
       try {
@@ -447,9 +528,10 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
       } catch (IOException e) {
         showMessage("Harita dosyası açılamadı:\n" + e.getMessage());
       }
-    } else {
-      showMessage("Harita dosyası bulunamadı:\n" + mbtiles.getPath()
-          + "\n\nPC'den yükleyin:\nadb push " + game + ".mbtiles " + mbtiles.getPath());
+    } else if (!tiles.isRunning()) {
+      showMessage(host().isEmpty()
+          ? "Harita, PC'ye bağlanınca otomatik indirilecek."
+          : "Harita PC'den indirilecek…\nPC'de Rig Buddy'nin açık olduğundan emin olun.");
     }
     style = null;
     map.setStyle(new Style.Builder().fromJson(MapStyle.build(game, tileUrl, darkMode)), this::onStyleLoaded);
@@ -610,6 +692,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
           SearchPanel.distanceScale = distanceScale();
           setRoute(null);
           loadStyle();
+          syncTiles();
         }
         break;
       case "segmentComplete":
@@ -963,10 +1046,23 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     input.setSelectAllOnFocus(true);
     new AlertDialog.Builder(this)
         .setTitle("PC adresi (Rig Buddy çalışan bilgisayar)")
+        .setMessage("PC'deki Rig Buddy penceresinde yazan adresi girin ya da otomatik bulmayı deneyin.")
         .setView(input)
         .setPositiveButton("Kaydet", (d, w) -> {
           prefs.edit().putString("host", input.getText().toString().trim()).apply();
           restartClients();
+        })
+        .setNeutralButton("Otomatik bul", (d, w) -> {
+          showMessage("PC aranıyor…");
+          PcFinder.find((found, name) -> {
+            if (found != null) {
+              useHost(found, name);
+            } else {
+              hideMessage();
+              flashMessage("PC bulunamadı. Rig Buddy'nin açık ve aynı Wi-Fi'da olduğundan emin olun.");
+              showHostDialog();
+            }
+          });
         })
         .setNegativeButton("İptal", null)
         .show();
@@ -1023,6 +1119,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
 
   @Override
   protected void onStop() {
+    screenHost.removeCallbacks(rediscover);
     nav.stop();
     agent.stop();
     mapView.onStop();
