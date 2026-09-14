@@ -965,7 +965,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     input.setHint("örn. 192.168.1.50");
     input.setSelectAllOnFocus(true);
     new AlertDialog.Builder(this)
-        .setTitle("PC adresi (ETS2 Nav çalışan bilgisayar)")
+        .setTitle("PC adresi (Rig Buddy çalışan bilgisayar)")
         .setView(input)
         .setPositiveButton("Kaydet", (d, w) -> {
           prefs.edit().putString("host", input.getText().toString().trim()).apply();

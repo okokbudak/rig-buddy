@@ -10,7 +10,8 @@ using Microsoft.Win32;
 sealed class TrayApp : ApplicationContext
 {
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    const string RunValue = "ETS2 Nav";
+    const string RunValue = "Rig Buddy";
+    const string OldRunValue = "ETS2 Nav"; // before the rename; migrated on start
 
     readonly Supervisor _sup;
     readonly TelemetryBridge _bridge;
@@ -27,7 +28,8 @@ sealed class TrayApp : ApplicationContext
         _sup = sup;
         _bridge = bridge;
 
-        var title = new ToolStripMenuItem("ETS2 Nav") { Enabled = false, Font = new Font(_menu.Font, FontStyle.Bold) };
+        MigrateAutostart();
+        var title = new ToolStripMenuItem("Rig Buddy") { Enabled = false, Font = new Font(_menu.Font, FontStyle.Bold) };
         _problem = new ToolStripMenuItem { Visible = false, ForeColor = Color.Firebrick };
         _problem.Click += (_, _) => OpenPath(Path.Combine(sup.Root, "README.md"));
         _menu.Items.Add(title);
@@ -56,7 +58,7 @@ sealed class TrayApp : ApplicationContext
         exit.Click += (_, _) => Exit();
         _menu.Items.AddRange([restart, logs, _autostart, new ToolStripSeparator(), exit]);
 
-        _tray = new NotifyIcon { ContextMenuStrip = _menu, Text = "ETS2 Nav", Visible = true };
+        _tray = new NotifyIcon { ContextMenuStrip = _menu, Text = "Rig Buddy", Visible = true };
         // left click opens the menu too (NotifyIcon only does that for right click)
         _tray.MouseUp += (_, e) =>
         {
@@ -77,7 +79,7 @@ sealed class TrayApp : ApplicationContext
     public void Post(Action action) => _ui.Post(_ => action(), null);
 
     public void Balloon(string text, ToolTipIcon icon = ToolTipIcon.Info) =>
-        _tray.ShowBalloonTip(4000, "ETS2 Nav", text, icon);
+        _tray.ShowBalloonTip(4000, "Rig Buddy", text, icon);
 
     public void Exit()
     {
@@ -121,7 +123,7 @@ sealed class TrayApp : ApplicationContext
             _tray.Icon = MakeIcon(color);
             old?.Dispose();
         }
-        string tip = $"ETS2 Nav: {(_sup.SetupProblem != null ? "kurulum eksik" : allRunning ? "hazır" : "başlatılıyor")}" +
+        string tip = $"Rig Buddy: {(_sup.SetupProblem != null ? "kurulum eksik" : allRunning ? "hazır" : "başlatılıyor")}" +
                      (_bridge.GameConnected ? ", oyun bağlı" : "");
         _tray.Text = tip.Length > 63 ? tip[..63] : tip;
     }
@@ -140,6 +142,15 @@ sealed class TrayApp : ApplicationContext
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey);
         return key?.GetValue(RunValue) is string;
+    }
+
+    /** Carries a "start with Windows" choice over from the old app name. */
+    static void MigrateAutostart()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
+        if (key?.GetValue(OldRunValue) == null) return;
+        key.DeleteValue(OldRunValue, throwOnMissingValue: false);
+        SetAutostart(true);
     }
 
     static void SetAutostart(bool on)
@@ -167,21 +178,15 @@ sealed class TrayApp : ApplicationContext
         return Dots[c] = bmp;
     }
 
-    /** Same artwork as the head-unit launcher icon, plus a status dot. */
+    /** The app icon (art/MakeIcon.java, embedded in the exe) plus a status dot. */
     static Icon MakeIcon(Color status)
     {
         using var bmp = new Bitmap(32, 32);
         using (var g = Graphics.FromImage(bmp))
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            float k = 32 / 100f;
-            using var blue = new SolidBrush(Color.FromArgb(0x1a, 0x73, 0xe8));
-            g.FillEllipse(blue, 4 * k, 4 * k, 92 * k, 92 * k);
-            g.FillPolygon(Brushes.White, new[]
-            {
-                new PointF(50 * k, 18 * k), new PointF(76 * k, 80 * k),
-                new PointF(50 * k, 66 * k), new PointF(24 * k, 80 * k),
-            });
+            using (var app = Icon.ExtractAssociatedIcon(Environment.ProcessPath!))
+                if (app != null) g.DrawIcon(app, new Rectangle(0, 0, 32, 32));
             using var dot = new SolidBrush(status);
             using var ring = new Pen(Color.White, 2);
             g.FillEllipse(dot, 19, 19, 12, 12);

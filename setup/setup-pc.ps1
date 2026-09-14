@@ -1,4 +1,4 @@
-# One-time setup of the gaming PC side of ETS2 Nav. Safe to re-run: every step
+# One-time setup of the gaming PC side of Rig Buddy. Safe to re-run: every step
 # skips what is already there.
 #
 #   powershell -ExecutionPolicy Bypass -File setup\setup-pc.ps1
@@ -7,7 +7,7 @@
 #   vendor\node      portable Node.js 24
 #   vendor\gradle    Gradle (Android build)
 #   vendor\tm-maps   truckermudgeon/maps pinned + pc\patches\tm-maps applied
-# and builds the PC app bin\ETS2Nav.exe (+ Start menu shortcut), installs the
+# and builds the PC app bin\RigBuddy.exe (+ Start menu shortcut), installs the
 # SCS telemetry plugin into the games, downloads the map label fonts into the
 # Android assets and opens the firewall for the head unit (asks for admin).
 param(
@@ -79,15 +79,16 @@ if (-not (Test-Path "$Root\pc\agent\node_modules\ws")) {
   try { Exec { npm ci --ignore-scripts --no-audit --no-fund } 'npm ci (agent)' } finally { Pop-Location }
 }
 
-Step 'PC app (bin\ETS2Nav.exe)'
-$running = Get-Process ETS2Nav -ErrorAction SilentlyContinue
-if ($running) { & "$Root\bin\ETS2Nav.exe" --quit | Out-Null; $running | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue }
-Exec { dotnet publish "$Root\pc\host\ETS2Nav.csproj" -c Release -o "$Root\bin" --nologo -v q } 'dotnet publish'
-$lnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'ETS2 Nav.lnk'
+Step 'PC app (bin\RigBuddy.exe)'
+$running = Get-Process RigBuddy, ETS2Nav -ErrorAction SilentlyContinue # ETS2Nav = name before the rename
+if ($running) { & "$Root\bin\$($running[0].Name).exe" --quit | Out-Null; $running | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue }
+Exec { dotnet publish "$Root\pc\host\RigBuddy.csproj" -c Release -o "$Root\bin" --nologo -v q } 'dotnet publish'
+Remove-Item "$Root\bin\ETS2Nav.*", (Join-Path ([Environment]::GetFolderPath('Programs')) 'ETS2 Nav.lnk') -ErrorAction SilentlyContinue
+$lnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'Rig Buddy.lnk'
 $sc = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
-$sc.TargetPath = "$Root\bin\ETS2Nav.exe"
+$sc.TargetPath = "$Root\bin\RigBuddy.exe"
 $sc.WorkingDirectory = "$Root\bin"
-$sc.Description = 'ETS2 Nav PC servisi'
+$sc.Description = 'Rig Buddy PC servisi'
 $sc.Save()
 Write-Host "  Start menu shortcut: $lnk"
 
@@ -150,4 +151,4 @@ Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 Write-Host "`nPC setup done. Next:" -ForegroundColor Green
 Write-Host '  1. map data from your game files:  pipeline\build-map-data.ps1   (WSL, ~30-60 min)'
 Write-Host '  2. APK + head unit:                setup\install-headunit.ps1 -Device <ip:port> -PcHost <pc ip>'
-Write-Host '  3. start "ETS2 Nav" (Start menu); it runs in the tray. Tray menu: "Windows acilisinda baslat".'
+Write-Host '  3. start "Rig Buddy" (Start menu); it runs in the tray. Tray menu: "Windows acilisinda baslat".'

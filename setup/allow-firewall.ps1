@@ -20,8 +20,8 @@ $rules | Where-Object { $_.Action -eq 'Block' } | ForEach-Object {
   Write-Host "removing block rule: $($_.DisplayName) ($($_.Profile))"
   Remove-NetFirewallRule -Name $_.Name
 }
-Get-NetFirewallRule -DisplayName 'ETS2 Nav (Node.js)' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-New-NetFirewallRule -DisplayName 'ETS2 Nav (Node.js)' -Direction Inbound -Action Allow -Profile Private `
+Get-NetFirewallRule -DisplayName 'Rig Buddy (Node.js)', 'ETS2 Nav (Node.js)' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+New-NetFirewallRule -DisplayName 'Rig Buddy (Node.js)' -Direction Inbound -Action Allow -Profile Private `
   -Program $node -Protocol TCP -LocalPort 62840, 62843 | Out-Null
 Write-Host "allowed: $node (TCP 62840, 62843, private networks)" -ForegroundColor Green
 Write-Host 'Your Wi-Fi must be set to "Private" in Windows network settings.'

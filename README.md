@@ -1,4 +1,6 @@
-# ETS2 Nav
+<p align="center"><img src="art/rigbuddy.svg" width="128" alt="Rig Buddy"></p>
+
+# Rig Buddy
 
 Euro Truck Simulator 2 için araç içi multimedya ekranı. Eski ve zayıf Android
 head unit'lerde (Android 5+ / GLES2, 1 GB RAM) çalışır ve cihazın ana ekranı
@@ -25,7 +27,7 @@ gibi davranır:
 ## Mimari
 
 ```
- ┌─────────────────── Oyun PC'si: bin\ETS2Nav.exe (tepside) ──────────────┐
+ ┌─────────────────── Oyun PC'si: bin\RigBuddy.exe (tepside) ─────────────┐
  │ ETS2 + scs-telemetry.dll ──(shared memory)──► telemetri köprüsü :62841 │
  │                                               medya oturumları  :62844 │
  │   Node servisleri (exe başlatır, izler, çökünce yeniden başlatır):     │
@@ -34,7 +36,7 @@ gibi davranır:
  └───────────────────────────────┬────────────────────────────────────────┘
                                  │ Wi-Fi (WebSocket)
  ┌───────────────────────────────▼────────────────────────────────────────┐
- │ Head unit: ETS2 Nav APK (android\)                                      │
+ │ Head unit: Rig Buddy APK (android\)                                     │
  │   MapLibre + yerel ets2.mbtiles (cihazda), ekranlar, launcher          │
  └────────────────────────────────────────────────────────────────────────┘
 ```
@@ -42,15 +44,16 @@ gibi davranır:
 | Klasör | İçerik |
 |---|---|
 | `android/` | Head unit uygulaması (Java, MapLibre Native, OkHttp) |
-| `pc/host/` | PC uygulaması `ETS2Nav.exe` (C#/.NET 8, tepsi uygulaması). SCS shared memory köprüsü, Windows medya oturumları, uygulama bazında ses; Node servislerini de yönetir |
+| `pc/host/` | PC uygulaması `RigBuddy.exe` (C#/.NET 8, tepsi uygulaması). SCS shared memory köprüsü, Windows medya oturumları, uygulama bazında ses; Node servislerini de yönetir |
 | `pc/agent/` | Node servisi: tam telemetri, kayıt dosyası çözümü (işler, profil), medya ve radyo |
 | `pc/patches/` | `truckermudgeon/maps` üzerine uygulanan yamalar ve telemetri eklentisi yerine geçen `scsSDKTelemetry.js` |
 | `pipeline/` | Oyun dosyalarından harita, rota ve ikon verisini üreten script'ler (WSL) |
 | `setup/` | Kurulum script'leri |
 | `dev/` | Geliştirme araçları: simülasyon, deploy, protokol testleri |
+| `art/` | Uygulama ikonu: `rigbuddy.svg` ve Android ile Windows ikonlarını üreten `MakeIcon.java` |
 
 Kurulumun ürettiği ve git'e girmeyen klasörler: `vendor/` (Node, Gradle,
-tm-maps), `data/` (oyundan üretilen veri), `bin/` (ETS2Nav.exe), `logs/`, `local/`.
+tm-maps), `data/` (oyundan üretilen veri), `bin/` (RigBuddy.exe), `logs/`, `local/`.
 
 ## Gereksinimler
 
@@ -69,7 +72,7 @@ PowerShell'de, depo klasöründe çalıştır:
 
 ```powershell
 # 1) Node, Gradle ve tm-maps'i vendor\ içine indirir ve yamaları uygular.
-#    ETS2Nav.exe'yi derleyip Başlat menüsüne ekler, telemetri eklentisini ETS2
+#    RigBuddy.exe'yi derleyip Başlat menüsüne ekler, telemetri eklentisini ETS2
 #    ve ATS'ye kurar, harita fontlarını indirir. Son adımda güvenlik duvarı
 #    izni için yönetici onayı ister.
 powershell -ExecutionPolicy Bypass -File setup\setup-pc.ps1
@@ -95,7 +98,7 @@ ağın "Özel" olması gerekir. Windows'un güvenlik duvarı penceresi bir kez
 
 ## Kullanım
 
-1. Başlat menüsünden **ETS2 Nav**'ı aç. Pencere açılmaz; saat yanındaki
+1. Başlat menüsünden **Rig Buddy**'yi aç. Pencere açılmaz; saat yanındaki
    tepside mavi bir simge belirir. Simgenin köşesindeki nokta durumu gösterir:
    yeşil hazır, turuncu başlatılıyor, kırmızı kurulum eksik.
    Simgeye tıklayınca şunlar görünür: servislerin durumu, oyun bağlantısı,
@@ -104,9 +107,9 @@ ağın "Özel" olması gerekir. Windows'un güvenlik duvarı penceresi bir kez
 2. Oyunu aç. Head unit kayıtlı PC adresine bağlanır ve otomatik eşleşir.
 
 Script veya kısayoldan kontrol için:
-`ETS2Nav.exe --quit`, `--restart [server|agent|telemetry]`, `--status`.
+`RigBuddy.exe --quit`, `--restart [server|agent|telemetry]`, `--status`.
 
-Loglar `logs\` klasörüne yazılır: `ets2nav.log`, `server.log`,
+Loglar `logs\` klasörüne yazılır: `rigbuddy.log`, `server.log`,
 `agent.log`, `telemetry.log`.
 
 **Not:** Kurulumdan sonra depo klasörünü taşırsan `setup\setup-pc.ps1`'i
@@ -116,12 +119,12 @@ tekrar çalıştır. npm'in oluşturduğu klasör bağlantıları mutlak yol kul
 
 - `dev\dev.env.example` dosyasını `dev\dev.env` olarak kopyala, sonra
   `dev/dev-deploy.sh` (Git Bash) ile derle, kur ve ekran görüntüsü al.
-- Oyun olmadan test için simülasyon kullanılır (ETS2Nav.exe açıkken).
+- Oyun olmadan test için simülasyon kullanılır (RigBuddy.exe açıkken).
   `dev\dev-run-sim.ps1 berlin hamburg 90` sentetik bir sürüş kaydı üretir.
   `dev\dev-play-recording.ps1` bu kaydı telemetri istemcisine oynatır.
   Canlı telemetriye dönmek için tepsi menüsünde telemetri satırına tıkla.
 - PC uygulamasını yeniden derlemek için:
-  `dotnet publish pc\host\ETS2Nav.csproj -c Release -o bin`
+  `dotnet publish pc\host\RigBuddy.csproj -c Release -o bin`
 - Protokol testleri `dev\test-*.mjs` dosyalarıdır, `vendor\node\node.exe` ile
   çalıştırılır.
 - tm-maps'te değişiklik yaparsan `vendor\tm-maps` içinde `ets2nav-local`
@@ -130,7 +133,7 @@ tekrar çalıştır. npm'in oluşturduğu klasör bağlantıları mutlak yol kul
 
 ## Destek
 
-ETS2 Nav ücretsizdir ve öyle kalacak. İşine yaradıysa bir kahve ısmarlayarak
+Rig Buddy ücretsizdir ve öyle kalacak. İşine yaradıysa bir kahve ısmarlayarak
 geliştirmeye destek olabilirsin ☕
 
 <!-- TODO: bağış bağlantısı (Buy Me a Coffee / Ko-fi / GitHub Sponsors) -->

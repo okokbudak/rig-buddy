@@ -1,4 +1,4 @@
-// Lets scripts drive the running app: `ETS2Nav.exe --quit`,
+// Lets scripts drive the running app: `RigBuddy.exe --quit`,
 // `--restart [server|agent|telemetry]`, `--stop <svc>`, `--start <svc>`, `--status`.
 // One text command per connection on 127.0.0.1:62845, answered with one line.
 

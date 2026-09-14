@@ -180,7 +180,7 @@ public final class MediaScreen {
     boolean has = cur != null && !cur.optString("title").isEmpty();
     empty.setVisibility(has ? View.GONE : View.VISIBLE);
     player.setVisibility(has ? View.VISIBLE : View.GONE);
-    if (m == null) empty.setText("PC'deki ETS2 Nav'a bağlanılamadı.");
+    if (m == null) empty.setText("PC'deki Rig Buddy'ye bağlanılamadı.");
     else empty.setText("PC'de çalan bir şey yok.\nSpotify, Apple Music ya da tarayıcıda müzik açın.");
     if (!has) {
       playing = false;
@@ -259,7 +259,7 @@ public final class MediaScreen {
       radioSong.setText("");
       radioState.setText(agentUp
           ? "Oyunda radyo açıldığında istasyon ve çalan şarkı burada görünür."
-          : "PC'deki ETS2 Nav'a bağlanılamadı.");
+          : "PC'deki Rig Buddy'ye bağlanılamadı.");
       return;
     }
     radioStation.setText(r.optString("name"));

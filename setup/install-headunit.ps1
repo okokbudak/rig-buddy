@@ -1,11 +1,11 @@
-# Builds the APK and installs ETS2 Nav on the head unit over ADB, pushes the
+# Builds the APK and installs Rig Buddy on the head unit over ADB, pushes the
 # map tiles, and points the app at this PC.
 #
 #   setup\install-headunit.ps1 -Device 192.168.1.50:5555 -PcHost 192.168.1.10 [-SetHome]
 #
 # -Device   head unit's ADB address (Wi-Fi ADB ip:port), or a USB serial
 # -PcHost   this PC's LAN IP (the app connects to it); asked in the app if omitted
-# -SetHome  make ETS2 Nav the head unit's home screen (launcher)
+# -SetHome  make Rig Buddy the head unit's home screen (launcher)
 # -NoBuild  install the last built APK
 param(
   [Parameter(Mandatory = $true)][string]$Device,
@@ -56,4 +56,4 @@ if ($SetHome) {
 Step 'start'
 if ($PcHost) { Adb shell am start -n "$pkg/.MainActivity" --es host $PcHost | Out-Null }
 else { Adb shell am start -n "$pkg/.MainActivity" | Out-Null }
-Write-Host "`nInstalled. Start ETS2 Nav on this PC (Start menu, runs in the tray); the app connects by itself." -ForegroundColor Green
+Write-Host "`nInstalled. Start Rig Buddy on this PC (Start menu, runs in the tray); the app connects by itself." -ForegroundColor Green

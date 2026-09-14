@@ -1,4 +1,4 @@
-// The app has no console: Console.Out/Error go to logs\ets2nav.log with
+// The app has no console: Console.Out/Error go to logs\rigbuddy.log with
 // timestamps. The Node services log to their own files (see Supervisor).
 
 using System.Text;
@@ -11,7 +11,7 @@ static class Log
     {
         Dir = dir;
         Directory.CreateDirectory(dir);
-        var writer = TextWriter.Synchronized(new TimestampWriter(Open(Path.Combine(dir, "ets2nav.log"))));
+        var writer = TextWriter.Synchronized(new TimestampWriter(Open(Path.Combine(dir, "rigbuddy.log"))));
         Console.SetOut(writer);
         Console.SetError(writer);
     }

@@ -1,8 +1,8 @@
-# Dev helper: (re)starts the navigation server inside the running ETS2 Nav app
+# Dev helper: (re)starts the navigation server inside the running Rig Buddy app
 # (starts the app if needed) and waits until the server answers.
 . "$PSScriptRoot\nav-control.ps1"
 $root = Split-Path $PSScriptRoot -Parent
-if ($null -eq (Send-Nav 'restart server')) { Start-Process (Join-Path $root 'bin\ETS2Nav.exe') }
+if ($null -eq (Send-Nav 'restart server')) { Start-Process (Join-Path $root 'bin\RigBuddy.exe') }
 $deadline = (Get-Date).AddSeconds(150)
 do {
   Start-Sleep -Seconds 2

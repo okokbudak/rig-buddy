@@ -191,7 +191,7 @@ export function fetchStreamTitle(url, redirects = 2) {
     let head = Buffer.alloc(0);
     let gotHeaders = false;
     sock.on(secure ? 'secureConnect' : 'connect', () => {
-      sock.write(`GET ${u.pathname || '/'}${u.search} HTTP/1.0\r\nHost: ${u.host}\r\nIcy-MetaData: 1\r\nUser-Agent: ets2nav\r\n\r\n`);
+      sock.write(`GET ${u.pathname || '/'}${u.search} HTTP/1.0\r\nHost: ${u.host}\r\nIcy-MetaData: 1\r\nUser-Agent: rigbuddy\r\n\r\n`);
     });
     sock.on('data', chunk => {
       if (gotHeaders) return;

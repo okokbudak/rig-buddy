@@ -30,7 +30,7 @@ public final class VehicleScreen {
     root.setPadding(pad, pad, pad, pad);
     title = Ui.text(c, 22, Ui.TEXT, true);
     root.addView(title, Ui.margins(Ui.matchWrap(), c, 4, 0, 0, 14));
-    empty = Ui.text(c, "Oyundan veri gelmiyor.\nPC'de ETS2 Nav'ı başlatıp oyuna girin.", 22, Ui.TEXT2, false);
+    empty = Ui.text(c, "Oyundan veri gelmiyor.\nPC'de Rig Buddy'yi başlatıp oyuna girin.", 22, Ui.TEXT2, false);
     empty.setGravity(Gravity.CENTER);
     root.addView(empty, Ui.hweight(1));
 

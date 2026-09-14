@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds everything ETS2 Nav needs from YOUR installed game files (all DLC map
+# Builds everything Rig Buddy needs from YOUR installed game files (all DLC map
 # packs you own are included automatically). Runs in WSL (Ubuntu); the Windows
 # wrapper pipeline\build-map-data.ps1 finds the game folders and calls this.
 #
