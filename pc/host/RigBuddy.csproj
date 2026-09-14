@@ -12,7 +12,7 @@
     <AssemblyName>RigBuddy</AssemblyName>
     <Product>Rig Buddy</Product>
     <Version>0.1.0</Version>
-    <Copyright>Copyright (C) 2026 Orhan. GPL-3.0-or-later.</Copyright>
+    <Copyright>Copyright (C) 2026 Orhan Kökbudak. GPL-3.0-or-later.</Copyright>
     <ApplicationIcon>rigbuddy.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
