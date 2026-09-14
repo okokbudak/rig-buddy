@@ -91,27 +91,32 @@ sealed class Supervisor
         }
     }
 
-    public Supervisor(string root)
+    public Supervisor(AppPaths paths)
     {
-        Root = root;
-        _node = Path.Combine(root, @"vendor\node\node.exe");
-        string tm = Path.Combine(root, @"vendor\tm-maps");
+        Root = paths.Root;
+        _node = paths.Node;
+        string tm = paths.TmMaps;
         string tsx = Path.Combine(tm, @"node_modules\tsx\dist\cli.mjs");
-        string data = Path.Combine(root, "data");
-        string shim = Path.Combine(root, @"pc\patches\scsSDKTelemetry.js");
+        string data = paths.Data;
+        string shim = Path.Combine(paths.Root, @"pc\patches\scsSDKTelemetry.js");
+        string? dist = paths.Dist;
+        // bundled services (release, or dev after setup\bundle.mjs), else the sources through tsx
+        string[] Entry(string bundle, string source) =>
+            dist != null ? [Path.Combine(dist, bundle, "index.mjs")] : [tsx, source];
+        string Cwd(string bundle, string sourceDir) => dist != null ? Path.Combine(dist, bundle) : sourceDir;
 
         _data = data;
-        if (!File.Exists(_node) || !File.Exists(tsx))
-            SetupProblem = "setup.missing"; // L keys
-        else if (!HasMap("europe") && !HasMap("usa"))
-            SetupProblem = "setup.nodata"; // data for one of the two games is enough
+        if (!File.Exists(_node) || (dist == null && !File.Exists(tsx)))
+            SetupProblem = "setup.missing"; // L key
+        // No map data yet (first start): the server waits for MapBuilder; the
+        // agent runs anyway (media, radio, jobs and profile need no map).
 
         var server = new NodeService
         {
             Name = "server",
             Title = "svc.server",
-            WorkDir = Path.Combine(tm, @"packages\apis\navigation"),
-            Args = ["--max-old-space-size=8192", tsx, "index.ts", data],
+            WorkDir = Cwd("server", Path.Combine(tm, @"packages\apis\navigation")),
+            Args = ["--max-old-space-size=8192", .. Entry("server", "index.ts"), data],
             Env = new()
             {
                 ["NODE_ENV"] = "development",
@@ -120,27 +125,30 @@ sealed class Supervisor
                 ["LOG_LEVEL"] = "info",
             },
             HealthUrl = "http://127.0.0.1:62840/health",
+            CanStart = () => HasMap("europe") || HasMap("usa"),
         };
         server.OnLine = line => OnServerLine(server, line);
         var agent = new NodeService
         {
             Name = "agent",
             Title = "svc.agent",
-            WorkDir = Path.Combine(root, @"pc\agent"),
-            Args = [Path.Combine(root, @"pc\agent\index.mjs")],
+            WorkDir = Cwd("agent", Path.Combine(paths.Root, @"pc\agent")),
+            Args = dist != null ? [Path.Combine(dist, @"agent\index.mjs")] : [Path.Combine(paths.Root, @"pc\agent\index.mjs")],
             Env = new() { ["ETS2NAV_DATA"] = data },
             HealthUrl = "http://127.0.0.1:62843/health",
-            BeforeStart = () => CopyShim(shim, Path.Combine(root, @"pc\agent\node_modules\trucksim-telemetry\build\Release")),
+            BeforeStart = dist != null ? null
+                : () => CopyShim(shim, Path.Combine(paths.Root, @"pc\agent\node_modules\trucksim-telemetry\build\Release")),
         };
         var telemetry = new NodeService
         {
             Name = "telemetry",
             Title = "svc.telemetry",
-            WorkDir = Path.Combine(tm, @"packages\clis\navigator"),
-            Args = [tsx, "index.ts"],
+            WorkDir = Cwd("navigator", Path.Combine(tm, @"packages\clis\navigator")),
+            Args = Entry("navigator", "index.ts"),
             Env = new() { ["NODE_ENV"] = "development" },
             CanStart = () => server.State == ServiceState.Running,
-            BeforeStart = () => CopyShim(shim, Path.Combine(tm, @"node_modules\trucksim-telemetry\build\Release")),
+            BeforeStart = dist != null ? null
+                : () => CopyShim(shim, Path.Combine(tm, @"node_modules\trucksim-telemetry\build\Release")),
             OnLine = line =>
             {
                 // "enter pairing code: abcd" / "... use pairing code: abcd"

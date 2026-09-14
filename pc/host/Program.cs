@@ -5,6 +5,7 @@
 //   RigBuddy.exe --quit              stop the running app and all services
 //   RigBuddy.exe --restart [svc]     restart server|agent|telemetry (default: all)
 //   RigBuddy.exe --stop <svc> / --start <svc> / --status
+//   RigBuddy.exe --install-plugin    copy the SCS telemetry plugin into ETS2 / ATS (installer, as admin)
 
 static class Program
 {
@@ -13,6 +14,7 @@ static class Program
     [STAThread]
     static int Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--install-plugin") return InstallPlugin();
         if (args.Length > 0 && Commands.Contains(args[0]))
         {
             string? reply = ControlPort.Send(string.Join(' ', args).TrimStart('-'));
@@ -30,9 +32,10 @@ static class Program
             return 0;
         }
 
-        string root = FindRoot();
-        Log.Init(Path.Combine(root, "logs"));
-        Console.WriteLine($"Rig Buddy starting, root {root}");
+        var paths = AppPaths.Detect();
+        Log.Init(paths.Logs);
+        Console.WriteLine($"Rig Buddy starting ({(paths.Release ? "release" : "dev")}), app {paths.Root}, data {paths.Data}" +
+                          (paths.Dist != null ? ", bundled services" : ", services from source"));
         Application.ThreadException += (_, e) => Console.WriteLine($"ui error: {e.Exception}");
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Console.WriteLine($"fatal: {e.ExceptionObject}");
         ApplicationConfiguration.Initialize();
@@ -47,14 +50,39 @@ static class Program
             catch (Exception e) { Console.WriteLine($"media: disabled ({e.GetType().Name}: {e.Message})"); }
         });
 
-        var sup = new Supervisor(root);
-        var app = new TrayApp(sup, bridge, quiet: args.Contains("--autostart"));
+        var sup = new Supervisor(paths);
+        // new map data: the server reloads it (or starts, on the first build)
+        var maps = new MapBuilder(paths, onBuilt: () => sup.Restart("server"));
+        var app = new TrayApp(sup, bridge, maps, quiet: args.Contains("--autostart"));
         ControlPort.Listen(cmd => Handle(cmd, sup, app));
         sup.Start();
+        if (sup.SetupProblem == null) maps.Check();
         Application.Run(app);
         sup.StopAll();
+        maps.Stop();
         Console.WriteLine("Rig Buddy stopped");
         return 0;
+    }
+
+    /** plugin\scs-telemetry.dll (next to the exe) -> <game>\bin\win_x64\plugins, for each installed game. */
+    static int InstallPlugin()
+    {
+        string dll = Path.Combine(AppContext.BaseDirectory, @"plugin\scs-telemetry.dll");
+        if (!File.Exists(dll)) return 2;
+        var (ets2, ats) = MapBuilder.FindGames();
+        int failed = 0;
+        foreach (var game in new[] { ets2, ats })
+        {
+            if (game == null) continue;
+            try
+            {
+                string dir = Path.Combine(game, @"bin\win_x64\plugins");
+                Directory.CreateDirectory(dir);
+                File.Copy(dll, Path.Combine(dir, "scs-telemetry.dll"), overwrite: true);
+            }
+            catch (Exception) { failed++; } // game running (dll in use) or no rights
+        }
+        return failed == 0 ? 0 : 1;
     }
 
     static string Handle(string cmd, Supervisor sup, TrayApp app)
@@ -76,14 +104,6 @@ static class Program
                        (sup.SetupProblem != null ? $"; setup: {sup.SetupProblem}" : "");
             default: return $"error: unknown command '{cmd}'";
         }
-    }
-
-    /** The repo folder: the first parent of the exe that holds pc\agent (exe normally lives in bin\). */
-    static string FindRoot()
-    {
-        for (var d = new DirectoryInfo(AppContext.BaseDirectory); d != null; d = d.Parent)
-            if (File.Exists(Path.Combine(d.FullName, @"pc\agent\index.mjs"))) return d.FullName;
-        return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, ".."));
     }
 
     [System.Runtime.InteropServices.DllImport("kernel32.dll")]

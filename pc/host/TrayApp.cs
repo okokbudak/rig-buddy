@@ -16,6 +16,7 @@ sealed class TrayApp : ApplicationContext
 
     readonly Supervisor _sup;
     readonly TelemetryBridge _bridge;
+    readonly MapBuilder _maps;
     readonly NotifyIcon _tray;
     readonly System.Windows.Forms.Timer _timer = new() { Interval = 1000 };
     readonly SynchronizationContext _ui;
@@ -27,10 +28,11 @@ sealed class TrayApp : ApplicationContext
     Color _lastColor = Color.Empty;
     bool _hiddenHintShown;
 
-    public TrayApp(Supervisor sup, TelemetryBridge bridge, bool quiet)
+    public TrayApp(Supervisor sup, TelemetryBridge bridge, MapBuilder maps, bool quiet)
     {
         _sup = sup;
         _bridge = bridge;
+        _maps = maps;
         MigrateAutostart();
         _tray = new NotifyIcon { Text = "Rig Buddy", Visible = true };
         // left click: the window; right click: the menu
@@ -49,7 +51,7 @@ sealed class TrayApp : ApplicationContext
     void BuildUi()
     {
         _logs = new LogForm();
-        _window = new StatusForm(_sup, _bridge, ShowLogs);
+        _window = new StatusForm(_sup, _bridge, _maps, ShowLogs);
         _window.HiddenToTray += () =>
         {
             if (_hiddenHintShown) return;
@@ -61,7 +63,7 @@ sealed class TrayApp : ApplicationContext
         var open = new ToolStripMenuItem(L.T("tray.open")) { Font = new Font(_menu.Font, FontStyle.Bold) };
         open.Click += (_, _) => ShowWindow();
         _problem = new ToolStripMenuItem { Visible = false, ForeColor = Color.Firebrick };
-        _problem.Click += (_, _) => OpenPath(Path.Combine(_sup.Root, "README.md"));
+        _problem.Click += (_, _) => OpenPath("https://github.com/okokbudak/rig-buddy#readme");
         _menu.Items.AddRange([open, _problem, new ToolStripSeparator()]);
         _svcItems.Clear();
         foreach (var s in _sup.Services)
@@ -79,6 +81,9 @@ sealed class TrayApp : ApplicationContext
 
         var restart = new ToolStripMenuItem(L.T("win.restart"));
         restart.Click += (_, _) => _sup.Restart(null);
+        // update when the game changed, full rebuild otherwise
+        var map = new ToolStripMenuItem(L.T("tray.map_update"));
+        map.Click += (_, _) => { _maps.Build(force: _maps.State == MapState.UpToDate); ShowWindow(); };
         var logs = new ToolStripMenuItem(L.T("tray.logs"));
         logs.Click += (_, _) => ShowLogs();
         var theme = Choices(L.T("tray.theme"), Theme.Choices.Select(c => (c.Value, L.T(c.Label))),
@@ -89,8 +94,13 @@ sealed class TrayApp : ApplicationContext
         _autostart.Click += (_, _) => SetAutostart(_autostart.Checked);
         var exit = new ToolStripMenuItem(L.T("tray.exit"));
         exit.Click += (_, _) => Exit();
-        _menu.Items.AddRange([restart, logs, theme, language, _autostart, new ToolStripSeparator(), exit]);
-        _menu.Opening += (_, _) => _autostart.Checked = AutostartEnabled(); // the window may have changed it
+        _menu.Items.AddRange([restart, map, logs, theme, language, _autostart, new ToolStripSeparator(), exit]);
+        _menu.Opening += (_, _) =>
+        {
+            _autostart.Checked = AutostartEnabled(); // the window may have changed it
+            map.Text = L.T(_maps.State == MapState.UpToDate ? "tray.map_rebuild" : "tray.map_update");
+            map.Enabled = _maps.State is not (MapState.Building or MapState.NoGame);
+        };
         _tray.ContextMenuStrip = _menu;
     }
 
@@ -232,9 +242,15 @@ sealed class TrayApp : ApplicationContext
     static void MigrateAutostart()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
-        if (key?.GetValue(OldRunValue) == null) return;
-        key.DeleteValue(OldRunValue, throwOnMissingValue: false);
-        SetAutostart(true);
+        if (key == null) return;
+        if (key.GetValue(OldRunValue) != null)
+        {
+            key.DeleteValue(OldRunValue, throwOnMissingValue: false);
+            SetAutostart(true);
+        }
+        // an entry for another copy (the dev build, an older install folder) -> this one
+        else if (key.GetValue(RunValue) is string cmd && !cmd.Contains(Environment.ProcessPath!, StringComparison.OrdinalIgnoreCase))
+            SetAutostart(true);
     }
 
     internal static void SetAutostart(bool on)
