@@ -1,16 +1,14 @@
 # Builds the APK and installs Rig Buddy on the head unit over ADB, pushes the
 # map tiles, and points the app at this PC.
 #
-#   setup\install-headunit.ps1 -Device 192.168.1.50:5555 -PcHost 192.168.1.10 [-SetHome]
+#   setup\install-headunit.ps1 -Device 192.168.1.50:5555 -PcHost 192.168.1.10
 #
 # -Device   head unit's ADB address (Wi-Fi ADB ip:port), or a USB serial
 # -PcHost   this PC's LAN IP (the app connects to it); asked in the app if omitted
-# -SetHome  make Rig Buddy the head unit's home screen (launcher)
 # -NoBuild  install the last built APK
 param(
   [Parameter(Mandatory = $true)][string]$Device,
   [string]$PcHost,
-  [switch]$SetHome,
   [switch]$NoBuild
 )
 . "$PSScriptRoot\lib.ps1"
@@ -46,11 +44,6 @@ if (Test-Path $tiles) {
   Adb push $tiles "$remoteDir/ets2.mbtiles"
 } else {
   Write-Warning 'data\ets2.mbtiles missing (pipeline\build-map-data.ps1); the map screen will stay empty.'
-}
-
-if ($SetHome) {
-  Step 'set as home screen'
-  Adb shell cmd package set-home-activity "$pkg/.MainActivity"
 }
 
 Step 'start'
