@@ -6,7 +6,7 @@ $ProgressPreference = 'SilentlyContinue' # Invoke-WebRequest crawls with the pro
 
 $Root = Split-Path $PSScriptRoot -Parent # $PSScriptRoot is setup\ even when dot-sourced
 $TmMapsRepo = 'https://github.com/truckermudgeon/maps.git'
-$TmMapsRev = 'd56d0e3' # keep in sync with pipeline/build-map-data.sh
+$TmMapsRev = 'd56d0e3' # the patches in pc/patches/tm-maps apply on top of this
 $GradleVersion = '8.14.5'
 $PluginUrl = 'https://github.com/truckermudgeon/scs-sdk-plugin/releases/download/v1.12.1/build-windows-latest.zip'
 

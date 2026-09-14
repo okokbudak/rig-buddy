@@ -74,15 +74,16 @@ public final class MapStyle {
   /**
    * @param game       "ets2" or "ats" (also the vector layer name)
    * @param tileUrl    XYZ template served by LocalTileServer
+   * @param spriteUrl  the POI icon sheet (downloaded from the PC), or null: no icons yet
    */
-  public static String build(String game, String tileUrl, boolean darkMode) {
+  public static String build(String game, String tileUrl, String spriteUrl, boolean darkMode) {
     Palette c = darkMode ? dark() : light();
     try {
       JSONObject style = new JSONObject();
       style.put("version", 8);
       style.put("name", "ets2nav-" + (darkMode ? "dark" : "light"));
       style.put("glyphs", "asset://glyphs/{fontstack}/{range}.pbf");
-      style.put("sprite", "asset://sprites/sprites");
+      if (spriteUrl != null) style.put("sprite", spriteUrl);
 
       JSONObject src = new JSONObject()
           .put("type", "vector")

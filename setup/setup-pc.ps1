@@ -149,6 +149,5 @@ if (-not $SkipFirewall) {
 
 Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 Write-Host "`nPC setup done. Next:" -ForegroundColor Green
-Write-Host '  1. map data from your game files:  pipeline\build-map-data.ps1   (WSL, ~30-60 min)'
-Write-Host '  2. APK + head unit:                setup\install-headunit.ps1 -Device <ip:port> -PcHost <pc ip>'
-Write-Host '  3. start "Rig Buddy" (Start menu); it runs in the tray. Tray menu: "Windows acilisinda baslat".'
+Write-Host '  1. start "Rig Buddy" (Start menu): it builds the map from your game files on first start (~5-8 min)'
+Write-Host '  2. APK + head unit:  setup\install-headunit.ps1 -Device <ip:port> -PcHost <pc ip>'

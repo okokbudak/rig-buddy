@@ -5,7 +5,6 @@ pipeline/node_modules/
 
 # ---- generated from the game files (pipeline/, never commit: SCS content) ----
 data/
-android/app/src/main/assets/sprites/
 android/app/src/main/assets/glyphs/
 
 # ---- build output ----

@@ -1,5 +1,6 @@
 # Builds the APK and installs Rig Buddy on the head unit over ADB, pushes the
-# map tiles, and points the app at this PC.
+# map tiles, and points the app at this PC. (Phones and tablets: install the
+# APK any way you like; the app downloads the map from Rig Buddy.)
 #
 #   setup\install-headunit.ps1 -Device 192.168.1.50:5555 -PcHost 192.168.1.10
 #
@@ -17,10 +18,8 @@ $pkg = 'tr.ets2nav'
 
 if (-not $NoBuild) {
   Step 'build APK'
-  foreach ($need in 'glyphs', 'sprites') {
-    if (-not (Test-Path "$Root\android\app\src\main\assets\$need")) {
-      throw "android assets\$need missing: run setup\setup-pc.ps1 and pipeline\build-map-data.ps1 first"
-    }
+  if (-not (Test-Path "$Root\android\app\src\main\assets\glyphs")) {
+    throw 'android assets\glyphs missing: run setup\setup-pc.ps1 first'
   }
   $env:JAVA_HOME = Get-JavaHome
   Push-Location "$Root\android"
@@ -43,7 +42,7 @@ if (Test-Path $tiles) {
   Adb shell mkdir -p $remoteDir
   Adb push $tiles "$remoteDir/ets2.mbtiles"
 } else {
-  Write-Warning 'data\ets2.mbtiles missing (pipeline\build-map-data.ps1); the map screen will stay empty.'
+  Write-Warning 'data\ets2.mbtiles missing (start Rig Buddy once to build it); the app downloads the map from Rig Buddy instead.'
 }
 
 Step 'start'

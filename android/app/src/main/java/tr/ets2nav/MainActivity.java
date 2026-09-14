@@ -229,6 +229,10 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
 
       @Override
       public void onUpdated(String g, File file) {
+        if (g.equals("sprites")) {
+          loadStyle();
+          return;
+        }
         LocalTileServer old = tileServers.remove(g);
         if (old != null) old.stop();
         tileUrlCache.remove(g);
@@ -562,8 +566,10 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
           ? Ui.s(R.string.map_will_download)
           : Ui.s(R.string.map_will_download_pc));
     }
+    File sprites = TileDownloader.spritesDir(mapDir());
+    String spriteUrl = new File(sprites, "sprites.png").exists() ? "file://" + sprites.getAbsolutePath() + "/sprites" : null;
     style = null;
-    map.setStyle(new Style.Builder().fromJson(MapStyle.build(game, tileUrl, darkMode)), this::onStyleLoaded);
+    map.setStyle(new Style.Builder().fromJson(MapStyle.build(game, tileUrl, spriteUrl, darkMode)), this::onStyleLoaded);
   }
 
   private final Map<String, String> tileUrlCache = new HashMap<>();

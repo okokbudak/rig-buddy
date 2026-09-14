@@ -165,6 +165,7 @@ static class L
         ["logs.title"] = ["Rig Buddy – Loglar", "Rig Buddy – Logs", "Rig Buddy – Protokolle", "Rig Buddy – Журналы", "Rig Buddy – Logs", "Rig Buddy – Registros", "Rig Buddy – Journaux"],
         ["logs.agent"] = ["Agent", "Agent", "Agent", "Агент", "Agente", "Agente", "Agent"],
         ["logs.telemetry"] = ["Telemetri", "Telemetry", "Telemetrie", "Телеметрия", "Telemetria", "Telemetría", "Télémétrie"],
+        ["logs.map"] = ["Harita", "Map", "Karte", "Карта", "Mapa", "Mapa", "Carte"],
         ["logs.folder"] = ["Klasörü aç", "Open folder", "Ordner öffnen", "Открыть папку", "Abrir pasta", "Abrir carpeta", "Ouvrir le dossier"],
         ["logs.copy"] = ["Kopyala", "Copy", "Kopieren", "Копировать", "Copiar", "Copiar", "Copier"],
         ["logs.pause"] = ["Duraklat", "Pause", "Pausieren", "Пауза", "Pausar", "Pausar", "Pause"],
@@ -173,16 +174,10 @@ static class L
 
         // supervisor
         ["setup.missing"] = [
-            "Kurulum eksik: setup\\setup-pc.ps1 çalıştırın.", "Setup incomplete: run setup\\setup-pc.ps1.",
-            "Einrichtung unvollständig: setup\\setup-pc.ps1 ausführen.", "Установка не завершена: запустите setup\\setup-pc.ps1.",
-            "Instalação incompleta: execute setup\\setup-pc.ps1.", "Instalación incompleta: ejecuta setup\\setup-pc.ps1.",
-            "Installation incomplète : lancez setup\\setup-pc.ps1.",
-        ],
-        ["setup.nodata"] = [
-            "Harita verisi yok: pipeline\\build-map-data.ps1 çalıştırın.", "No map data: run pipeline\\build-map-data.ps1.",
-            "Keine Kartendaten: pipeline\\build-map-data.ps1 ausführen.", "Нет данных карты: запустите pipeline\\build-map-data.ps1.",
-            "Sem dados do mapa: execute pipeline\\build-map-data.ps1.", "Sin datos del mapa: ejecuta pipeline\\build-map-data.ps1.",
-            "Pas de données de carte : lancez pipeline\\build-map-data.ps1.",
+            "Kurulum eksik ya da bozuk: Rig Buddy'yi yeniden kurun.", "Installation incomplete or damaged: reinstall Rig Buddy.",
+            "Installation unvollständig oder beschädigt: Rig Buddy neu installieren.", "Установка неполная или повреждена: переустановите Rig Buddy.",
+            "Instalação incompleta ou danificada: reinstale o Rig Buddy.", "Instalación incompleta o dañada: reinstala Rig Buddy.",
+            "Installation incomplète ou endommagée : réinstallez Rig Buddy.",
         ],
         ["svc.server"] = ["Navigasyon sunucusu", "Navigation server", "Navigationsserver", "Сервер навигации", "Servidor de navegação", "Servidor de navegación", "Serveur de navigation"],
         ["svc.agent"] = ["Agent (araç, işler, medya)", "Agent (vehicle, jobs, media)", "Agent (Fahrzeug, Aufträge, Medien)", "Агент (машина, заказы, медиа)", "Agente (veículo, fretes, mídia)", "Agente (vehículo, trabajos, multimedia)", "Agent (véhicule, missions, médias)"],
