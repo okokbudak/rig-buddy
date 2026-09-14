@@ -2,6 +2,20 @@ plugins {
     id 'com.android.application'
 }
 
+// Release signing: android/keystore.properties (git-ignored; storeFile,
+// storePassword, keyAlias, keyPassword) or the RIGBUDDY_KEYSTORE* environment
+// variables (CI). Without either, release builds use the debug key (local tests).
+def signing = new Properties()
+def signingFile = rootProject.file('keystore.properties')
+if (signingFile.exists()) signingFile.withInputStream { signing.load(it) }
+def sign = { key, env -> signing.getProperty(key) ?: System.getenv(env) }
+def releaseStore = sign('storeFile', 'RIGBUDDY_KEYSTORE')
+
+// version: gradle -PappVersion=1.2.3 (the release tag); versionCode 10203
+def appVersion = (project.findProperty('appVersion') ?: '0.1.0').toString()
+def appVersionCode = appVersion.tokenize('.').collect { it.replaceAll('\\D.*', '') as int }
+        .with { (it[0] * 10000) + (it[1] * 100) + it[2] }
+
 android {
     namespace 'tr.ets2nav'
     compileSdk 34
@@ -11,12 +25,23 @@ android {
         // Phones, tablets and head units: Android 5.0+ (old head units run 8.1).
         minSdk 21
         targetSdk 34
-        versionCode 1
-        versionName '0.1.0'
+        versionCode appVersionCode
+        versionName appVersion
         ndk {
             // 32-bit ARM (older head units), 64-bit ARM (phones, tablets),
             // x86_64 (emulators, Chromebooks)
             abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+        }
+    }
+
+    signingConfigs {
+        if (releaseStore) {
+            release {
+                storeFile file(releaseStore)
+                storePassword sign('storePassword', 'RIGBUDDY_KEYSTORE_PASSWORD')
+                keyAlias sign('keyAlias', 'RIGBUDDY_KEY_ALIAS')
+                keyPassword sign('keyPassword', 'RIGBUDDY_KEY_PASSWORD')
+            }
         }
     }
 
@@ -25,8 +50,7 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // Personal sideloaded build: sign with the debug key.
-            signingConfig signingConfigs.debug
+            signingConfig releaseStore ? signingConfigs.release : signingConfigs.debug
         }
     }
 
