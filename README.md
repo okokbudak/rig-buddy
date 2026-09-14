@@ -128,7 +128,29 @@ tekrar çalıştır. npm'in oluşturduğu klasör bağlantıları mutlak yol kul
   dalına commit at, sonra yamaları yeniden üret:
   `git -C vendor\tm-maps format-patch d56d0e3..ets2nav-local -o ..\..\pc\patches\tm-maps`
 
-## Teşekkürler ve lisanslar
+## Destek
+
+ETS2 Nav ücretsizdir ve öyle kalacak. İşine yaradıysa bir kahve ısmarlayarak
+geliştirmeye destek olabilirsin ☕
+
+<!-- TODO: bağış bağlantısı (Buy Me a Coffee / Ko-fi / GitHub Sponsors) -->
+
+Hata bildirimi ve önerilerini Issues sekmesinden paylaşabilirsin.
+
+## Lisans
+
+Copyright (C) 2026 Orhan
+
+Bu program özgür yazılımdır: Free Software Foundation'ın yayınladığı
+[GNU Genel Kamu Lisansı sürüm 3](LICENSE) (veya isteğe bağlı olarak daha
+sonraki bir sürümü) koşulları altında dağıtabilir ve değiştirebilirsin.
+Program faydalı olması umuduyla, ancak **hiçbir garanti olmaksızın**
+dağıtılmaktadır. Ayrıntılar için [LICENSE](LICENSE) dosyasına bak.
+
+Kısaca: kullanmak, değiştirmek ve paylaşmak serbest. Değiştirilmiş bir
+sürümü dağıtırsan kaynak kodunu da GPL-3.0 ile açık tutmalısın.
+
+## Teşekkürler ve üçüncü taraf lisansları
 
 - [truckermudgeon/maps](https://github.com/truckermudgeon/maps) (GPL-3.0):
   oyun dosyası ayrıştırıcısı, harita ve rota verisi üretici, navigasyon sunucusu.
