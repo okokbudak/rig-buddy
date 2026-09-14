@@ -49,7 +49,7 @@ sealed class Supervisor
     public bool SaveLoaded { get; private set; }
     public int Clients { get; private set; }
 
-    readonly string _node;
+    readonly string _node, _data;
     readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(2) };
     readonly object _lock = new();
     readonly SemaphoreSlim _wake = new(0);
@@ -100,10 +100,11 @@ sealed class Supervisor
         string data = Path.Combine(root, "data");
         string shim = Path.Combine(root, @"pc\patches\scsSDKTelemetry.js");
 
+        _data = data;
         if (!File.Exists(_node) || !File.Exists(tsx))
             SetupProblem = "setup.missing"; // L keys
-        else if (!File.Exists(Path.Combine(data, "europe-navigation.zip")))
-            SetupProblem = "setup.nodata";
+        else if (!HasMap("europe") && !HasMap("usa"))
+            SetupProblem = "setup.nodata"; // data for one of the two games is enough
 
         var server = new NodeService
         {
@@ -212,9 +213,28 @@ sealed class Supervisor
         catch { s.State = ServiceState.Starting; }
     }
 
+    bool HasMap(string map) => File.Exists(Path.Combine(_data, $"{map}-navigation.zip"));
+
+    /**
+     * The map the server loads before it starts listening (others load when
+     * that game is played): the running game's, else ETS2's, else ATS's.
+     */
+    string PreloadMap()
+    {
+        bool atsRunning = Process.GetProcessesByName("amtrucks").Length > 0;
+        bool ets2Running = Process.GetProcessesByName("eurotrucks2").Length > 0;
+        if (atsRunning && HasMap("usa")) return "usa";
+        if (ets2Running && HasMap("europe")) return "europe";
+        return HasMap("europe") ? "europe" : "usa";
+    }
+
     void Launch(NodeService s)
     {
-        if (s.Name == "server") SetStage(2, "stage.start", 2);
+        if (s.Name == "server")
+        {
+            SetStage(2, "stage.start", 2);
+            s.Env["PRELOAD_MAPS"] = PreloadMap();
+        }
         s.BeforeStart?.Invoke();
         s.LogFile ??= Log.Open(Path.Combine(Log.Dir, s.Name + ".log"));
         var psi = new ProcessStartInfo(_node)

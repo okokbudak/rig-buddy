@@ -1,7 +1,7 @@
 From 0bd2329176868100c1558b019e330d85d5d4d3a5 Mon Sep 17 00:00:00 2001
 From: ets2nav <ets2nav@localhost>
 Date: Mon, 14 Sep 2026 00:41:52 +0300
-Subject: [PATCH 2/4] ets2nav-local: fix tinypool worker handlers on Windows;
+Subject: [PATCH 2/5] ets2nav-local: fix tinypool worker handlers on Windows;
  add route telemetry simulator
 
 ---
