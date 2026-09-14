@@ -37,7 +37,7 @@ android {
     signingConfigs {
         if (releaseStore) {
             release {
-                storeFile file(releaseStore)
+                storeFile rootProject.file(releaseStore) // relative: next to keystore.properties
                 storePassword sign('storePassword', 'RIGBUDDY_KEYSTORE_PASSWORD')
                 keyAlias sign('keyAlias', 'RIGBUDDY_KEY_ALIAS')
                 keyPassword sign('keyPassword', 'RIGBUDDY_KEY_PASSWORD')
