@@ -1,170 +1,209 @@
 <p align="center"><img src="art/rigbuddy.svg" width="128" alt="Rig Buddy"></p>
 
-# Rig Buddy
+<h1 align="center">Rig Buddy</h1>
 
-Euro Truck Simulator 2 için araç içi multimedya ekranı. Eski ve zayıf Android
-head unit'lerde (Android 5+ / GLES2, 1 GB RAM) çalışır ve cihazın ana ekranı
-(launcher) olur. Oyun PC'de çalışırken ekran gerçek bir kamyon multimedyası
-gibi davranır:
+<p align="center">
+  Telefonunuzu, tabletinizi ya da araç multimedya ekranınızı<br>
+  <b>Euro Truck Simulator 2</b> ve <b>American Truck Simulator</b> için bir kamyon kokpit ekranına dönüştürün.
+</p>
 
-- **Harita / Navigasyon:** Google Maps benzeri harita, oyunun kendi yol ağıyla
-  rota hesaplama, dönüş dönüş yönlendirme, hedef arama, yakındaki
-  benzinlik/servis/park yeri. Sahip olduğun **tüm harita DLC'leri** dahildir,
-  çünkü veri doğrudan senin oyun kurulumundan üretilir.
-- **Araç bilgisayarı:** hız, devir, vites, yakıt ve menzil, AdBlue, hasar,
-  sıcaklıklar, basınçlar, uyarı lambaları, yolculuk verileri.
-- **İşler:** kayıttaki iş pazarındaki işler (yük, kazanç, mesafe, süre). İşi
-  işaretleyince uygulama o işin rotasını çizer.
-- **Profil:** para, seviye ve XP, şirket, garajlar, kamyonlar, sürücüler,
-  gezilen şehirler.
-- **Medya:** PC'de çalan Spotify, Chrome, YouTube vb. (şarkı, kapak, oynat,
-  duraklat, ileri, geri, ses) ve oyun içi radyo (istasyon ve çalan şarkı).
+<p align="center">
+  Ücretsiz · Açık kaynak (GPL-3.0) · Türkçe, English, Deutsch, Русский, Português, Español, Français
+</p>
 
-> Bu proje SCS Software ile bağlantılı değildir. Depoda oyun verisi **yoktur**:
-> harita, rota, ikon ve şehir verileri kurulum sırasında senin kendi oyun
-> dosyalarından üretilir.
+---
 
-## Mimari
+Direksiyonun başındayken haritaya bakmak için oyunu durdurmak, iş ilanlarına
+göz atmak için menülere dalmak, çalan şarkıyı değiştirmek için klavyeye
+uzanmak... Rig Buddy bunların hepsini yanınızdaki ikinci bir ekrana taşır.
+Oyun PC'de çalışırken telefonunuz, tabletiniz ya da simülatör kokpitinizdeki
+araç ekranı gerçek bir kamyonun multimedya sistemi gibi davranır.
+
+## Neler sunar?
+
+- **Navigasyon:** Alıştığınız navigasyon uygulamalarına benzeyen bir harita,
+  oyunun kendi yol ağıyla hesaplanan rotalar, dönüş dönüş yönlendirme,
+  şehir ve firma araması, yakınınızdaki benzinlik, servis ve park yerleri.
+  Harita sizin oyun kurulumunuzdan üretildiği için sahip olduğunuz **bütün
+  harita DLC'leri** kendiliğinden dahil olur.
+- **Araç bilgisayarı:** Hız, devir, vites, yakıt ve menzil, AdBlue,
+  sıcaklıklar, basınçlar, hasar durumu, ışıklar ve uyarılar.
+- **İşler:** İş pazarındaki ilanlar; yük, kazanç, mesafe ve süre bilgisiyle.
+  Bir ilana dokunmanız yeterli, rota kendiliğinden çizilir.
+- **Profil:** Paranız, seviyeniz, şirketiniz, garajlarınız, kamyonlarınız ve
+  şoförleriniz.
+- **Medya:** PC'de çalan Spotify, YouTube ya da tarayıcıdaki müzik (şarkı
+  adı, albüm kapağı, oynatma, geçiş ve ses) ile oyun içi radyonun istasyon ve
+  şarkı bilgisi.
+- **Her Android cihazda:** Telefon, tablet ya da araç multimedya ekranı
+  (Android 5.0 ve üzeri). Açık ve koyu tema, cihazınızın temasına kendiliğinden uyar.
+
+<!-- TODO ekran görüntüleri: ana ekran, harita, araç bilgisayarı, PC penceresi -->
+
+> Rig Buddy, SCS Software ile bağlantılı değildir. Depoda ve kurulum
+> dosyalarında oyuna ait hiçbir veri bulunmaz; harita verisi kurulum
+> sırasında sizin bilgisayarınızdaki oyun dosyalarından üretilir.
+
+## Nasıl çalışır?
 
 ```
- ┌─────────────────── Oyun PC'si: bin\RigBuddy.exe (tepside) ─────────────┐
- │ ETS2 + scs-telemetry.dll ──(shared memory)──► telemetri köprüsü :62841 │
- │                                               medya oturumları  :62844 │
- │   Node servisleri (exe başlatır, izler, çökünce yeniden başlatır):     │
- │     telemetri istemcisi ──► navigasyon sunucusu :62840 (rota, arama)   │
- │     pc\agent :62843  tam telemetri, kayıt (işler, profil), medya, radyo │
- └───────────────────────────────┬────────────────────────────────────────┘
-                                 │ Wi-Fi (WebSocket)
- ┌───────────────────────────────▼────────────────────────────────────────┐
- │ Head unit: Rig Buddy APK (android\)                                     │
- │   MapLibre + yerel ets2.mbtiles (cihazda), ekranlar, launcher          │
- └────────────────────────────────────────────────────────────────────────┘
+  Oyun PC'si (Windows)                         Telefon / tablet / araç ekranı
+ ┌─────────────────────────────┐   Wi-Fi     ┌──────────────────────────────┐
+ │ ETS2 / ATS                  │ ──────────► │ Rig Buddy uygulaması         │
+ │   └ telemetri eklentisi     │             │   harita, araç, işler,       │
+ │ Rig Buddy (arka planda)     │ ◄────────── │   profil, medya              │
+ └─────────────────────────────┘             └──────────────────────────────┘
 ```
 
-| Klasör | İçerik |
-|---|---|
-| `android/` | Head unit uygulaması (Java, MapLibre Native, OkHttp) |
-| `pc/host/` | PC uygulaması `RigBuddy.exe` (C#/.NET 8, tepsi uygulaması). SCS shared memory köprüsü, Windows medya oturumları, uygulama bazında ses; Node servislerini de yönetir |
-| `pc/agent/` | Node servisi: tam telemetri, kayıt dosyası çözümü (işler, profil), medya ve radyo |
-| `pc/patches/` | `truckermudgeon/maps` üzerine uygulanan yamalar ve telemetri eklentisi yerine geçen `scsSDKTelemetry.js` |
-| `pipeline/` | Oyun dosyalarından harita, rota ve ikon verisini üreten script'ler (WSL) |
-| `setup/` | Kurulum script'leri |
-| `dev/` | Geliştirme araçları: simülasyon, deploy, protokol testleri |
-| `art/` | Uygulama ikonu: `rigbuddy.svg` ve Android ile Windows ikonlarını üreten `MakeIcon.java` |
-
-Kurulumun ürettiği ve git'e girmeyen klasörler: `vendor/` (Node, Gradle,
-tm-maps), `data/` (oyundan üretilen veri), `bin/` (RigBuddy.exe), `logs/`, `local/`.
+PC'deki **Rig Buddy** oyundan anlık verileri okur, rotaları hesaplar ve aynı
+Wi-Fi ağındaki cihazlarınıza gönderir. Cihazınızdaki uygulama PC'yi kendisi
+bulur; haritayı da ilk bağlantıda PC'den indirir. Hangi oyunu açarsanız
+o oyunun haritası ve bilgileri gelir.
 
 ## Gereksinimler
 
-**Oyun PC'si:** Windows 10/11, ETS2 **ve** ATS (Steam; navigasyon sunucusu iki
-haritayı birlikte yüklüyor), [Git](https://git-scm.com), [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0),
-JDK 17 (`winget install Microsoft.OpenJDK.17`), Android SDK platform-tools
-(Android Studio veya `winget install Google.PlatformTools`), veri üretimi için
-WSL'de Ubuntu ve Node.js 22+. Veri üretiminde 16 GB RAM önerilir.
-
-**Head unit:** Android 5.0+ (API 21), ARMv7, Wi-Fi ile PC'yle aynı ağda,
-ADB açık (USB veya Wi-Fi ADB).
+| | |
+|---|---|
+| **PC** | Windows 10 veya 11; Steam'de Euro Truck Simulator 2 ve/veya American Truck Simulator |
+| **Cihaz** | Android 5.0 veya üzeri bir telefon, tablet ya da araç multimedya ekranı |
+| **Ağ** | PC ile cihazın aynı Wi-Fi ağında olması (Windows'ta ağ türü "Özel" olmalıdır) |
 
 ## Kurulum
 
-PowerShell'de, depo klasöründe çalıştır:
+### 1. PC
 
-```powershell
-# 1) Node, Gradle ve tm-maps'i vendor\ içine indirir ve yamaları uygular.
-#    RigBuddy.exe'yi derleyip Başlat menüsüne ekler, telemetri eklentisini ETS2
-#    ve ATS'ye kurar, harita fontlarını indirir. Son adımda güvenlik duvarı
-#    izni için yönetici onayı ister.
-powershell -ExecutionPolicy Bypass -File setup\setup-pc.ps1
+1. [Releases](../../releases) sayfasından **RigBuddy-Setup.exe** dosyasını indirip çalıştırın.
+2. Kurulum sırasında sırasıyla şunlar yapılır:
+   - Rig Buddy kurulur ve Başlat menüsüne eklenir.
+   - Telemetri eklentisi, bilgisayarınızda kurulu olan oyunlara yüklenir.
+   - Windows Güvenlik Duvarı'nda yalnızca özel ağlar için gerekli izin verilir.
+   - **Harita, kurulu oyunlarınızın dosyalarından üretilir.** Bu işlem
+     yalnızca ilk kurulumda yapılır ve birkaç dakika sürebilir. <!-- TODO: süre, yöntem kararına göre -->
+3. Kurulum bittiğinde Rig Buddy açılır. Penceredeki çubuk dolup **Hazır**
+   yazısını gördüğünüzde PC tarafı tamamdır.
 
-# 2) Oyun dosyalarından harita, rota, şehir ve ikon verisini üretir.
-#    Bir kez yapılır; oyun güncellemesi veya yeni DLC sonrası tekrar çalıştırılır.
-#    WSL'de 30-60 dk sürer.
-powershell -ExecutionPolicy Bypass -File pipeline\build-map-data.ps1
+### 2. Telefon, tablet ya da araç ekranı
 
-# 3) APK'yı derler, head unit'e kurar, haritayı yükler, ana ekran yapar.
-powershell -ExecutionPolicy Bypass -File setup\install-headunit.ps1 -Device 192.168.1.50:5555 -PcHost 192.168.1.10 -SetHome
-```
+1. Aynı Releases sayfasından **RigBuddy.apk** dosyasını cihazınıza indirip
+   kurun. Android, bilinmeyen kaynaklardan yükleme için izin isteyebilir.
+2. Uygulamayı açın. Uygulama aynı Wi-Fi ağındaki PC'yi **kendiliğinden
+   bulur**. Bulamazsa, PC'deki Rig Buddy penceresinde yazan adresi girmeniz
+   yeterlidir.
+3. İlk bağlantıda harita PC'den indirilir. Boyutu yaklaşık 70 MB'tır, birkaç
+   saniye sürer.
 
-`-Device`, head unit'in ADB adresidir; `-PcHost` bu PC'nin yerel IP'sidir
-(`ipconfig`). `-PcHost` verilmezse uygulama ilk açılışta sorar; sonradan
-**Ayarlar → PC adresi** menüsünden değiştirilebilir.
+### 3. Yola çıkın
 
-Head unit PC'ye 62840 ve 62843 portlarından bağlanır. İzin
-`setup\allow-firewall.ps1` ile verilir (setup-pc.ps1 bunu otomatik çalıştırır).
-Bu izin yalnızca **Özel** ağlarda geçerlidir, bu yüzden Windows ağ ayarlarında
-ağın "Özel" olması gerekir. Windows'un güvenlik duvarı penceresi bir kez
-"İptal" ile kapatıldıysa engelleme kuralı oluşur; script bu kuralı da temizler.
+Oyunu açın; cihazınızdaki ekranlar anlık verilerle dolacaktır. Hedef seçmek
+için haritada bir noktaya uzun basabilir ya da arama yapabilirsiniz. İşler
+ekranında bir ilanı seçtiğinizde rotası kendiliğinden çizilir.
 
-## Kullanım
+## Kullanırken bilmeniz gerekenler
 
-1. Başlat menüsünden **Rig Buddy**'yi aç. Pencere açılmaz; saat yanındaki
-   tepside mavi bir simge belirir. Simgenin köşesindeki nokta durumu gösterir:
-   yeşil hazır, turuncu başlatılıyor, kırmızı kurulum eksik.
-   Simgeye tıklayınca şunlar görünür: servislerin durumu, oyun bağlantısı,
-   PC adresi (head unit'e girilecek IP), servisleri yeniden başlat, log
-   klasörünü aç, **Windows açılışında başlat**, çıkış.
-2. Oyunu aç. Head unit kayıtlı PC adresine bağlanır ve otomatik eşleşir.
+- **PC penceresi:** Rig Buddy'nin penceresini kapattığınızda program
+  kapanmaz; saatin yanındaki simgeye iner ve arka planda çalışmaya devam
+  eder. Simgeye sol tıkladığınızda pencere, sağ tıkladığınızda menü açılır.
+  Buradan servisleri yeniden başlatabilir, kayıtları (log) izleyebilir, tema
+  ve dili değiştirebilir, programın **Windows açılışında başlamasını**
+  sağlayabilirsiniz.
+- **Uygulama ayarları:** Sol menüdeki dişli simgesinden PC adresini
+  değiştirebilir, yeniden eşleştirme yapabilir, temayı (Sistem, Açık, Koyu)
+  ve dili seçebilirsiniz.
+- **Yeni bir DLC ya da oyun güncellemesi sonrasında** haritanın da
+  güncellenmesi gerekir: <!-- TODO: kurulum yöntemi kesinleşince (ör. Başlat menüsü > "Rig Buddy haritayı güncelle") -->
+- Aynı anda birden fazla cihaz bağlanabilir.
 
-Script veya kısayoldan kontrol için:
-`RigBuddy.exe --quit`, `--restart [server|agent|telemetry]`, `--status`.
+## Sorun giderme
 
-Loglar `logs\` klasörüne yazılır: `rigbuddy.log`, `server.log`,
-`agent.log`, `telemetry.log`.
-
-**Not:** Kurulumdan sonra depo klasörünü taşırsan `setup\setup-pc.ps1`'i
-tekrar çalıştır. npm'in oluşturduğu klasör bağlantıları mutlak yol kullanıyor.
-
-## Geliştirme
-
-- `dev\dev.env.example` dosyasını `dev\dev.env` olarak kopyala, sonra
-  `dev/dev-deploy.sh` (Git Bash) ile derle, kur ve ekran görüntüsü al.
-- Oyun olmadan test için simülasyon kullanılır (RigBuddy.exe açıkken).
-  `dev\dev-run-sim.ps1 berlin hamburg 90` sentetik bir sürüş kaydı üretir.
-  `dev\dev-play-recording.ps1` bu kaydı telemetri istemcisine oynatır.
-  Canlı telemetriye dönmek için tepsi menüsünde telemetri satırına tıkla.
-- PC uygulamasını yeniden derlemek için:
-  `dotnet publish pc\host\RigBuddy.csproj -c Release -o bin`
-- Protokol testleri `dev\test-*.mjs` dosyalarıdır, `vendor\node\node.exe` ile
-  çalıştırılır.
-- tm-maps'te değişiklik yaparsan `vendor\tm-maps` içinde `ets2nav-local`
-  dalına commit at, sonra yamaları yeniden üret:
-  `git -C vendor\tm-maps format-patch d56d0e3..ets2nav-local -o ..\..\pc\patches\tm-maps`
+| Sorun | Ne yapmalı? |
+|---|---|
+| Uygulama PC'yi bulamıyor | PC ile cihazın aynı Wi-Fi ağında olduğundan emin olun. Windows'ta ağ türü "Özel" olmalıdır. Misafir ağlarında cihazlar birbirini göremeyebilir; bu durumda PC penceresindeki adresi elle girin. |
+| Bağlantı var ama veri gelmiyor | Oyunun açık olduğundan emin olun. PC penceresinde "Araç bilgisayarı: Oyundan veri geliyor" yazmalıdır. Yazmıyorsa kurulumu yeniden çalıştırarak telemetri eklentisini tekrar yükleyin. |
+| Harita boş görünüyor | Harita ilk bağlantıda indirilir; indirmenin tamamlanmasını bekleyin. Sorun sürerse Ayarlar'dan yeniden eşleştirme yapın. |
+| İşler ya da Profil ekranı boş | Bu bilgiler oyunun kayıt dosyasından okunur. Oyun ilk otomatik kaydını yaptığında (yaklaşık 3 dakika) ekranlar dolacaktır. |
+| Başka bir sorun | PC penceresinde **Loglar**'ı açın, ilgili sekmeyi seçip **Kopyala**'ya tıklayın ve [Issues](../../issues) sayfasında paylaşın. |
 
 ## Destek
 
-Rig Buddy ücretsiz ve açık kaynaktır, öyle de kalacak. İşine yaradıysa bir
-kahve ısmarlayarak geliştirmeye destek olabilirsin ☕ Bağış bağlantısı yakında
-burada olacak.
+Rig Buddy ücretsizdir ve öyle kalacaktır. Beğendiyseniz, bir kahve ısmarlayarak
+projenin gelişmesine destek olabilirsiniz ☕ Bağış bağlantısı yakında burada
+olacak.
 
-Hata bildirimi ve önerilerini Issues sekmesinden paylaşabilirsin.
+Hata bildirimlerinizi ve önerilerinizi [Issues](../../issues) sayfasından
+iletebilirsiniz. Çevirilerdeki hataları düzeltmeniz de büyük katkı olur;
+ayrıntılar için aşağıdaki "Çeviriler" bölümüne bakabilirsiniz.
+
+## Geliştiriciler için
+
+<details>
+<summary>Kaynaktan derleme, depo yapısı ve çeviriler</summary>
+
+### Depo yapısı
+
+| Klasör | İçerik |
+|---|---|
+| `android/` | Android uygulaması (Java, MapLibre Native, OkHttp) |
+| `pc/host/` | PC uygulaması `RigBuddy.exe` (C#/.NET 8; tepsi simgesi ve pencere). Telemetri köprüsü, medya, PC keşfi ve Node servislerinin yönetimi |
+| `pc/agent/` | Node servisi: tam telemetri, kayıt dosyası (işler, profil), medya, radyo ve haritanın cihazlara aktarılması |
+| `pc/patches/` | [truckermudgeon/maps](https://github.com/truckermudgeon/maps) üzerine uygulanan yamalar ve telemetri eklentisinin yerini alan `scsSDKTelemetry.js` |
+| `pipeline/` | Oyun dosyalarından harita, rota ve ikon verisini üreten betikler (WSL) |
+| `setup/` | Geliştirme ortamı kurulum betikleri |
+| `art/` | Uygulama ikonu (`rigbuddy.svg`) ve Android/Windows ikonlarını üreten `MakeIcon.java` |
+| `dev/` | Simülasyon, dağıtım ve protokol testi araçları |
+
+Kurulum sırasında oluşturulan ve depoya eklenmeyen klasörler: `vendor/`
+(Node, Gradle, tm-maps), `data/` (oyundan üretilen veri), `bin/`
+(RigBuddy.exe), `logs/` ve `local/`.
+
+### Kaynaktan kurulum
+
+Gerekenler: Git, .NET 8 SDK, JDK 17, Android SDK; veri üretimi için WSL
+üzerinde Ubuntu ve Node.js 22 veya üzeri.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File setup\setup-pc.ps1          # Node, Gradle, tm-maps ve yamalar, RigBuddy.exe, eklenti, güvenlik duvarı
+powershell -ExecutionPolicy Bypass -File pipeline\build-map-data.ps1 # kurulu oyunların dosyalarından veri üretimi (WSL)
+powershell -ExecutionPolicy Bypass -File setup\install-headunit.ps1 -Device <ip:port> -PcHost <pc ip>  # APK'yı ADB ile kurma
+```
+
+### Faydalı komutlar
+
+- PC uygulamasını derlemek: `dotnet publish pc\host\RigBuddy.csproj -c Release -o bin`
+- Uygulamayı derleyip cihaza kurmak ve ekran görüntüsü almak: `dev/dev-deploy.sh` (ayarlar `dev/dev.env` dosyasında)
+- Oyun olmadan test etmek: `dev\dev-run-sim.ps1 berlin hamburg 90`, ardından `dev\dev-play-recording.ps1`
+- Programı betikten yönetmek: `RigBuddy.exe --status`, `--restart [server|agent|telemetry]`, `--quit`
+- tm-maps üzerinde değişiklik yapmak: `vendor\tm-maps` içindeki `ets2nav-local` dalına
+  commit atıp yamaları `git -C vendor\tm-maps format-patch d56d0e3..ets2nav-local -o ..\..\pc\patches\tm-maps` ile yeniden üretin.
+
+### Çeviriler
+
+- Android: `android/app/src/main/res/values-xx/strings.xml` (varsayılan dil İngilizce: `values/`)
+- PC: `pc/host/L.cs` (her anahtar için yedi dil)
+
+Yeni bir dil eklemek ya da mevcut çevirileri düzeltmek için pull request gönderebilirsiniz.
+
+</details>
 
 ## Lisans
 
-Copyright (C) 2026 Orhan
+Copyright (C) 2026 Orhan Kökbudak
 
-Bu program özgür yazılımdır: Free Software Foundation'ın yayınladığı
-[GNU Genel Kamu Lisansı sürüm 3](LICENSE) (veya isteğe bağlı olarak daha
-sonraki bir sürümü) koşulları altında dağıtabilir ve değiştirebilirsin.
-Program faydalı olması umuduyla, ancak **hiçbir garanti olmaksızın**
-dağıtılmaktadır. Ayrıntılar için [LICENSE](LICENSE) dosyasına bak.
+Rig Buddy özgür bir yazılımdır. [GNU Genel Kamu Lisansı sürüm 3](LICENSE)
+(ya da tercihinize göre daha sonraki bir sürümü) koşulları çerçevesinde
+kullanabilir, dağıtabilir ve değiştirebilirsiniz. Yazılım herhangi bir
+garanti verilmeksizin sunulmaktadır.
 
-Kısaca: kullanmak, değiştirmek ve paylaşmak serbest. Değiştirilmiş bir
-sürümü dağıtırsan kaynak kodunu da GPL-3.0 ile açık tutmalısın.
-
-## Teşekkürler ve üçüncü taraf lisansları
+### Teşekkürler ve üçüncü taraf bileşenler
 
 - [truckermudgeon/maps](https://github.com/truckermudgeon/maps) (GPL-3.0):
-  oyun dosyası ayrıştırıcısı, harita ve rota verisi üretici, navigasyon sunucusu.
-  Depoya kodu değil, yalnızca yamaları (`pc/patches/tm-maps`) dahil edildi.
-- [truckermudgeon/scs-sdk-plugin](https://github.com/truckermudgeon/scs-sdk-plugin)
-  (RenCloud/scs-sdk-plugin çatalı): oyun telemetri eklentisi.
-- [trucksim-telemetry](https://github.com/kniffen/TruckSim-Telemetry) (MIT).
-- [MapLibre Native](https://github.com/maplibre/maplibre-native) (BSD-2-Clause),
+  oyun dosyası ayrıştırıcısı, harita/rota verisi üretici ve navigasyon sunucusu
+- [truckermudgeon/scs-sdk-plugin](https://github.com/truckermudgeon/scs-sdk-plugin):
+  oyun telemetri eklentisi
+- [trucksim-telemetry](https://github.com/kniffen/TruckSim-Telemetry) (MIT),
+  [MapLibre Native](https://github.com/maplibre/maplibre-native) (BSD-2-Clause),
   [OkHttp](https://github.com/square/okhttp) (Apache-2.0),
   [NAudio](https://github.com/naudio/NAudio) (MIT),
-  [ws](https://github.com/websockets/ws) (MIT).
-- Harita fontları: [OpenMapTiles fonts](https://github.com/openmaptiles/fonts)
-  (Noto Sans, SIL OFL 1.1).
-- Euro Truck Simulator 2 ve American Truck Simulator, SCS Software'in
-  ticari markalarıdır.
+  [ws](https://github.com/websockets/ws) (MIT)
+- Harita yazı tipleri: [OpenMapTiles fonts](https://github.com/openmaptiles/fonts) (SIL OFL 1.1)
+
+Euro Truck Simulator 2 ve American Truck Simulator, SCS Software'in tescilli markalarıdır.
