@@ -12,6 +12,8 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import tr.ets2nav.R;
+
 import java.text.NumberFormat;
 import java.util.Locale;
 
@@ -78,7 +80,22 @@ public final class Ui {
     return night != android.content.res.Configuration.UI_MODE_NIGHT_NO;
   }
 
-  public static final Locale TR = new Locale("tr", "TR");
+  /** Resources and locale of the current (possibly in-app overridden) language; set by init(). */
+  public static android.content.res.Resources res;
+  public static Locale LOCALE = Locale.getDefault();
+
+  public static void init(Context c) {
+    res = c.getResources();
+    LOCALE = res.getConfiguration().locale;
+  }
+
+  public static String s(int id) {
+    return res.getString(id);
+  }
+
+  public static String s(int id, Object... args) {
+    return res.getString(id, args);
+  }
 
   public static int dp(Context c, float v) {
     return Math.round(v * c.getResources().getDisplayMetrics().density);
@@ -180,28 +197,28 @@ public final class Ui {
   }
 
   public static String money(double v, String currency) {
-    NumberFormat f = NumberFormat.getIntegerInstance(TR);
+    NumberFormat f = NumberFormat.getIntegerInstance(LOCALE);
     return f.format(Math.round(v)) + " " + currency;
   }
 
   public static String number(double v) {
-    return NumberFormat.getIntegerInstance(TR).format(Math.round(v));
+    return NumberFormat.getIntegerInstance(LOCALE).format(Math.round(v));
   }
 
-  /** Game minutes (since day 0, Monday) -> "Pzt 14:05". */
+  /** Game minutes (since day 0, Monday) -> "Mon 14:05". */
   public static String gameClock(long minutes) {
-    String[] days = {"Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"};
+    String[] days = s(R.string.days_short).split(",");
     long day = (minutes / 1440) % 7;
     long m = minutes % 1440;
-    return String.format(TR, "%s %02d:%02d", days[(int) day], m / 60, m % 60);
+    return String.format(LOCALE, "%s %02d:%02d", days[(int) day], m / 60, m % 60);
   }
 
-  /** Duration in game minutes -> "3 sa 20 dk". */
+  /** Duration in game minutes -> "3 h 20 min". */
   public static String duration(long minutes) {
-    if (minutes < 0) return "süresi doldu";
+    if (minutes < 0) return s(R.string.dur_expired);
     long d = minutes / 1440, h = (minutes % 1440) / 60, m = minutes % 60;
-    if (d > 0) return d + " g " + h + " sa";
-    if (h > 0) return h + " sa " + m + " dk";
-    return m + " dk";
+    if (d > 0) return s(R.string.dur_d_h, (int) d, (int) h);
+    if (h > 0) return s(R.string.dur_h_min, (int) h, (int) m);
+    return s(R.string.dur_min, (int) m);
   }
 }

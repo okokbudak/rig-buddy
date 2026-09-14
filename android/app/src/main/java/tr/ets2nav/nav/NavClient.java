@@ -22,6 +22,9 @@ import okhttp3.Response;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 
+import tr.ets2nav.R;
+import tr.ets2nav.ui.Ui;
+
 /**
  * Minimal tRPC v11 WebSocket client for the truckermudgeon navigation server
  * (apis/navigation), speaking the same protocol as its web navigator app:
@@ -170,7 +173,7 @@ public final class NavClient {
     @Override
     public void onClosed(WebSocket webSocket, int code, String reason) {
       main.post(() -> {
-        if (webSocket == ws) scheduleReconnect("kapandı (" + code + ")");
+        if (webSocket == ws) scheduleReconnect(Ui.s(R.string.nav_closed, code));
       });
     }
 
@@ -185,13 +188,13 @@ public final class NavClient {
   // --- pairing / subscription ----------------------------------------------
 
   private void pair() {
-    setState(State.PAIRING, "eşleşme kodu isteniyor");
+    setState(State.PAIRING, Ui.s(R.string.nav_requesting_code));
     Request req = new Request.Builder().url("http://" + host + ":" + PORT + "/local/pairing-code").build();
     final WebSocket forSocket = ws;
     http.newCall(req).enqueue(new Callback() {
       @Override
       public void onFailure(Call call, IOException e) {
-        main.post(() -> retryPairing(forSocket, "kod alınamadı: " + e.getMessage()));
+        main.post(() -> retryPairing(forSocket, Ui.s(R.string.nav_code_failed, e.getMessage())));
       }
 
       @Override
@@ -206,7 +209,7 @@ public final class NavClient {
         main.post(() -> {
           if (forSocket != ws) return;
           if (finalCode == null) {
-            retryPairing(forSocket, "PC'de telemetri istemcisi çalışmıyor");
+            retryPairing(forSocket, Ui.s(R.string.nav_no_telemetry_client));
             return;
           }
           redeem(finalCode);
@@ -234,7 +237,7 @@ public final class NavClient {
     mutate("app.redeemCode", input, (data, error) -> {
       if (forSocket != ws) return;
       if (error != null || !(data instanceof JSONObject)) {
-        retryPairing(forSocket, "eşleşme başarısız: " + error);
+        retryPairing(forSocket, Ui.s(R.string.nav_pairing_failed, error));
         return;
       }
       prefs.edit().putString(PREF_VIEWER_ID, ((JSONObject) data).optString("viewerId")).apply();
@@ -255,7 +258,7 @@ public final class NavClient {
         usingStoredViewerId = false;
         if (ws != null) ws.close(1000, "re-pair");
       } else {
-        setState(State.PAIRING, "abonelik hatası: " + error);
+        setState(State.PAIRING, Ui.s(R.string.nav_subscribe_failed, error));
       }
     });
   }
@@ -264,7 +267,7 @@ public final class NavClient {
 
   private int send(String method, String path, Object input, ResultCallback cb) {
     if (ws == null) {
-      if (cb != null) cb.onResult(null, "bağlı değil");
+      if (cb != null) cb.onResult(null, Ui.s(R.string.nav_not_connected));
       return -1;
     }
     int id = nextId++;

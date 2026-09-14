@@ -240,11 +240,11 @@ const server = http.createServer((req, res) => {
     return send(200, { ok: true, telemetry: latest !== null, save: !!save, clients: wss.clients.size });
   }
   if (url.pathname === '/profile') {
-    if (!save) return send(503, { error: saveError || 'kayıt dosyası henüz okunmadı' });
+    if (!save) return send(503, { error: saveError || 'nosave' });
     return send(200, { ...save.profile, currency: save.currency, gameTime: save.gameTime, savedAt: save.savedAt });
   }
   if (url.pathname === '/jobs') {
-    if (!save) return send(503, { error: saveError || 'kayıt dosyası henüz okunmadı' });
+    if (!save) return send(503, { error: saveError || 'nosave' });
     const limit = Math.min(500, Number(url.searchParams.get('limit') || 200));
     return send(200, { savedAt: save.savedAt, gameTime: save.gameTime, currency: save.currency, jobs: jobsForApp(limit) });
   }

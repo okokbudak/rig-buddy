@@ -1,5 +1,7 @@
 package tr.ets2nav.ui;
 
+import tr.ets2nav.R;
+
 import android.content.Context;
 import android.view.Gravity;
 import android.view.View;
@@ -50,15 +52,15 @@ public final class JobsScreen {
 
     LinearLayout header = Ui.row(c);
     LinearLayout hcol = Ui.column(c);
-    hcol.addView(Ui.text(c, "İş ilanları", 26, Ui.TEXT, true));
+    hcol.addView(Ui.text(c, Ui.s(R.string.jobs_title), 26, Ui.TEXT, true));
     status = Ui.text(c, 15, Ui.TEXT2, false);
     hcol.addView(status, Ui.margins(Ui.wrap(), c, 0, 6, 0, 0));
     header.addView(hcol);
     header.addView(Ui.spacer(c));
-    header.addView(sortChip("En yakın", 0));
-    header.addView(sortChip("En kazançlı", 1));
-    header.addView(sortChip("Uzun yol", 2));
-    TextView refresh = sortChipView("↻ Yenile");
+    header.addView(sortChip(Ui.s(R.string.jobs_sort_near), 0));
+    header.addView(sortChip(Ui.s(R.string.jobs_sort_income), 1));
+    header.addView(sortChip(Ui.s(R.string.jobs_sort_long), 2));
+    TextView refresh = sortChipView(Ui.s(R.string.jobs_refresh));
     refresh.setOnClickListener(v -> load(true));
     header.addView(refresh, Ui.margins(Ui.wrap(), c, 10, 0, 0, 0));
     root.addView(header, Ui.margins(Ui.matchWrap(), c, 4, 0, 0, 12));
@@ -89,7 +91,7 @@ public final class JobsScreen {
     detail.addView(detailLine2, Ui.margins(Ui.matchWrap(), c, 0, 8, 0, 0));
     detail.addView(detailLine3, Ui.margins(Ui.matchWrap(), c, 0, 8, 0, 0));
     detail.addView(Ui.spacer(c), Ui.hweight(1));
-    TextView full = button("Yükle ve teslim et: rotayı çiz", Ui.ACCENT, Ui.ON_ACCENT);
+    TextView full = button(Ui.s(R.string.jobs_route_full), Ui.ACCENT, Ui.ON_ACCENT);
     full.setOnClickListener(v -> {
       if (selected == null) return;
       JSONObject s = selected.optJSONObject("source"), d = selected.optJSONObject("destination");
@@ -97,7 +99,7 @@ public final class JobsScreen {
           selected.optString("cargo") + " → " + d.optString("city"));
     });
     detail.addView(full, Ui.matchWrap());
-    TextView pickup = button("Sadece yükleme noktasına git", Ui.TRACK, Ui.TEXT);
+    TextView pickup = button(Ui.s(R.string.jobs_route_pickup), Ui.TRACK, Ui.TEXT);
     pickup.setOnClickListener(v -> {
       if (selected == null) return;
       JSONObject s = selected.optJSONObject("source");
@@ -131,13 +133,13 @@ public final class JobsScreen {
     }
     currentJob.setVisibility(View.VISIBLE);
     long left = job.optLong("deliveryTime") - t.optLong("gameTime");
-    currentJob.setText("Aktif iş:  " + job.optString("cargo") + " (" + job.optDouble("massT") + " t)  ·  "
+    currentJob.setText(Ui.s(R.string.jobs_active, job.optString("cargo") + " (" + job.optDouble("massT") + " t)") + "  ·  "
         + job.optString("source") + "  →  " + job.optString("destination") + "   ·   "
-        + Ui.money(job.optDouble("income"), HomeScreen.currency(t)) + "   ·   teslime " + Ui.duration(left));
+        + Ui.money(job.optDouble("income"), HomeScreen.currency(t)) + "   ·   " + Ui.s(R.string.deliver_in, Ui.duration(left)));
   }
 
   private void load(boolean manual) {
-    status.setText("Yükleniyor…");
+    status.setText(Ui.s(R.string.loading));
     agent.get("/jobs?limit=300", (json, error) -> {
       lastLoad = System.currentTimeMillis();
       if (error != null) {
@@ -149,8 +151,7 @@ public final class JobsScreen {
       jobs.clear();
       for (int i = 0; arr != null && i < arr.length(); i++) jobs.add(arr.optJSONObject(i));
       long ageMin = Math.max(0, (System.currentTimeMillis() - json.optLong("savedAt")) / 60000);
-      status.setText(jobs.size() + " ilan  ·  son kayıt " + (ageMin == 0 ? "az önce" : ageMin + " dk önce")
-          + "  ·  oyun her ~3 dk otomatik kaydeder");
+      status.setText(Ui.s(R.string.jobs_status, jobs.size(), ageMin == 0 ? Ui.s(R.string.ago_now) : Ui.s(R.string.ago_min, (int) ageMin)));
       applySort();
     });
   }
@@ -168,16 +169,18 @@ public final class JobsScreen {
     selected = j;
     JSONObject s = j.optJSONObject("source"), d = j.optJSONObject("destination");
     detailTitle.setText(j.optString("cargo") + (j.isNull("cargoMassT") ? "" : "  ·  " + j.optDouble("cargoMassT") + " t"));
-    detailLine1.setText("Yükleme:  " + s.optString("company") + ", " + s.optString("city")
-        + (j.has("pickupKm") && !j.isNull("pickupKm") ? "  (" + j.optInt("pickupKm") + " km uzakta)" : ""));
-    detailLine2.setText("Teslim:  " + d.optString("company") + ", " + d.optString("city")
-        + (d.optString("country").isEmpty() ? "" : " (" + d.optString("country") + ")") + "  ·  " + j.optInt("distanceKm") + " km");
+    String pickupPlace = s.optString("company") + ", " + s.optString("city");
+    detailLine1.setText(j.has("pickupKm") && !j.isNull("pickupKm")
+        ? Ui.s(R.string.jobs_pickup, pickupPlace, Ui.number(j.optInt("pickupKm")))
+        : Ui.s(R.string.jobs_pickup_only, pickupPlace));
+    detailLine2.setText(Ui.s(R.string.jobs_delivery, d.optString("company") + ", " + d.optString("city")
+        + (d.optString("country").isEmpty() ? "" : " (" + d.optString("country") + ")")) + "  ·  " + Ui.number(j.optInt("distanceKm")) + " km");
     StringBuilder extra = new StringBuilder();
     if (!j.isNull("estimatedIncome")) extra.append("≈ ").append(Ui.money(j.optDouble("estimatedIncome"), currency)).append("  ·  ");
-    extra.append("Son ").append(Ui.duration(j.optLong("expiresInMin")));
-    if (j.optInt("urgency") > 0) extra.append("  ·  Acil");
-    if (j.optInt("adr") > 0) extra.append("  ·  ADR ").append(j.optInt("adr"));
-    if (j.optBoolean("fragile")) extra.append("  ·  Kırılgan");
+    extra.append(Ui.s(R.string.jobs_expires, Ui.duration(j.optLong("expiresInMin"))));
+    if (j.optInt("urgency") > 0) extra.append("  ·  ").append(Ui.s(R.string.jobs_urgent));
+    if (j.optInt("adr") > 0) extra.append("  ·  ").append(Ui.s(R.string.jobs_adr, String.valueOf(j.optInt("adr"))));
+    if (j.optBoolean("fragile")) extra.append("  ·  ").append(Ui.s(R.string.jobs_fragile));
     if (!j.optString("trailer").isEmpty()) extra.append("  ·  ").append(j.optString("trailer"));
     detailLine3.setText(extra.toString());
     detail.setVisibility(View.VISIBLE);
@@ -264,10 +267,12 @@ public final class JobsScreen {
       JSONObject j = jobs.get(i);
       JSONObject s = j.optJSONObject("source"), d = j.optJSONObject("destination");
       h.cargo.setText(j.optString("cargo") + (j.isNull("cargoMassT") ? "" : "  ·  " + j.optDouble("cargoMassT") + " t")
-          + (j.optInt("urgency") > 0 ? "  ·  acil" : ""));
+          + (j.optInt("urgency") > 0 ? "  ·  " + Ui.s(R.string.jobs_urgent_lower) : ""));
       h.route.setText(s.optString("city") + " · " + s.optString("company") + "   →   " + d.optString("city") + " · " + d.optString("company"));
       h.income.setText(j.isNull("estimatedIncome") ? "" : "≈ " + Ui.money(j.optDouble("estimatedIncome"), currency));
-      h.meta.setText((j.isNull("pickupKm") ? "" : j.optInt("pickupKm") + " km uzakta  ·  ") + j.optInt("distanceKm") + " km yol");
+      h.meta.setText(j.isNull("pickupKm")
+          ? Ui.s(R.string.km_trip, Ui.number(j.optInt("distanceKm")))
+          : Ui.s(R.string.jobs_row_distance, Ui.number(j.optInt("pickupKm")), Ui.number(j.optInt("distanceKm"))));
       return convert;
     }
   }

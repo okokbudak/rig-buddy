@@ -48,7 +48,7 @@ public final class MediaScreen {
     LinearLayout left = Ui.card(c, false);
     LinearLayout head = Ui.row(c);
     head.addView(icon(R.drawable.ic_music, Ui.ACCENT, 26));
-    head.addView(Ui.text(c, "MÜZİK (PC)", 15, Ui.TEXT2, true), Ui.margins(Ui.wrap(), c, 8, 0, 0, 0));
+    head.addView(Ui.text(c, Ui.s(R.string.media_music_pc), 15, Ui.TEXT2, true), Ui.margins(Ui.wrap(), c, 8, 0, 0, 0));
     HorizontalScrollView hs = new HorizontalScrollView(c);
     hs.setHorizontalScrollBarEnabled(false);
     sessionChips = Ui.row(c);
@@ -56,7 +56,7 @@ public final class MediaScreen {
     head.addView(hs, Ui.margins(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1), c, 16, 0, 0, 0));
     left.addView(head);
 
-    empty = Ui.text(c, "PC'de çalan bir şey yok.\nSpotify, Apple Music ya da tarayıcıda müzik açın.", 20, Ui.TEXT2, false);
+    empty = Ui.text(c, Ui.s(R.string.media_nothing), 20, Ui.TEXT2, false);
     empty.setGravity(Gravity.CENTER);
     left.addView(empty, Ui.hweight(1));
 
@@ -130,7 +130,7 @@ public final class MediaScreen {
     p.addView(vol);
     LinearLayout mvol = Ui.row(c);
     mvol.addView(icon(R.drawable.ic_volume, Ui.TEXT2, 24));
-    mvol.addView(Ui.text(c, "PC sesi", 16, Ui.TEXT2, false),
+    mvol.addView(Ui.text(c, Ui.s(R.string.media_pc_volume), 16, Ui.TEXT2, false),
         Ui.margins(new LinearLayout.LayoutParams(Ui.dp(c, 110), LinearLayout.LayoutParams.WRAP_CONTENT), c, 8, 0, 0, 0));
     masterVolume = seekBar(Ui.YELLOW);
     masterVolume.setMax(100);
@@ -144,7 +144,7 @@ public final class MediaScreen {
     LinearLayout right = Ui.card(c, false);
     LinearLayout rh = Ui.row(c);
     rh.addView(icon(R.drawable.ic_radio, Ui.YELLOW, 26));
-    rh.addView(Ui.text(c, "OYUN RADYOSU", 15, Ui.TEXT2, true), Ui.margins(Ui.wrap(), c, 8, 0, 0, 0));
+    rh.addView(Ui.text(c, Ui.s(R.string.media_radio), 15, Ui.TEXT2, true), Ui.margins(Ui.wrap(), c, 8, 0, 0, 0));
     right.addView(rh);
     radioStation = Ui.text(c, 28, Ui.TEXT, true);
     radioMeta = Ui.text(c, 17, Ui.TEXT2, false);
@@ -180,8 +180,8 @@ public final class MediaScreen {
     boolean has = cur != null && !cur.optString("title").isEmpty();
     empty.setVisibility(has ? View.GONE : View.VISIBLE);
     player.setVisibility(has ? View.VISIBLE : View.GONE);
-    if (m == null) empty.setText("PC'deki Rig Buddy'ye bağlanılamadı.");
-    else empty.setText("PC'de çalan bir şey yok.\nSpotify, Apple Music ya da tarayıcıda müzik açın.");
+    if (m == null) empty.setText(Ui.s(R.string.media_pc_unreachable));
+    else empty.setText(Ui.s(R.string.media_nothing));
     if (!has) {
       playing = false;
       return;
@@ -211,7 +211,7 @@ public final class MediaScreen {
       if (!Double.isNaN(av)) appVolume.setProgress((int) Math.round(av * 100));
       masterVolume.setProgress((int) Math.round(m.optDouble("masterVolume", 1) * 100));
     }
-    appVolumeLabel.setText(cur.optString("app") + " sesi");
+    appVolumeLabel.setText(Ui.s(R.string.media_app_volume, cur.optString("app")));
 
     String key = cur.isNull("artKey") ? null : cur.optString("artKey", null);
     if (key == null) {
@@ -254,12 +254,12 @@ public final class MediaScreen {
 
   private void renderRadio(JSONObject r, boolean agentUp) {
     if (r == null) {
-      radioStation.setText("Radyo kapalı");
+      radioStation.setText(Ui.s(R.string.media_radio_off));
       radioMeta.setText("");
       radioSong.setText("");
       radioState.setText(agentUp
-          ? "Oyunda radyo açıldığında istasyon ve çalan şarkı burada görünür."
-          : "PC'deki Rig Buddy'ye bağlanılamadı.");
+          ? Ui.s(R.string.media_radio_off_hint)
+          : Ui.s(R.string.media_pc_unreachable));
       return;
     }
     radioStation.setText(r.optString("name"));
@@ -267,9 +267,9 @@ public final class MediaScreen {
     if (!r.optString("country").isEmpty()) meta += (meta.isEmpty() ? "" : "  ·  ") + r.optString("country");
     radioMeta.setText(meta);
     String song = r.optString("song");
-    radioSong.setText(song.isEmpty() ? "Şarkı bilgisi yayınlanmıyor" : "♪  " + song);
+    radioSong.setText(song.isEmpty() ? Ui.s(R.string.media_no_song) : "♪  " + song);
     radioSong.setTextColor(song.isEmpty() ? Ui.TEXT2 : Ui.TEXT);
-    radioState.setText("İstasyonu değiştirmek için oyundaki radyo tuşlarını kullanın.");
+    radioState.setText(Ui.s(R.string.media_radio_keys));
   }
 
   private void updatePlayIcon() {
