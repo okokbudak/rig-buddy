@@ -1,7 +1,7 @@
 # Dev helper: plays a synthetic telemetry recording (from dev-run-sim.ps1)
 # through the telemetry client, instead of the game. The app's own telemetry
 # client is paused meanwhile; resume it from the tray menu (click the
-# telemetry client line) or with: bin\ETS2Nav.exe --start telemetry
+# telemetry client line) or with: bin\RigBuddy.exe --start telemetry
 param([string]$File)
 $root = Split-Path $PSScriptRoot -Parent
 if (-not $File) { $File = Join-Path $root 'data\sim\berlin-hamburg.ndjson.gz' }

@@ -1,4 +1,4 @@
-// Relays the ETS2Nav.exe media service (127.0.0.1:62844) to the app.
+// Relays the RigBuddy.exe media service (127.0.0.1:62844) to the app.
 import net from 'node:net';
 
 const PORT = 62844;

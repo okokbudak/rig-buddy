@@ -1,7 +1,7 @@
 'use strict';
 // Drop-in replacement for trucksim-telemetry's native addon
 // (build/Release/scsSDKTelemetry.node). Instead of mapping the game's shared
-// memory directly, it keeps the latest buffer streamed by ETS2Nav.exe (pc/host)
+// memory directly, it keeps the latest buffer streamed by RigBuddy.exe (pc/host)
 // over TCP (frame = int32le length + bytes; length 0 = no telemetry).
 //
 // getBuffer() stays synchronous, as the library expects.

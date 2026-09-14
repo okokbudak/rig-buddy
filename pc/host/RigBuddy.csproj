@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- ETS2 Nav PC app: one tray program that runs everything the head unit
+  <!-- Rig Buddy PC app: one tray program that runs everything the head unit
        needs (telemetry bridge, media sessions, and the Node services). -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -9,11 +9,11 @@
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>ETS2Nav</AssemblyName>
-    <Product>ETS2 Nav</Product>
+    <AssemblyName>RigBuddy</AssemblyName>
+    <Product>Rig Buddy</Product>
     <Version>0.1.0</Version>
     <Copyright>Copyright (C) 2026 Orhan. GPL-3.0-or-later.</Copyright>
-    <ApplicationIcon>ets2nav.ico</ApplicationIcon>
+    <ApplicationIcon>rigbuddy.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>false</SelfContained>

@@ -201,7 +201,7 @@ public final class HomeScreen {
   public void onTelemetry(JSONObject t) {
     if (t == null) {
       gameClock.setText("Oyun bağlı değil");
-      subtitle.setText("PC'de ETS2 Nav'ı ve oyunu başlatın");
+      subtitle.setText("PC'de Rig Buddy'yi ve oyunu başlatın");
       speed.setText("–");
       gear.setText("");
       fuelText.setText("Yakıt –");

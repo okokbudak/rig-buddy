@@ -1,9 +1,9 @@
-// ETS2 Nav agent: runs on the gaming PC next to the navigation server and
+// Rig Buddy agent: runs on the gaming PC next to the navigation server and
 // serves the head-unit app everything the navigation server doesn't:
 //   ws://PC:62843/ws      -> {"type":"telemetry","data":{...}} at 5 Hz, {"type":"save",...} on new autosave
 //   GET  /profile         -> profile/economy summary from the latest save
 //   GET  /jobs            -> freight-market offers, nearest pickup first
-//   POST /key {"action"}  -> (reserved) key emulation via ETS2Nav.exe
+//   POST /key {"action"}  -> (reserved) key emulation via RigBuddy.exe
 import http from 'node:http';
 import tst from 'trucksim-telemetry';
 import { WebSocketServer } from 'ws';
@@ -229,7 +229,7 @@ function broadcast(msg) {
   for (const c of wss.clients) if (c.readyState === 1) c.send(s);
 }
 
-server.listen(PORT, () => console.log(`ETS2 Nav agent listening on port ${PORT}`));
+server.listen(PORT, () => console.log(`Rig Buddy agent listening on port ${PORT}`));
 setInterval(pollTelemetry, 1000 / TELEMETRY_HZ);
 setInterval(pollSave, SAVE_POLL_MS);
 pollSave();

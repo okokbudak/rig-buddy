@@ -1,10 +1,10 @@
-// ETS2 Nav PC app. Start it once (or with Windows); it sits in the tray and
+// Rig Buddy PC app. Start it once (or with Windows); it sits in the tray and
 // runs everything the head unit talks to. See README.md.
 //
-//   ETS2Nav.exe                     start (or, if already running, say so)
-//   ETS2Nav.exe --quit              stop the running app and all services
-//   ETS2Nav.exe --restart [svc]     restart server|agent|telemetry (default: all)
-//   ETS2Nav.exe --stop <svc> / --start <svc> / --status
+//   RigBuddy.exe                     start (or, if already running, say so)
+//   RigBuddy.exe --quit              stop the running app and all services
+//   RigBuddy.exe --restart [svc]     restart server|agent|telemetry (default: all)
+//   RigBuddy.exe --stop <svc> / --start <svc> / --status
 
 static class Program
 {
@@ -19,11 +19,11 @@ static class Program
             // A GUI exe has no console: write to redirected stdout if there is
             // one (scripts capturing the reply), else into the calling console.
             if (GetStdHandle(-11) == IntPtr.Zero) AttachConsole(-1);
-            Console.WriteLine(reply ?? "ETS2 Nav is not running");
+            Console.WriteLine(reply ?? "Rig Buddy is not running");
             return reply == null || reply.StartsWith("error") ? 1 : 0;
         }
 
-        using var mutex = new Mutex(true, @"Local\ETS2Nav.Host", out bool first);
+        using var mutex = new Mutex(true, @"Local\RigBuddy.Host", out bool first);
         if (!first)
         {
             ControlPort.Send("show");
@@ -32,14 +32,14 @@ static class Program
 
         string root = FindRoot();
         Log.Init(Path.Combine(root, "logs"));
-        Console.WriteLine($"ETS2 Nav starting, root {root}");
+        Console.WriteLine($"Rig Buddy starting, root {root}");
         Application.ThreadException += (_, e) => Console.WriteLine($"ui error: {e.Exception}");
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Console.WriteLine($"fatal: {e.ExceptionObject}");
         ApplicationConfiguration.Initialize();
 
         var bridge = new TelemetryBridge();
         try { bridge.Start(); }
-        catch (Exception e) { Console.WriteLine($"bridge: disabled ({e.Message}); is another ETS2 Nav / TelemetryBridge running?"); }
+        catch (Exception e) { Console.WriteLine($"bridge: disabled ({e.Message}); is another Rig Buddy running?"); }
         _ = Task.Run(async () =>
         {
             try { await new MediaService().RunAsync(); }
@@ -52,7 +52,7 @@ static class Program
         sup.Start();
         Application.Run(app);
         sup.StopAll();
-        Console.WriteLine("ETS2 Nav stopped");
+        Console.WriteLine("Rig Buddy stopped");
         return 0;
     }
 

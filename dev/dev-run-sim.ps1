@@ -1,4 +1,4 @@
-# Dev helper: builds a synthetic route recording. Needs the ETS2 Nav app running
+# Dev helper: builds a synthetic route recording. Needs the Rig Buddy app running
 # (for the navigation server); its telemetry client is paused while the sim
 # runs and resumed afterwards. usage: dev\dev-run-sim.ps1 <fromCity> <toCity> [kph]
 param([string]$From = 'berlin', [string]$To = 'hamburg', [int]$Kph = 90)
