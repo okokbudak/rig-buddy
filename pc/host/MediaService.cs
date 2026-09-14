@@ -23,6 +23,8 @@ using Windows.Media.Control;
 sealed class MediaService
 {
     const int Port = 62844;
+    /** Windows media sessions are available (shown in the PC app's window). */
+    public static bool Running { get; private set; }
     GlobalSystemMediaTransportControlsSessionManager? _mgr;
     string? _selectedId;                 // user's pick; null = Windows' current session
     string _lastStateJson = "";
@@ -39,6 +41,7 @@ sealed class MediaService
         _mgr = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
         var listener = new TcpListener(IPAddress.Loopback, Port);
         listener.Start();
+        Running = true;
         Console.WriteLine($"media: listening on 127.0.0.1:{Port}");
         _ = Task.Run(AcceptLoop);
         async Task AcceptLoop()

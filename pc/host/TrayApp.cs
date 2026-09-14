@@ -1,5 +1,5 @@
-// Notification-area (tray) icon: shows service/game status, the PC address the
-// head unit needs, and offers restart / logs / start-with-Windows / exit.
+// Notification-area (tray) icon: left click opens the window (StatusForm),
+// right click the menu with service/game status, restart, logs, autostart, exit.
 
 using System.Drawing.Drawing2D;
 using System.Net.NetworkInformation;
@@ -21,18 +21,28 @@ sealed class TrayApp : ApplicationContext
     readonly Dictionary<NodeService, ToolStripMenuItem> _svcItems = new();
     readonly System.Windows.Forms.Timer _timer = new() { Interval = 1000 };
     readonly SynchronizationContext _ui;
+    readonly StatusForm _window;
     Color _lastColor = Color.Empty;
+    bool _hiddenHintShown;
 
     public TrayApp(Supervisor sup, TelemetryBridge bridge, bool quiet)
     {
         _sup = sup;
         _bridge = bridge;
+        _window = new StatusForm(sup, bridge);
+        _window.HiddenToTray += () =>
+        {
+            if (_hiddenHintShown) return;
+            _hiddenHintShown = true;
+            Balloon("Arka planda çalışmaya devam ediyor. Kapatmak için simgeye sağ tıklayıp Çıkış'ı seçin.");
+        };
 
         MigrateAutostart();
-        var title = new ToolStripMenuItem("Rig Buddy") { Enabled = false, Font = new Font(_menu.Font, FontStyle.Bold) };
+        var open = new ToolStripMenuItem("Pencereyi aç") { Font = new Font(_menu.Font, FontStyle.Bold) };
+        open.Click += (_, _) => ShowWindow();
         _problem = new ToolStripMenuItem { Visible = false, ForeColor = Color.Firebrick };
         _problem.Click += (_, _) => OpenPath(Path.Combine(sup.Root, "README.md"));
-        _menu.Items.Add(title);
+        _menu.Items.Add(open);
         _menu.Items.Add(_problem);
         _menu.Items.Add(new ToolStripSeparator());
         foreach (var s in sup.Services)
@@ -58,22 +68,20 @@ sealed class TrayApp : ApplicationContext
         exit.Click += (_, _) => Exit();
         _menu.Items.AddRange([restart, logs, _autostart, new ToolStripSeparator(), exit]);
 
+        _menu.Opening += (_, _) => _autostart.Checked = AutostartEnabled(); // the window may have changed it
         _tray = new NotifyIcon { ContextMenuStrip = _menu, Text = "Rig Buddy", Visible = true };
-        // left click opens the menu too (NotifyIcon only does that for right click)
-        _tray.MouseUp += (_, e) =>
-        {
-            if (e.Button != MouseButtons.Left) return;
-            typeof(NotifyIcon).GetMethod("ShowContextMenu",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.Invoke(_tray, null);
-        };
+        // left click: the window; right click: the menu
+        _tray.MouseUp += (_, e) => { if (e.Button == MouseButtons.Left) ShowWindow(); };
         _ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         _timer.Tick += (_, _) => Refresh();
         _timer.Start();
         Refresh();
 
-        if (sup.SetupProblem != null) Balloon(sup.SetupProblem, ToolTipIcon.Warning);
-        else if (!quiet) Balloon("Arka planda çalışıyor. Durum için simgeye tıklayın.", ToolTipIcon.Info);
+        // started with Windows: stay in the tray unless something needs attention
+        if (!quiet || sup.SetupProblem != null) ShowWindow();
     }
+
+    public void ShowWindow() => _window.ShowInFront();
 
     /** Runs `action` on the UI thread (for calls from the control port). */
     public void Post(Action action) => _ui.Post(_ => action(), null);
@@ -85,6 +93,7 @@ sealed class TrayApp : ApplicationContext
     {
         _timer.Stop();
         _tray.Visible = false;
+        _window.CloseForExit();
         _sup.StopAll();
         ExitThread();
     }
@@ -129,7 +138,7 @@ sealed class TrayApp : ApplicationContext
     }
 
     /** IPv4 addresses of interfaces that have a gateway (i.e. the LAN the head unit is on). */
-    static IEnumerable<string> LanAddresses() =>
+    internal static IEnumerable<string> LanAddresses() =>
         NetworkInterface.GetAllNetworkInterfaces()
             .Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback)
             .Select(n => n.GetIPProperties())
@@ -138,7 +147,7 @@ sealed class TrayApp : ApplicationContext
             .Where(a => a.Address.AddressFamily == AddressFamily.InterNetwork)
             .Select(a => a.Address.ToString());
 
-    static bool AutostartEnabled()
+    internal static bool AutostartEnabled()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey);
         return key?.GetValue(RunValue) is string;
@@ -153,14 +162,14 @@ sealed class TrayApp : ApplicationContext
         SetAutostart(true);
     }
 
-    static void SetAutostart(bool on)
+    internal static void SetAutostart(bool on)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RunKey);
         if (on) key.SetValue(RunValue, $"\"{Environment.ProcessPath}\" --autostart");
         else key.DeleteValue(RunValue, throwOnMissingValue: false);
     }
 
-    static void OpenPath(string path) =>
+    internal static void OpenPath(string path) =>
         System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
 
     static readonly Dictionary<Color, Bitmap> Dots = new();

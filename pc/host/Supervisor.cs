@@ -23,7 +23,7 @@ sealed partial class NodeService
     public string? HealthUrl { get; init; }
     public Func<bool> CanStart { get; init; } = () => true;
     public Action? BeforeStart { get; init; }
-    public Action<string>? OnLine { get; init; }
+    public Action<string>? OnLine { get; set; }
 
     public volatile bool Enabled = true;
     public ServiceState State { get; set; } = ServiceState.Stopped;
@@ -43,10 +43,52 @@ sealed class Supervisor
     public string? PairingCode { get; private set; }
     public string? SetupProblem { get; }
 
+    /** Start-up progress of the navigation stack, for the window's progress bar. */
+    public StartupStage Stage { get; private set; } = StartupStage.Initial;
+    /** From the agent's /health: save game read, apps connected over Wi-Fi. */
+    public bool SaveLoaded { get; private set; }
+    public int Clients { get; private set; }
+
     readonly string _node;
     readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(2) };
     readonly object _lock = new();
+    readonly SemaphoreSlim _wake = new(0);
     CancellationTokenSource? _cts;
+
+    // Server log line -> progress milestone. Percentages follow measured ETS2
+    // load times; `Expect` is the typical seconds until the next milestone,
+    // which lets the bar keep creeping instead of sitting still.
+    static readonly (Regex Pattern, int Percent, string Label, double Expect)[] ServerStages =
+    [
+        (new(@"reading (\w+) map JSON files"), 8, "Harita verisi okunuyor ({0})", 6.5),
+        (new(@"reading (\w+) graph data"), 40, "Yol ağı yükleniyor ({0})", 3),
+        (new(@"building road and prefab rtree"), 55, "Yol geometrisi hesaplanıyor", 5.5),
+        (new(@"building graph node rtree"), 85, "Arama dizinleri hazırlanıyor", 1),
+        (new(@"lookup data loaded"), 92, "Sunucu açılıyor", 1),
+        (new(@"listening on port"), 95, "Telemetri istemcisi bağlanıyor", 2),
+    ];
+
+    void SetStage(int percent, string label, double expect)
+    {
+        int next = ServerStages.Select(s => s.Percent).Where(p => p > percent).DefaultIfEmpty(100).First();
+        Stage = new StartupStage(percent, next, label, expect, DateTime.UtcNow);
+    }
+
+    void OnServerLine(NodeService server, string line)
+    {
+        foreach (var (pattern, percent, label, expect) in ServerStages)
+        {
+            var m = pattern.Match(line);
+            if (!m.Success || percent <= Stage.Percent) continue;
+            string map = m.Groups.Count > 1 ? (m.Groups[1].Value == "usa" ? "ATS" : "ETS2") : "";
+            SetStage(percent, string.Format(label, map), expect);
+        }
+        if (line.Contains("listening on port"))
+        {
+            server.State = ServiceState.Running; // don't wait for the next health poll
+            _wake.Release();
+        }
+    }
 
     public Supervisor(string root)
     {
@@ -77,6 +119,7 @@ sealed class Supervisor
             },
             HealthUrl = "http://127.0.0.1:62840/health",
         };
+        server.OnLine = line => OnServerLine(server, line);
         var agent = new NodeService
         {
             Name = "agent",
@@ -100,7 +143,9 @@ sealed class Supervisor
             {
                 // "enter pairing code: abcd" / "... use pairing code: abcd"
                 var m = Regex.Match(line, @"pairing code:\s+(\w{4})\b");
-                if (m.Success) PairingCode = m.Groups[1].Value;
+                if (!m.Success) return;
+                PairingCode = m.Groups[1].Value;
+                SetStage(100, "Hazır", 0);
             },
         };
         Services = [server, agent, telemetry];
@@ -128,7 +173,7 @@ sealed class Supervisor
                 try { await Tick(s); }
                 catch (Exception e) { Console.WriteLine($"supervisor: {s.Name}: {e.GetType().Name}: {e.Message}"); }
             }
-            try { await Task.Delay(1000, ct); } catch (TaskCanceledException) { }
+            try { await _wake.WaitAsync(1000, ct); } catch (OperationCanceledException) { }
         }
     }
 
@@ -155,12 +200,20 @@ sealed class Supervisor
         {
             using var r = await _http.GetAsync(s.HealthUrl);
             s.State = r.IsSuccessStatusCode ? ServiceState.Running : ServiceState.Starting;
+            if (s.Name == "agent" && r.IsSuccessStatusCode)
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(await r.Content.ReadAsStringAsync());
+                var root = doc.RootElement;
+                SaveLoaded = root.TryGetProperty("save", out var save) && save.GetBoolean();
+                Clients = root.TryGetProperty("clients", out var clients) ? clients.GetInt32() : 0;
+            }
         }
         catch { s.State = ServiceState.Starting; }
     }
 
     void Launch(NodeService s)
     {
+        if (s.Name == "server") SetStage(2, "Navigasyon sunucusu başlatılıyor", 2);
         s.BeforeStart?.Invoke();
         s.LogFile ??= Log.Open(Path.Combine(Log.Dir, s.Name + ".log"));
         var psi = new ProcessStartInfo(_node)
@@ -254,6 +307,22 @@ sealed class Supervisor
     {
         Directory.CreateDirectory(dir);
         File.Copy(shim, Path.Combine(dir, Path.GetFileName(shim)), overwrite: true);
+    }
+}
+
+/** Start-up position: `Percent` reached at `At`; `Next` typically comes `Expect` s later. */
+sealed record StartupStage(int Percent, int Next, string Label, double Expect, DateTime At)
+{
+    public static readonly StartupStage Initial = new(0, 2, "Başlatılıyor", 1, DateTime.UtcNow);
+    public bool Done => Percent >= 100;
+
+    /** Estimated progress 0..1: creeps toward `Next` (never reaching it) while waiting. */
+    public double Estimate()
+    {
+        if (Done) return 1;
+        double t = (DateTime.UtcNow - At).TotalSeconds;
+        double creep = Expect > 0 ? 0.9 * (1 - Math.Exp(-t / Expect)) : 0;
+        return (Percent + (Next - Percent) * creep) / 100.0;
     }
 }
 
