@@ -1,5 +1,6 @@
 # Builds the map/route/game data from YOUR game installation (every map DLC
-# you own is picked up), via WSL, then the head-unit icon sheet.
+# you own is picked up) for ETS2 and/or ATS, whichever is installed, via WSL,
+# then the app's icon sheet.
 #
 #   powershell -ExecutionPolicy Bypass -File pipeline\build-map-data.ps1
 #
@@ -10,16 +11,20 @@
 . "$PSScriptRoot\..\setup\lib.ps1"
 
 Step 'game folders'
+# Data is built for each installed game; one of the two is enough.
 $games = Find-TruckSimGames
-if (-not $games.ETS2 -or -not $games.ATS) {
-  throw "ETS2 and ATS are both needed (found ETS2='$($games.ETS2)' ATS='$($games.ATS)'). Set ETS2_DIR / ATS_DIR."
+if (-not $games.ETS2 -and -not $games.ATS) {
+  throw 'Neither ETS2 nor ATS was found in your Steam libraries. Set ETS2_DIR / ATS_DIR.'
 }
-Write-Host "  ETS2: $($games.ETS2)`n  ATS:  $($games.ATS)"
+Write-Host "  ETS2: $(if ($games.ETS2) { $games.ETS2 } else { '(not installed, skipped)' })"
+Write-Host "  ATS:  $(if ($games.ATS) { $games.ATS } else { '(not installed, skipped)' })"
 if (-not (Get-Command wsl -ErrorAction SilentlyContinue)) { throw 'WSL not found: wsl --install -d Ubuntu' }
 
 Step 'WSL pipeline (parser, navigation data, tiles)'
 $script = ConvertTo-WslPath "$PSScriptRoot\build-map-data.sh"
-Exec { wsl -e bash $script (ConvertTo-WslPath $games.ETS2) (ConvertTo-WslPath $games.ATS) } 'build-map-data.sh'
+$ets2 = if ($games.ETS2) { ConvertTo-WslPath $games.ETS2 } else { '-' }
+$ats = if ($games.ATS) { ConvertTo-WslPath $games.ATS } else { '-' }
+Exec { wsl -e bash $script $ets2 $ats } 'build-map-data.sh'
 
 Step 'head-unit icon sheet (android assets\sprites)'
 # Only the icons the app's map style uses; the full sheet is ~21 MB of GPU texture.
