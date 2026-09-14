@@ -133,10 +133,9 @@ tekrar çalıştır. npm'in oluşturduğu klasör bağlantıları mutlak yol kul
 
 ## Destek
 
-Rig Buddy ücretsizdir ve öyle kalacak. İşine yaradıysa bir kahve ısmarlayarak
-geliştirmeye destek olabilirsin ☕
-
-<!-- TODO: bağış bağlantısı (Buy Me a Coffee / Ko-fi / GitHub Sponsors) -->
+Rig Buddy ücretsiz ve açık kaynaktır, öyle de kalacak. İşine yaradıysa bir
+kahve ısmarlayarak geliştirmeye destek olabilirsin ☕ Bağış bağlantısı yakında
+burada olacak.
 
 Hata bildirimi ve önerilerini Issues sekmesinden paylaşabilirsin.
 
