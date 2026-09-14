@@ -9,6 +9,7 @@ sealed class LogForm : Form
         ("server.log", "svc.server"), // titles: L keys
         ("agent.log", "logs.agent"),
         ("telemetry.log", "logs.telemetry"),
+        ("mapbuild.log", "logs.map"),
     ];
     const int MaxInitialBytes = 256 * 1024; // show the tail of big logs
     const int MaxChars = 1_000_000;         // then keep the view bounded

@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Zip, ZipDeflate } from 'fflate';
+import { PNG } from 'pngjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -68,6 +69,9 @@ const needsBuild = g =>
   !fs.existsSync(path.join(DATA, `${g.map}-navigation.zip`)) ||
   !fs.existsSync(path.join(DATA, `${g.game}.mbtiles`)) ||
   (fs.existsSync(stampFile(g)) ? fs.readFileSync(stampFile(g), 'utf8').trim() : '') !== fingerprint(g.dir);
+
+// data from before the app icon sheet existed (cheap, so also on --check)
+if (!fs.existsSync(path.join(DATA, 'sprites/app.png')) && fullSpriteSheet()) writeAppSprites();
 
 if (flag('--check')) {
   for (const g of games) console.log(`@@needs ${g.game} ${needsBuild(g) ? 'yes' : 'no'}`);
@@ -149,6 +153,7 @@ step('sprites');
 fs.mkdirSync(path.join(DATA, 'sprites'), { recursive: true });
 tm('generator', ['spritesheet', ...games.flatMap(g => ['-m', g.map]), '-i', PARSER_OUT, '-o', WORK]);
 for (const f of ['sprites@2x.json', 'sprites@2x.png']) fs.copyFileSync(path.join(WORK, f), path.join(DATA, 'sprites', f));
+writeAppSprites();
 
 // the scratch files are ~1.5 GB; keep only what the spritesheet of a later
 // one-game rebuild needs from the other game (its POIs and the icons)
@@ -189,6 +194,51 @@ function node(nodeArgs, cwd = HERE) {
     env: { ...process.env, NODE_OPTIONS: HEAP, FORCE_COLOR: '0', NO_COLOR: '1' },
   });
   if (r.status !== 0) fail(`${path.basename(nodeArgs[0])} exited with ${r.status ?? r.signal}`);
+}
+
+/**
+ * data/sprites/app.{json,png}: only the icons the app's map style uses (the
+ * full sheet is ~21 MB of GPU texture). The app downloads it from the agent;
+ * the icons are the game's own, so they come from the user's files, not the APK.
+ */
+/** The generator's full sheet in data/sprites (named sprites.* by older builds), or null. */
+function fullSpriteSheet() {
+  for (const name of ['sprites@2x', 'sprites']) {
+    const base = path.join(DATA, 'sprites', name);
+    if (fs.existsSync(`${base}.png`) && fs.existsSync(`${base}.json`)) return base;
+  }
+  return null;
+}
+
+function writeAppSprites() {
+  const ICONS = ['gas_ico', 'service_ico', 'parking_ico', 'dealer_ico', 'garage_large_ico', 'recruitment_ico',
+    'weigh_station_ico', 'weigh_ico', 'toll_ico', 'border_ico', 'dot', 'dotdot', 'roadwork', 'railcrossing',
+    'viewpoint', 'port_overlay', 'train_ico'];
+  const dir = path.join(DATA, 'sprites');
+  const full = fullSpriteSheet();
+  const index = JSON.parse(fs.readFileSync(`${full}.json`, 'utf8'));
+  const sheet = PNG.sync.read(fs.readFileSync(`${full}.png`));
+  const picked = ICONS.filter(n => index[n] || void console.log(`missing sprite: ${n}`));
+  // shelf packing, 512 px wide
+  const WIDTH = 512;
+  let x = 0, y = 0, rowH = 0;
+  const placed = picked.map(name => {
+    const e = index[name];
+    if (x + e.width > WIDTH) { x = 0; y += rowH + 1; rowH = 0; }
+    const p = { name, e, x, y };
+    x += e.width + 1;
+    rowH = Math.max(rowH, e.height);
+    return p;
+  });
+  const out = new PNG({ width: WIDTH, height: y + rowH });
+  const json = {};
+  for (const { name, e, x, y } of placed) {
+    PNG.bitblt(sheet, out, e.x, e.y, e.width, e.height, x, y);
+    json[name] = { x, y, width: e.width, height: e.height, pixelRatio: e.pixelRatio };
+  }
+  fs.writeFileSync(path.join(dir, 'app.png'), PNG.sync.write(out));
+  fs.writeFileSync(path.join(dir, 'app.json'), JSON.stringify(json, null, 1));
+  console.log(`app icon sheet: ${placed.length} icons, ${WIDTH}x${y + rowH}`);
 }
 
 /** Streams files into a deflate zip, flat (like `zip -j`): the server looks entries up by basename. */

@@ -5,6 +5,7 @@
 //   GET  /jobs            -> freight-market offers, nearest pickup first
 //   GET  /tiles           -> {"ets2": {size, version}}: map files the app can download
 //   GET  /tiles/ets2.mbtiles -> the map file itself
+//   GET  /tiles/sprites.json|png -> the map's POI icons ("sprites" in /tiles)
 //   POST /key {"action"}  -> (reserved) key emulation via RigBuddy.exe
 import fs from 'node:fs';
 import http from 'node:http';
@@ -203,12 +204,26 @@ function tileFile(g) {
   }
 }
 
+// the map's POI icons (data/sprites/app.*, cut from the game's own icons by the pipeline)
+const SPRITES = { json: 'application/json', png: 'image/png' };
+function spriteFiles() {
+  try {
+    const st = Object.keys(SPRITES).map(ext => fs.statSync(path.join(DATA_DIR, 'sprites', `app.${ext}`)));
+    const size = st.reduce((s, x) => s + x.size, 0);
+    return { size, version: `${size}-${Math.floor(Math.max(...st.map(x => x.mtimeMs)))}` };
+  } catch {
+    return null;
+  }
+}
+
 function tilesIndex() {
   const out = {};
   for (const g of ['ets2', 'ats']) {
     const t = tileFile(g);
     if (t) out[g] = { size: t.size, version: t.version };
   }
+  const s = spriteFiles();
+  if (s) out.sprites = s;
   return out;
 }
 
@@ -251,6 +266,13 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/tiles') return send(200, tilesIndex());
   const tile = /^\/tiles\/(ets2|ats)\.mbtiles$/.exec(url.pathname);
   if (tile) return sendTiles(req, res, tile[1]);
+  const sprite = /^\/tiles\/sprites\.(json|png)$/.exec(url.pathname);
+  if (sprite) {
+    const file = path.join(DATA_DIR, 'sprites', `app.${sprite[1]}`);
+    if (!fs.existsSync(file)) return send(404, { error: 'no sprites' });
+    res.writeHead(200, { 'Content-Type': SPRITES[sprite[1]], 'Content-Length': fs.statSync(file).size });
+    return fs.createReadStream(file).pipe(res);
+  }
   if (url.pathname === '/media') return send(200, mediaPayload());
   if (url.pathname.startsWith('/media/art/')) {
     const a = media.art(url.pathname.slice('/media/art/'.length));

@@ -61,6 +61,42 @@ public final class TileDownloader {
     return new File(dir, game + ".mbtiles");
   }
 
+  /** The map's POI icon sheet (sprites.json/png, @2x copies) for the style's "sprite" URL. */
+  public static File spritesDir(File dir) {
+    return new File(dir, "sprites");
+  }
+
+  /**
+   * The icons are the game's own: the PC cuts them from the user's game files,
+   * like the map, and the app downloads them (small, so all at once).
+   */
+  private void syncSprites(String base, JSONObject index) throws IOException {
+    JSONObject info = index.optJSONObject("sprites");
+    if (info == null) return;
+    String version = info.optString("version");
+    String key = "tiles.sprites.version";
+    File out = spritesDir(dir);
+    if (new File(out, "sprites.png").exists() && version.equals(prefs.getString(key, ""))) return;
+    if (!out.isDirectory() && !out.mkdirs()) throw new IOException("mkdir " + out);
+    for (String ext : new String[] {"json", "png"}) {
+      byte[] body;
+      try (Response r = http.newCall(new Request.Builder().url(base + "/tiles/sprites." + ext).build()).execute()) {
+        if (!r.isSuccessful() || r.body() == null) throw new IOException("sprites." + ext + ": HTTP " + r.code());
+        body = r.body().bytes();
+      }
+      // MapLibre asks for sprites@2x.* on high-density screens
+      for (String name : new String[] {"sprites." + ext, "sprites@2x." + ext}) {
+        try (OutputStream o = new FileOutputStream(new File(out, name))) {
+          o.write(body);
+        }
+      }
+    }
+    main.post(() -> {
+      prefs.edit().putString(key, version).apply();
+      listener.onUpdated("sprites", out);
+    });
+  }
+
   public boolean isRunning() {
     return worker != null && worker.isAlive();
   }
@@ -80,6 +116,11 @@ public final class TileDownloader {
       try (Response r = http.newCall(new Request.Builder().url(base + "/tiles").build()).execute()) {
         if (!r.isSuccessful() || r.body() == null) return; // older agent: keep what we have
         index = new JSONObject(r.body().string());
+      }
+      try {
+        syncSprites(base, index);
+      } catch (Exception e) {
+        Log.w(TAG, "sprite sync failed", e); // the map works without icons
       }
       JSONObject info = index.optJSONObject(game);
       if (info == null) return; // the PC has no map for this game
