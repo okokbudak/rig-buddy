@@ -1,0 +1,308 @@
+From 0bd2329176868100c1558b019e330d85d5d4d3a5 Mon Sep 17 00:00:00 2001
+From: ets2nav <ets2nav@localhost>
+Date: Mon, 14 Sep 2026 00:41:52 +0300
+Subject: [PATCH 2/3] ets2nav-local: fix tinypool worker handlers on Windows;
+ add route telemetry simulator
+
+---
+ .../workers/find-route-worker-wrapper.js      |  10 +-
+ .../workers/search-results-worker-wrapper.js  |   7 +-
+ .../infra/workers/search-worker-wrapper.js    |   8 +-
+ packages/clis/navigator/ets2nav-sim.ts        | 236 ++++++++++++++++++
+ 4 files changed, 250 insertions(+), 11 deletions(-)
+ create mode 100644 packages/clis/navigator/ets2nav-sim.ts
+
+diff --git a/packages/apis/navigation/infra/workers/find-route-worker-wrapper.js b/packages/apis/navigation/infra/workers/find-route-worker-wrapper.js
+index 22e78f6..6366316 100644
+--- a/packages/apis/navigation/infra/workers/find-route-worker-wrapper.js
++++ b/packages/apis/navigation/infra/workers/find-route-worker-wrapper.js
+@@ -26,7 +26,9 @@ void api.unregister();
+ // number of times the large `routeContext` object is cloned; `routeContext` is
+ // only cloned MAX_THREADS time instead of being cloned every time `findRoutes`
+ // is called.
+-export default {
+-  default: options =>
+-    findRoutes({ ...options, routeContext: workerData.routeContext }),
+-};
++// ets2nav-local: export a plain function. On Windows tinypool falls back to
++// importing via a file:// URL and then only unwraps one `default` level, so
++// the `{ default: fn }` object form fails there ("No handler function").
++export default function findRoutesWithContext(options) {
++  return findRoutes({ ...options, routeContext: workerData.routeContext });
++}
+diff --git a/packages/apis/navigation/infra/workers/search-results-worker-wrapper.js b/packages/apis/navigation/infra/workers/search-results-worker-wrapper.js
+index 916f045..f9a6631 100644
+--- a/packages/apis/navigation/infra/workers/search-results-worker-wrapper.js
++++ b/packages/apis/navigation/infra/workers/search-results-worker-wrapper.js
+@@ -19,6 +19,7 @@ const { default: reduceToOrderedList } = await api.import(
+ );
+ void api.unregister();
+ 
+-export default {
+-  default: options => reduceToOrderedList(options),
+-};
++// ets2nav-local: plain function export; see find-route-worker-wrapper.js.
++export default function reduceResults(options) {
++  return reduceToOrderedList(options);
++}
+diff --git a/packages/apis/navigation/infra/workers/search-worker-wrapper.js b/packages/apis/navigation/infra/workers/search-worker-wrapper.js
+index aeca627..d24d35f 100644
+--- a/packages/apis/navigation/infra/workers/search-worker-wrapper.js
++++ b/packages/apis/navigation/infra/workers/search-worker-wrapper.js
+@@ -26,7 +26,7 @@ void api.unregister();
+ // number of times the large `routeContext` object is cloned; `routeContext` is
+ // only cloned MAX_THREADS time instead of being cloned every time `findRoutes`
+ // is called.
+-export default {
+-  default: options =>
+-    searchLngLatRTree({ ...options, rbushJSON: workerData.rbushJSON }),
+-};
++// ets2nav-local: plain function export; see find-route-worker-wrapper.js.
++export default function searchWithRTree(options) {
++  return searchLngLatRTree({ ...options, rbushJSON: workerData.rbushJSON });
++}
+diff --git a/packages/clis/navigator/ets2nav-sim.ts b/packages/clis/navigator/ets2nav-sim.ts
+new file mode 100644
+index 0000000..e8c3d40
+--- /dev/null
++++ b/packages/clis/navigator/ets2nav-sim.ts
+@@ -0,0 +1,236 @@
++// ets2nav-local: builds a synthetic telemetry recording of a truck driving a
++// real route between two ETS2 cities, so the head-unit app can be tested
++// without running the game.
++//
++// usage: npx tsx ets2nav-sim.ts <fromCity> <toCity> [speedKph] [outFile]
++// Requires the navigation server running on localhost:62840 and NO other
++// telemetry client running (this script spawns its own, temporarily).
++
++import polyline from '@mapbox/polyline';
++import { spawn } from 'node:child_process';
++import fs from 'node:fs';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++import zlib from 'node:zlib';
++import WebSocket from 'ws';
++import {
++  fromEts2CoordsToWgs84,
++  fromWgs84ToEts2Coords,
++} from '../../libs/map/projections';
++
++const [fromCity = 'berlin', toCity = 'hamburg', speedArg = '90', outArg] =
++  process.argv.slice(2);
++const speedMs = Number(speedArg) / 3.6;
++const tickMs = 500; // matches the telemetry loop's push interval
++// ETS2 Nav's data dir: $ETS2NAV_DATA, or <repo>/data when this checkout lives
++// in <repo>/vendor/tm-maps.
++const ets2navData =
++  process.env.ETS2NAV_DATA ??
++  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../../data');
++const dataDir = path.join(ets2navData, 'game'); // companies/cities (pipeline output)
++const simDir = path.join(ets2navData, 'sim');
++fs.mkdirSync(simDir, { recursive: true });
++const outFile = outArg ?? path.join(simDir, `${fromCity}-${toCity}.ndjson.gz`);
++const server = 'http://localhost:62840';
++
++interface Company {
++  token: string;
++  cityToken: string;
++  x: number;
++  y: number;
++}
++interface City {
++  token: string;
++  name: string;
++}
++
++const companies: Company[] = JSON.parse(
++  fs.readFileSync(path.join(dataDir, 'europe-companies.json'), 'utf8'),
++);
++const cities: City[] = JSON.parse(
++  fs.readFileSync(path.join(dataDir, 'europe-cities.json'), 'utf8'),
++);
++const cityName = (t: string) => cities.find(c => c.token === t)?.name ?? t;
++
++const startCompany = companies.find(c => c.cityToken === fromCity);
++const destCompany = companies.find(
++  c => c.cityToken === toCity && c.token !== startCompany?.token,
++);
++if (!startCompany || !destCompany) {
++  throw new Error(`no companies found for ${fromCity} / ${toCity}`);
++}
++const jobLocation = (c: Company) => ({
++  city: { id: c.cityToken, name: cityName(c.cityToken) },
++  company: { id: c.token, name: c.token },
++});
++const job = {
++  source: jobLocation(startCompany),
++  destination: jobLocation(destCompany),
++};
++console.log(`job: ${startCompany.token}@${fromCity} -> ${destCompany.token}@${toCity}`);
++
++const zero = { X: 0, Y: 0, Z: 0 };
++const speed = (ms: number) => ({ value: ms, kph: ms * 3.6, mph: ms * 2.23694 });
++function entry(i: number, x: number, z: number, heading: number, ms: number) {
++  return {
++    navigation: { speedLimit: speed(90 / 3.6) },
++    truck: {
++      speed: speed(ms),
++      position: { X: x, Y: 0, Z: z },
++      orientation: { heading },
++      acceleration: {
++        linearVelocity: { X: 0, Y: 0, Z: ms },
++        linearAcceleration: zero,
++        angularVelocity: zero,
++        angularAcceleration: zero,
++      },
++    },
++    trailer: { attached: false, position: zero, orientation: { heading: 0 } },
++    job,
++    game: {
++      game: { name: 'ets2' },
++      paused: false,
++      timestamp: { value: 1_000_000 + i * tickMs * 1000 },
++      time: { value: 720 + Math.floor((i * tickMs) / 60_000) }, // noon, day 0
++      scale: 19,
++    },
++  };
++}
++
++function writeRecording(file: string, entries: unknown[]) {
++  const ndjson = entries.map(e => JSON.stringify(e)).join('\n') + '\n';
++  fs.writeFileSync(file, zlib.gzipSync(ndjson));
++}
++
++// heading: [0 = north, 1), counter-clockwise; game north is -Z.
++function headingOf(dx: number, dz: number) {
++  const a = Math.atan2(-dx, -dz) / (2 * Math.PI);
++  return (a + 1) % 1;
++}
++
++async function main() {
++  // 1. stationary recording at the start company, with the job set.
++  const stationaryFile = path.join(simDir, 'stationary.ndjson.gz');
++  writeRecording(
++    stationaryFile,
++    Array.from({ length: 40 }, (_, i) =>
++      entry(i, startCompany!.x, startCompany!.y, 0, 0),
++    ),
++  );
++
++  // 2. play it through a temporary telemetry client.
++  const client = spawn(
++    process.execPath,
++    ['../../../node_modules/tsx/dist/cli.mjs', 'index.ts', 'recorded', stationaryFile],
++    {
++      cwd: path.dirname(fileURLToPath(import.meta.url)),
++      env: { ...process.env, NODE_ENV: 'development' },
++      stdio: ['ignore', 'pipe', 'inherit'],
++    },
++  );
++  const code = await new Promise<string>((resolve, reject) => {
++    let out = '';
++    client.stdout.on('data', (d: Buffer) => {
++      out += d.toString();
++      // first run: "enter pairing code: xxxx"; after a reconnect:
++      // "to connect an additional device, use pairing code: xxxx"
++      const m = /pairing code:\s+(\w{4})\b/.exec(out);
++      if (m) resolve(m[1]);
++    });
++    client.on('exit', c => reject(new Error(`telemetry client exited: ${c}`)));
++  });
++  console.log('pairing code', code);
++
++  // 3. act as a navigator viewer and ask for a route to the job.
++  const route = await new Promise<any>((resolve, reject) => {
++    const ws = new WebSocket(
++      'ws://localhost:62840/navigator?connectionParams=1',
++      { headers: { Origin: 'http://ets2nav.local', 'User-Agent': 'ets2nav-sim' } },
++    );
++    let id = 0;
++    const send = (method: string, p: string, input?: unknown) =>
++      ws.send(JSON.stringify({ id: ++id, method, params: { path: p, input } }));
++    let asked = false;
++    ws.on('open', () => {
++      ws.send(JSON.stringify({ method: 'connectionParams', data: null }));
++      send('mutation', 'app.redeemCode', { code });
++    });
++    ws.on('message', raw => {
++      const s = raw.toString();
++      if (s === 'PING') return void ws.send('PONG');
++      const msg = JSON.parse(s);
++      if (msg.error) return reject(new Error(JSON.stringify(msg.error)));
++      if (msg.id === 1) return send('subscription', 'app.subscribeToDevice');
++      const ev = msg.result?.data;
++      if (ev?.type && ev.type !== 'positionUpdate') {
++        console.log('event', ev.type, JSON.stringify(ev.data ?? null).slice(0, 200));
++      }
++      if (ev?.type === 'jobUpdate' && ev.data?.toNodeUid && !asked) {
++        asked = true;
++        console.log('job toNodeUid', ev.data.toNodeUid);
++        send('query', 'app.previewRoutes', { toNodeUid: ev.data.toNodeUid });
++      } else if (Array.isArray(msg.result?.data)) {
++        ws.close();
++        resolve(msg.result.data[0]);
++      }
++    });
++    setTimeout(() => reject(new Error('timed out waiting for route')), 60_000);
++  });
++  client.kill();
++  if (!route) throw new Error('server returned no route');
++  console.log(
++    `route: ${(route.distanceMeters / 1000).toFixed(1)} km, ` +
++      `${Math.round(route.duration / 60)} min, ${route.segments[0].steps.length} steps`,
++  );
++
++  // 4. resample the route geometry and write the moving recording.
++  const pts: [number, number][] = [];
++  for (const seg of route.segments) {
++    for (const [si, step] of seg.steps.entries()) {
++      // N.B.: the server encodes [lon, lat] pairs (not polyline's usual
++      // [lat, lon]), so decode() yields [lon, lat].
++      const raw = polyline
++        .decode(step.geometry)
++        .map(([lon, lat]) => fromWgs84ToEts2Coords([lon, lat]));
++      if (process.env.SIM_DEBUG) {
++        const glen = raw
++          .slice(1)
++          .reduce((a, p, j) => a + Math.hypot(p[0] - raw[j][0], p[1] - raw[j][1]), 0);
++        console.log(`step ${si}: dir=${step.maneuver.direction} dist=${step.distanceMeters.toFixed(0)} geomLen=${glen.toFixed(0)} pts=${raw.length}`);
++      }
++      for (const g of raw) {
++        const last = pts.at(-1);
++        if (!last || Math.hypot(g[0] - last[0], g[1] - last[1]) > 0.01) pts.push(g);
++      }
++    }
++  }
++  const stepLen = speedMs * (tickMs / 1000);
++  const out = [];
++  let i = 0;
++  let nextAt = 0; // distance along the current segment of the next sample
++  for (let k = 1; k < pts.length; k++) {
++    const [x0, z0] = pts[k - 1];
++    const [x1, z1] = pts[k];
++    const len = Math.hypot(x1 - x0, z1 - z0);
++    const h = headingOf(x1 - x0, z1 - z0);
++    while (nextAt <= len) {
++      const t = nextAt / len;
++      out.push(entry(i++, x0 + (x1 - x0) * t, z0 + (z1 - z0) * t, h, speedMs));
++      nextAt += stepLen;
++    }
++    nextAt -= len;
++  }
++  // park at the end for a bit
++  const [ex, ez] = pts.at(-1)!;
++  for (let k = 0; k < 20; k++) out.push(entry(i++, ex, ez, 0, 0));
++  writeRecording(outFile, out);
++  const [lon, lat] = fromEts2CoordsToWgs84([startCompany!.x, startCompany!.y]);
++  console.log(`wrote ${out.length} entries (${((out.length * tickMs) / 60000).toFixed(1)} min) -> ${outFile}`);
++  console.log(`start lon/lat: ${lon.toFixed(5)}, ${lat.toFixed(5)}`);
++  process.exit(0);
++}
++
++main().catch(e => {
++  console.error(e);
++  process.exit(1);
++});
+-- 
+2.55.0.windows.5
+

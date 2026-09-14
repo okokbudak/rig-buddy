@@ -1,0 +1,17 @@
+* text=auto
+
+# Windows scripts must keep CRLF (cmd.exe mis-parses LF-only batch files).
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Scripts run in WSL/Git Bash must keep LF.
+*.sh  text eol=lf
+*.env text eol=lf
+*.env.example text eol=lf
+
+# Patches are applied with `git am`; don't touch their bytes.
+*.patch -text
+
+*.png binary
+*.jar binary

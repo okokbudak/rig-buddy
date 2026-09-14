@@ -1,0 +1,29 @@
+# ---- third-party / downloaded (setup\setup-pc.ps1 recreates these) ----
+vendor/
+pc/agent/node_modules/
+
+# ---- generated from the game files (pipeline/, never commit: SCS content) ----
+data/
+android/app/src/main/assets/sprites/
+android/app/src/main/assets/glyphs/
+
+# ---- build output ----
+bin/
+pc/host/bin/
+pc/host/obj/
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
+android/app/release/
+
+# ---- local machine state ----
+logs/
+local/
+dev/dev.env
+*.log
+*.err
+.idea/
+.vscode/
+*.iml

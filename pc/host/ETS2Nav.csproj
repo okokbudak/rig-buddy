@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- ETS2 Nav PC app: one tray program that runs everything the head unit
+       needs (telemetry bridge, media sessions, and the Node services). -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Windows TFM for the WinRT media-session API (Windows.Media.Control). -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>ETS2Nav</AssemblyName>
+    <Product>ETS2 Nav</Product>
+    <Version>0.1.0</Version>
+    <ApplicationIcon>ets2nav.ico</ApplicationIcon>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Per-app audio session volume (Core Audio / WASAPI). -->
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+  </ItemGroup>
+
+</Project>
