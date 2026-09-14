@@ -191,7 +191,10 @@ const server = http.createServer((req, res) => {
     res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify(body));
   };
-  if (url.pathname === '/health') return send(200, { ok: true, telemetry: latest !== null, save: !!save });
+  if (url.pathname === '/health') {
+    // clients: connected apps (head units / phones), shown in the PC app's window
+    return send(200, { ok: true, telemetry: latest !== null, save: !!save, clients: wss.clients.size });
+  }
   if (url.pathname === '/profile') {
     if (!save) return send(503, { error: saveError || 'kayıt dosyası henüz okunmadı' });
     return send(200, { ...save.profile, currency: save.currency, gameTime: save.gameTime, savedAt: save.savedAt });
