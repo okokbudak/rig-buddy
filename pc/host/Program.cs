@@ -67,6 +67,7 @@ static class Program
         {
             case "quit": app.Post(app.Exit); return "ok";
             case "show": app.Post(app.ShowWindow); return "ok";
+            case "logs": app.Post(app.ShowLogs); return "ok";
             case "restart": sup.Restart(svc); return "ok";
             case "stop" when svc != null: sup.SetEnabled(svc, false); return "ok";
             case "start" when svc != null: sup.SetEnabled(svc, true); return "ok";

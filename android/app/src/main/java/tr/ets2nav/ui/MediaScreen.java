@@ -109,7 +109,7 @@ public final class MediaScreen {
     LinearLayout controls = Ui.row(c);
     controls.setGravity(Gravity.CENTER);
     controls.addView(roundButton(R.drawable.ic_prev, 64, Ui.TRACK, Ui.TEXT, v -> send(cmd("prev"))));
-    playButton = roundButton(R.drawable.ic_play, 84, Ui.ACCENT, 0xff101316, v -> {
+    playButton = roundButton(R.drawable.ic_play, 84, Ui.ACCENT, Ui.ON_ACCENT, v -> {
       playing = !playing;
       updatePlayIcon();
       send(cmd("toggle"));
@@ -242,7 +242,7 @@ public final class MediaScreen {
     for (int i = 0; i < sessions.length(); i++) {
       JSONObject s = sessions.optJSONObject(i);
       boolean on = s.optString("id").equals(curId);
-      TextView chip = Ui.text(c, s.optString("app"), 15, on ? 0xff101316 : Ui.TEXT, true);
+      TextView chip = Ui.text(c, s.optString("app"), 15, on ? Ui.ON_ACCENT : Ui.TEXT, true);
       int ph = Ui.dp(c, 14), pv = Ui.dp(c, 8);
       chip.setPadding(ph, pv, ph, pv);
       chip.setBackground(Ui.rounded(on ? Ui.ACCENT : Ui.TRACK, Ui.dp(c, 18)));

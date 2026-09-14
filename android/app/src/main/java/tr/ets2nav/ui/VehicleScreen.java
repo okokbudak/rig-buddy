@@ -137,7 +137,7 @@ public final class VehicleScreen {
 
   private void chip(String key, boolean on, int color) {
     TextView t = chips.get(key);
-    t.setTextColor(on ? 0xff101316 : Ui.TEXT2);
+    t.setTextColor(on ? Ui.ON_ACCENT : Ui.TEXT2);
     t.setBackground(Ui.rounded(on ? color : Ui.TRACK, Ui.dp(t.getContext(), 10)));
   }
 

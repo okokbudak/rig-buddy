@@ -58,20 +58,21 @@ sealed class Supervisor
     // Server log line -> progress milestone. Percentages follow measured ETS2
     // load times; `Expect` is the typical seconds until the next milestone,
     // which lets the bar keep creeping instead of sitting still.
+    // Labels are L keys; {0} is the game.
     static readonly (Regex Pattern, int Percent, string Label, double Expect)[] ServerStages =
     [
-        (new(@"reading (\w+) map JSON files"), 8, "Harita verisi okunuyor ({0})", 6.5),
-        (new(@"reading (\w+) graph data"), 40, "Yol ağı yükleniyor ({0})", 3),
-        (new(@"building road and prefab rtree"), 55, "Yol geometrisi hesaplanıyor", 5.5),
-        (new(@"building graph node rtree"), 85, "Arama dizinleri hazırlanıyor", 1),
-        (new(@"lookup data loaded"), 92, "Sunucu açılıyor", 1),
-        (new(@"listening on port"), 95, "Telemetri istemcisi bağlanıyor", 2),
+        (new(@"reading (\w+) map JSON files"), 8, "stage.read", 6.5),
+        (new(@"reading (\w+) graph data"), 40, "stage.graph", 3),
+        (new(@"building road and prefab rtree"), 55, "stage.geometry", 5.5),
+        (new(@"building graph node rtree"), 85, "stage.index", 1),
+        (new(@"lookup data loaded"), 92, "stage.open", 1),
+        (new(@"listening on port"), 95, "stage.telemetry", 2),
     ];
 
-    void SetStage(int percent, string label, double expect)
+    void SetStage(int percent, string key, double expect, string arg = "")
     {
         int next = ServerStages.Select(s => s.Percent).Where(p => p > percent).DefaultIfEmpty(100).First();
-        Stage = new StartupStage(percent, next, label, expect, DateTime.UtcNow);
+        Stage = new StartupStage(percent, next, key, arg, expect, DateTime.UtcNow);
     }
 
     void OnServerLine(NodeService server, string line)
@@ -81,7 +82,7 @@ sealed class Supervisor
             var m = pattern.Match(line);
             if (!m.Success || percent <= Stage.Percent) continue;
             string map = m.Groups.Count > 1 ? (m.Groups[1].Value == "usa" ? "ATS" : "ETS2") : "";
-            SetStage(percent, string.Format(label, map), expect);
+            SetStage(percent, label, expect, map);
         }
         if (line.Contains("listening on port"))
         {
@@ -100,14 +101,14 @@ sealed class Supervisor
         string shim = Path.Combine(root, @"pc\patches\scsSDKTelemetry.js");
 
         if (!File.Exists(_node) || !File.Exists(tsx))
-            SetupProblem = "Kurulum eksik: setup\\setup-pc.ps1 çalıştırın.";
+            SetupProblem = "setup.missing"; // L keys
         else if (!File.Exists(Path.Combine(data, "europe-navigation.zip")))
-            SetupProblem = "Harita verisi yok: pipeline\\build-map-data.ps1 çalıştırın.";
+            SetupProblem = "setup.nodata";
 
         var server = new NodeService
         {
             Name = "server",
-            Title = "Navigasyon sunucusu",
+            Title = "svc.server",
             WorkDir = Path.Combine(tm, @"packages\apis\navigation"),
             Args = ["--max-old-space-size=8192", tsx, "index.ts", data],
             Env = new()
@@ -123,7 +124,7 @@ sealed class Supervisor
         var agent = new NodeService
         {
             Name = "agent",
-            Title = "Agent (araç, işler, medya)",
+            Title = "svc.agent",
             WorkDir = Path.Combine(root, @"pc\agent"),
             Args = [Path.Combine(root, @"pc\agent\index.mjs")],
             Env = new() { ["ETS2NAV_DATA"] = data },
@@ -133,7 +134,7 @@ sealed class Supervisor
         var telemetry = new NodeService
         {
             Name = "telemetry",
-            Title = "Telemetri istemcisi",
+            Title = "svc.telemetry",
             WorkDir = Path.Combine(tm, @"packages\clis\navigator"),
             Args = [tsx, "index.ts"],
             Env = new() { ["NODE_ENV"] = "development" },
@@ -145,7 +146,7 @@ sealed class Supervisor
                 var m = Regex.Match(line, @"pairing code:\s+(\w{4})\b");
                 if (!m.Success) return;
                 PairingCode = m.Groups[1].Value;
-                SetStage(100, "Hazır", 0);
+                SetStage(100, "stage.ready", 0);
             },
         };
         Services = [server, agent, telemetry];
@@ -213,7 +214,7 @@ sealed class Supervisor
 
     void Launch(NodeService s)
     {
-        if (s.Name == "server") SetStage(2, "Navigasyon sunucusu başlatılıyor", 2);
+        if (s.Name == "server") SetStage(2, "stage.start", 2);
         s.BeforeStart?.Invoke();
         s.LogFile ??= Log.Open(Path.Combine(Log.Dir, s.Name + ".log"));
         var psi = new ProcessStartInfo(_node)
@@ -311,10 +312,11 @@ sealed class Supervisor
 }
 
 /** Start-up position: `Percent` reached at `At`; `Next` typically comes `Expect` s later. */
-sealed record StartupStage(int Percent, int Next, string Label, double Expect, DateTime At)
+sealed record StartupStage(int Percent, int Next, string Key, string Arg, double Expect, DateTime At)
 {
-    public static readonly StartupStage Initial = new(0, 2, "Başlatılıyor", 1, DateTime.UtcNow);
+    public static readonly StartupStage Initial = new(0, 2, "stage.init", "", 1, DateTime.UtcNow);
     public bool Done => Percent >= 100;
+    public string Label => L.T(Key, Arg);
 
     /** Estimated progress 0..1: creeps toward `Next` (never reaching it) while waiting. */
     public double Estimate()
