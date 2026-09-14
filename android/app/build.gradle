@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'tr.ets2nav'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'tr.ets2nav'
+        // The head unit runs Android 8.1 (API 27); keep older units working too.
+        minSdk 21
+        targetSdk 27
+        versionCode 1
+        versionName '0.1.0'
+        ndk {
+            // AC8227L is 32-bit only; shipping one ABI keeps the APK small.
+            abiFilters 'armeabi-v7a'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Personal sideloaded build: sign with the debug key.
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    // 10.x is the last MapLibre line with an OpenGL ES 2.0 renderer (11+ needs ES 3.0).
+    implementation 'org.maplibre.gl:android-sdk:10.3.7'
+    // Same version MapLibre already pulls in at runtime; used for the WebSocket client.
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+}

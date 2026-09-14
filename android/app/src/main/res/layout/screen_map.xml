@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:maplibre="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#ebe9e4">
+
+    <com.mapbox.mapboxsdk.maps.MapView
+        android:id="@+id/map"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        maplibre:maplibre_renderTextureMode="false"
+        maplibre:maplibre_uiAttribution="false"
+        maplibre:maplibre_uiLogo="false"
+        maplibre:maplibre_uiCompass="false"
+        maplibre:maplibre_uiRotateGestures="true"
+        maplibre:maplibre_uiTiltGestures="false" />
+
+    <!-- Focal-point chevron; positioned in code to match the camera padding. -->
+    <tr.ets2nav.ui.TruckArrowView
+        android:id="@+id/truckArrow"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:visibility="gone" />
+
+    <!-- Upcoming maneuver -->
+    <LinearLayout
+        android:id="@+id/maneuverPanel"
+        android:layout_width="400dp"
+        android:layout_height="wrap_content"
+        android:layout_margin="14dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_maneuver"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="14dp">
+
+            <tr.ets2nav.ui.ManeuverIconView
+                android:id="@+id/maneuverIcon"
+                android:layout_width="84dp"
+                android:layout_height="84dp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/maneuverDistance"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="#ffffff"
+                    android:textSize="44sp" />
+
+                <TextView
+                    android:id="@+id/maneuverText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:textColor="#e8f5e9"
+                    android:textSize="20sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/thenPanel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_then"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="16dp"
+            android:paddingTop="6dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="6dp"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/then"
+                android:textColor="#ffffff"
+                android:textSize="18sp" />
+
+            <tr.ets2nav.ui.ManeuverIconView
+                android:id="@+id/thenIcon"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginStart="8dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Speed + limit -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="14dp"
+        android:layout_marginBottom="120dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/speed"
+            android:layout_width="78dp"
+            android:layout_height="78dp"
+            android:background="@drawable/bg_speed"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:textColor="#202124"
+            android:textSize="30sp" />
+
+        <TextView
+            android:id="@+id/speedLimit"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/bg_limit"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:textColor="#202124"
+            android:textSize="24sp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- Trip summary -->
+    <LinearLayout
+        android:id="@+id/tripPanel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="14dp"
+        android:background="@drawable/bg_card"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="20dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="12dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tripTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-medium"
+            android:textColor="#188038"
+            android:textSize="32sp" />
+
+        <TextView
+            android:id="@+id/tripDetail"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="18dp"
+            android:textColor="#5f6368"
+            android:textSize="22sp" />
+
+        <ImageButton
+            android:id="@+id/cancelRoute"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="14dp"
+            android:background="@drawable/bg_round_button"
+            android:contentDescription="@string/cancel_route"
+            android:src="@drawable/ic_close" />
+    </LinearLayout>
+
+    <!-- Connection status -->
+    <TextView
+        android:id="@+id/status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="14dp"
+        android:background="@drawable/bg_chip"
+        android:paddingStart="14dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="8dp"
+        android:textColor="#202124"
+        android:textSize="16sp" />
+
+    <ImageButton
+        android:id="@+id/settings"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="64dp"
+        android:layout_marginEnd="14dp"
+        android:background="@drawable/bg_round_button"
+        android:contentDescription="@string/settings"
+        android:src="@drawable/ic_settings"
+        android:tint="#5f6368" />
+
+    <ImageButton
+        android:id="@+id/searchButton"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="132dp"
+        android:layout_marginEnd="10dp"
+        android:background="@drawable/bg_round_button"
+        android:contentDescription="@string/search"
+        android:src="@drawable/ic_search" />
+
+    <!-- "Go here" card for a long-pressed point or a search result -->
+    <LinearLayout
+        android:id="@+id/destCard"
+        android:layout_width="520dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="14dp"
+        android:background="@drawable/bg_panel"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/destTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:textColor="#202124"
+                android:textSize="22sp" />
+
+            <TextView
+                android:id="@+id/destSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#5f6368"
+                android:textSize="17sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/destGo"
+            android:layout_width="wrap_content"
+            android:layout_height="52dp"
+            android:layout_marginStart="12dp"
+            android:background="@drawable/bg_primary_button"
+            android:gravity="center"
+            android:paddingStart="28dp"
+            android:paddingEnd="28dp"
+            android:text="@string/go"
+            android:textColor="#ffffff"
+            android:textSize="20sp" />
+
+        <ImageButton
+            android:id="@+id/destClose"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/bg_round_button"
+            android:contentDescription="@string/close"
+            android:src="@drawable/ic_close" />
+    </LinearLayout>
+
+    <!-- Search panel -->
+    <LinearLayout
+        android:id="@+id/searchPanel"
+        android:layout_width="480dp"
+        android:layout_height="match_parent"
+        android:layout_margin="12dp"
+        android:background="@drawable/bg_panel"
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/searchInput"
+                android:layout_width="0dp"
+                android:layout_height="56dp"
+                android:layout_weight="1"
+                android:hint="@string/search_hint"
+                android:imeOptions="actionSearch|flagNoExtractUi|flagNoFullscreen"
+                android:inputType="text"
+                android:paddingStart="12dp"
+                android:singleLine="true"
+                android:textSize="20sp" />
+
+            <ImageButton
+                android:id="@+id/searchClose"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_round_button"
+                android:contentDescription="@string/close"
+                android:src="@drawable/ic_close" />
+        </LinearLayout>
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/searchChips"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <TextView
+            android:id="@+id/searchStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="6dp"
+            android:paddingTop="8dp"
+            android:textColor="#5f6368"
+            android:textSize="16sp" />
+
+        <ListView
+            android:id="@+id/searchResults"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:divider="#eeeeee"
+            android:dividerHeight="1dp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/recenter"
+        android:layout_width="wrap_content"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="18dp"
+        android:background="@drawable/bg_card"
+        android:drawableStart="@drawable/ic_navigation"
+        android:drawablePadding="10dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="20dp"
+        android:text="@string/recenter"
+        android:textColor="#1a73e8"
+        android:textSize="20sp"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/message"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/bg_card"
+        android:gravity="center"
+        android:maxWidth="620dp"
+        android:padding="24dp"
+        android:textColor="#202124"
+        android:textSize="20sp"
+        android:visibility="gone" />
+</FrameLayout>

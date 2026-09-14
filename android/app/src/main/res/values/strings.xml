@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ETS2 Nav</string>
+    <string name="then">Sonra</string>
+    <string name="settings">Ayarlar</string>
+    <string name="recenter">Ortala</string>
+    <string name="search">Ara</string>
+    <string name="search_hint">Şehir, firma veya yer ara</string>
+    <string name="go">Git</string>
+    <string name="close">Kapat</string>
+    <string name="cancel_route">Rotayı iptal et</string>
+</resources>

@@ -1,0 +1,32 @@
+From 6dbf729f01ab2fc62e2fadaa06799777d15e7930 Mon Sep 17 00:00:00 2001
+From: ets2nav <ets2nav@localhost>
+Date: Mon, 14 Sep 2026 02:08:07 +0300
+Subject: [PATCH 3/3] ets2nav-local: don't crash route detection after the
+ route is completed
+
+---
+ .../apis/navigation/domain/actor/detect-route-events.ts   | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/packages/apis/navigation/domain/actor/detect-route-events.ts b/packages/apis/navigation/domain/actor/detect-route-events.ts
+index c7b4a5b..7a993ad 100644
+--- a/packages/apis/navigation/domain/actor/detect-route-events.ts
++++ b/packages/apis/navigation/domain/actor/detect-route-events.ts
+@@ -190,6 +190,14 @@ function isTruckOnRoute(
+     return true;
+   }
+ 
++  if (expectedItems.length === 0) {
++    // ets2nav-local: the route has been completed (e.g. events were unpaused
++    // after the final segmentComplete); there's nothing left to match against.
++    // Upstream crashed here with `toString(undefined)`, failing telemetry.push
++    // and killing the telemetry client.
++    return true;
++  }
++
+   if (typeof expectedItems[0] === 'symbol') {
+     // skip over dummy expected items, because they only exist when neighbor
+     // nodes repeat, or we're at a ferry terminal.
+-- 
+2.55.0.windows.5
+
