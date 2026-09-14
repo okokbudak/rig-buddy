@@ -1,0 +1,1971 @@
+[
+  {
+    "text": "West Memphis",
+    "easting": 26653,
+    "southing": 19492,
+    "kind": "town",
+    "access": true,
+    "industry": false,
+    "country": "US-AR",
+    "show": true
+  },
+  {
+    "text": "Bagdad",
+    "easting": -78143,
+    "southing": 16979,
+    "kind": "town",
+    "signed": "all",
+    "access": true,
+    "industry": true,
+    "city": "kingman",
+    "country": "US-AZ",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_cameron",
+    "text": "Cameron",
+    "kind": "town",
+    "signed": "most",
+    "access": true,
+    "industry": false,
+    "country": "US-AZ",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_campverde",
+    "text": "Camp Verde",
+    "kind": "city",
+    "city": "camp_verde",
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_coloradoc",
+    "text": "Colorado City",
+    "easting": -75141,
+    "southing": 3883,
+    "country": "US-AZ",
+    "checked": "2023-04"
+  },
+  {
+    "text": "Dateland",
+    "easting": -85223,
+    "southing": 26610,
+    "country": "US-AZ",
+    "show": true,
+    "checked": "2023-04"
+  },
+  {
+    "token": "az_desertvw",
+    "text": "Desert View",
+    "easting": -71016,
+    "southing": 9688,
+    "kind": "historic",
+    "signed": "all",
+    "access": false,
+    "industry": true,
+    "city": "g_canyon_vlg",
+    "country": "US-AZ",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_ehrenberg",
+    "text": "Ehrenberg",
+    "easting": -85742,
+    "southing": 21294,
+    "country": "US-AZ",
+    "show": true,
+    "checked": "2024-11"
+  },
+  {
+    "token": "az_flagstaff",
+    "text": "Flagstaff",
+    "kind": "city",
+    "city": "flagstaff",
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_fthuachuc",
+    "text": "Fort Huachuca",
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2023-04"
+  },
+  {
+    "token": "az_fredonia",
+    "text": "Fredonia",
+    "easting": -74593,
+    "southing": 5237,
+    "country": "US-AZ",
+    "checked": "2023-04"
+  },
+  {
+    "token": "az_gila",
+    "text": "Gila",
+    "access": false,
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2023-04"
+  },
+  {
+    "token": "az_globe",
+    "text": "Globe",
+    "easting": -69360,
+    "southing": 26005,
+    "country": "US-AZ",
+    "checked": "2023-04"
+  },
+  {
+    "token": "az_gndcynsth",
+    "text": "Grand Canyon National Park",
+    "easting": -74000,
+    "southing": 8000,
+    "kind": "nature",
+    "signed": "all",
+    "access": true,
+    "industry": true,
+    "city": "g_canyon_vlg",
+    "country": "US-AZ",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_gndcynest",
+    "text": "Grand Canyon National Park",
+    "easting": null,
+    "southing": null,
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_grandcany",
+    "text": "Grand Canyon Village",
+    "kind": "city",
+    "city": "g_canyon_vlg",
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_hackberry",
+    "text": "Hackberry",
+    "kind": "hamlet",
+    "signed": "all",
+    "access": true,
+    "industry": false,
+    "country": "US-AZ",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_holbrook",
+    "text": "Holbrook",
+    "easting": -64800,
+    "southing": 17781,
+    "kind": "town",
+    "signed": "all",
+    "access": true,
+    "industry": true,
+    "city": "winslow",
+    "country": "US-AZ",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_nv_hoover",
+    "text": "Hoover Dam",
+    "easting": null,
+    "southing": null,
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2026-02",
+    "remark": "see nv_hoover"
+  },
+  {
+    "token": "az_kayenta",
+    "text": "Kayenta",
+    "kind": "city",
+    "city": "kayenta",
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_kingman",
+    "text": "Kingman",
+    "kind": "city",
+    "city": "kingman",
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_lakehavas",
+    "text": "Lake Havasu City",
+    "kind": "city",
+    "city": "lake_havasu",
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_lakepowel",
+    "text": "Lake Powell",
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2023-04"
+  },
+  {
+    "token": "az_mexicanwa",
+    "text": "Mexican Water",
+    "signed": "remote",
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2026-02",
+    "remark": "really not sure what to do with this one"
+  },
+  {
+    "token": "az_morenci",
+    "text": "Morenci",
+    "easting": -63018,
+    "southing": 29176,
+    "country": "US-AZ",
+    "checked": "2023-04"
+  },
+  {
+    "token": "az_page",
+    "text": "Page",
+    "kind": "city",
+    "city": "page",
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_parker",
+    "text": "Parker",
+    "kind": "town",
+    "signed": "some",
+    "access": true,
+    "industry": false,
+    "country": "US-AZ",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_petrified",
+    "text": "Petrified Forest National Park",
+    "easting": -63250,
+    "southing": 17450,
+    "kind": "nature",
+    "signed": "all",
+    "access": false,
+    "industry": false,
+    "country": "US-AZ",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "text": "Pinetop/Lakeside",
+    "easting": -64293,
+    "southing": 23303,
+    "kind": "town",
+    "signed": "most",
+    "access": true,
+    "industry": true,
+    "city": "show_low",
+    "country": "US-AZ",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_provinggn",
+    "text": "Proving Grnd",
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2023-04"
+  },
+  {
+    "token": "az_quartzsit",
+    "text": "Quartzsite",
+    "easting": -83412,
+    "southing": 22317,
+    "country": "US-AZ",
+    "checked": "2023-04"
+  },
+  {
+    "token": "az_showlow",
+    "text": "Show Low",
+    "kind": "city",
+    "city": "show_low",
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_springerv",
+    "text": "Springerville",
+    "easting": -61364,
+    "southing": 22883,
+    "country": "US-AZ",
+    "checked": "2023-04"
+  },
+  {
+    "token": "az_teecnospo",
+    "text": "Teec Nos Pos",
+    "easting": -59232,
+    "southing": 6703,
+    "country": "US-AZ",
+    "checked": "2023-04"
+  },
+  {
+    "token": "az_tucsoni10",
+    "text": "Tucson",
+    "kind": "city",
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2023-04"
+  },
+  {
+    "token": "az_tusayan",
+    "text": "Tusayan",
+    "kind": "town",
+    "signed": "all",
+    "access": true,
+    "industry": true,
+    "city": "g_canyon_vlg",
+    "country": "US-AZ",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_valle",
+    "text": "Valle",
+    "easting": -73461,
+    "southing": 12490,
+    "kind": "town",
+    "signed": "all",
+    "access": true,
+    "industry": true,
+    "city": "g_canyon_vlg",
+    "country": "US-AZ",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "token": "az_wickenbur",
+    "text": "Wickenburg",
+    "easting": -79013,
+    "southing": 20414,
+    "country": "US-AZ",
+    "checked": "2023-04"
+  },
+  {
+    "token": "az_winslow",
+    "text": "Winslow",
+    "kind": "city",
+    "city": "winslow",
+    "country": "US-AZ",
+    "show": false,
+    "checked": "2026-02"
+  },
+  {
+    "token": "ca_burney",
+    "text": "Burney",
+    "easting": -107672,
+    "southing": -26613,
+    "kind": "town",
+    "country": "US-CA",
+    "show": true
+  },
+  {
+    "token": "ca_crestw",
+    "text": "Crestwood Summit",
+    "kind": "pass",
+    "country": "US-CA",
+    "show": true
+  },
+  {
+    "token": "ca_ggbridge",
+    "text": "Golden Gate Bridge",
+    "kind": "bridge",
+    "country": "US-CA",
+    "show": true
+  },
+  {
+    "text": "Hilt",
+    "easting": -110127,
+    "southing": -32422,
+    "kind": "city",
+    "city": "hilt",
+    "country": "US-CA",
+    "show": false
+  },
+  {
+    "token": "ca_lassenpk",
+    "text": "Lassen Park",
+    "kind": "nature",
+    "signed": "remote",
+    "access": false,
+    "country": "US-CA",
+    "show": false,
+    "checked": "2024"
+  },
+  {
+    "token": "ca_tiogapass",
+    "text": "Tioga Pass",
+    "kind": "pass",
+    "country": "US-CA",
+    "show": true
+  },
+  {
+    "text": "Aurora",
+    "easting": -36783,
+    "southing": -5216,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "text": "Berthoud Pass",
+    "easting": -41339,
+    "southing": -6936,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_bristol",
+    "text": "Bristol",
+    "easting": -28041,
+    "southing": 2844,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "text": "Camp Bird",
+    "easting": -53104,
+    "southing": 2657,
+    "country": "US-CO",
+    "checked": "2023-04",
+    "remark": "Camp Bird Mine"
+  },
+  {
+    "token": "co_cheyennew",
+    "text": "Cheyenne Wells",
+    "easting": -28040,
+    "southing": 466,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_cortez",
+    "text": "Cortez",
+    "easting": -55685,
+    "southing": 5209,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_craig",
+    "text": "Craig",
+    "easting": -49117,
+    "southing": -11522,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_dinosaur",
+    "text": "Dinosaur",
+    "easting": -55191,
+    "southing": -11072,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_divide",
+    "text": "Divide",
+    "easting": -40723,
+    "southing": -2652,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_eads",
+    "text": "Eads",
+    "easting": -30693,
+    "southing": 1537,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_eaglevail",
+    "text": "Eagle - Vail",
+    "country": "US-CO"
+  },
+  {
+    "token": "co_estespk",
+    "text": "Estes Park",
+    "country": "US-CO"
+  },
+  {
+    "token": "co_fairplay",
+    "text": "Fairplay",
+    "easting": -43210,
+    "southing": -4006,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "text": "Fruita",
+    "easting": -54774,
+    "southing": -4884,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_glenwood",
+    "text": "Glenwood Springs",
+    "country": "US-CO"
+  },
+  {
+    "token": "co_granada",
+    "text": "Granada",
+    "easting": -28075,
+    "southing": 4158,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_granby",
+    "text": "Granby",
+    "easting": -43720,
+    "southing": -8039,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_grandlake",
+    "text": "Grand Lake",
+    "easting": -42880,
+    "southing": -8920,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_johnsonvi",
+    "text": "Johnson Village",
+    "easting": -43915,
+    "southing": -1123,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_julesburg",
+    "text": "Julesburg",
+    "easting": -26914,
+    "southing": -12476,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_kitcarson",
+    "text": "Kit Carson",
+    "easting": -31006,
+    "southing": -251,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_lajunta",
+    "text": "La Junta",
+    "easting": -33473,
+    "southing": 4400,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "text": "La Veta Pass",
+    "easting": -41734,
+    "southing": 5664,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_lasanimas",
+    "text": "Las Animas",
+    "easting": -32069,
+    "southing": 3957,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_limon",
+    "text": "Limon",
+    "easting": -33227,
+    "southing": -2398,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_loma",
+    "text": "Loma",
+    "easting": -55935,
+    "southing": -5603,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_loveland",
+    "text": "Loveland",
+    "country": "US-CO"
+  },
+  {
+    "token": "co_maybell",
+    "text": "Maybell",
+    "easting": -51721,
+    "southing": -12012,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_monarchpa",
+    "text": "Monarch Pass",
+    "easting": -46304,
+    "southing": 973,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_montevist",
+    "text": "Monte Vista",
+    "easting": -46355,
+    "southing": 5398,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_ouray",
+    "text": "Ouray",
+    "easting": -51877,
+    "southing": 1766,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_pagosaspg",
+    "text": "Pagosa Springs",
+    "easting": -49731,
+    "southing": 6878,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_parkdale",
+    "text": "Parkdale",
+    "easting": -41113,
+    "southing": 989,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_ponchaspg",
+    "text": "Poncha Springs",
+    "easting": -44581,
+    "southing": 267,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_redcliff",
+    "text": "Red Cliff",
+    "country": "US-CO"
+  },
+  {
+    "text": "Red Mountain Pass",
+    "easting": -52296,
+    "southing": 4118,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_saguache",
+    "text": "Saguache",
+    "easting": -44997,
+    "southing": 3089,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_sapinero",
+    "text": "Sapinero",
+    "easting": -49553,
+    "southing": 486,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_sheridanl",
+    "text": "Sheridan Lake",
+    "easting": -27331,
+    "southing": 1970,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_springfie",
+    "text": "Springfield",
+    "access": false,
+    "country": "US-CO",
+    "show": false,
+    "checked": "2023-04"
+  },
+  {
+    "text": "Starkville",
+    "easting": -38219,
+    "southing": 8099,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_trinidad",
+    "text": "Trinidad",
+    "easting": -37918,
+    "southing": 7243,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_walsenbur",
+    "text": "Walsenburg",
+    "easting": -39425,
+    "southing": 5762,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_wiggins",
+    "text": "Wiggins",
+    "easting": -35441,
+    "southing": -7884,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "text": "Wild Horse",
+    "easting": -31542,
+    "southing": -524,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "token": "co_winterpk",
+    "text": "Winter Park",
+    "easting": -43032,
+    "southing": -7590,
+    "country": "US-CO",
+    "checked": "2023-04"
+  },
+  {
+    "token": "co_wray",
+    "text": "Wray",
+    "easting": -26809,
+    "southing": -7006,
+    "country": "US-CO",
+    "checked": "2023-03"
+  },
+  {
+    "text": "Ketchum",
+    "easting": -73986,
+    "southing": -34871,
+    "kind": "city",
+    "city": "ketchum",
+    "country": "US-ID",
+    "show": false
+  },
+  {
+    "token": "or_montpel",
+    "text": "Montpelier",
+    "country": "US-ID"
+  },
+  {
+    "token": "or_ovid",
+    "text": "Ovid",
+    "country": "US-ID"
+  },
+  {
+    "token": "or_payette",
+    "text": "Payette",
+    "country": "US-ID"
+  },
+  {
+    "token": "il_illinois4",
+    "text": null,
+    "kind": "unnamed",
+    "country": "US-IL",
+    "show": false
+  },
+  {
+    "text": "Kansas City",
+    "easting": 5931,
+    "southing": -987,
+    "kind": "city",
+    "city": "kansas_ci_ks",
+    "country": "US-KS",
+    "show": false
+  },
+  {
+    "token": "mo_stjoseph",
+    "text": "Saint Joseph",
+    "kind": "city",
+    "city": "st_joseph",
+    "country": "US-MO",
+    "show": false
+  },
+  {
+    "token": "mo_stlouis",
+    "text": "Saint Louis",
+    "kind": "city",
+    "city": "st_louis",
+    "country": "US-MO",
+    "show": false
+  },
+  {
+    "text": "Strafford",
+    "easting": 14678,
+    "southing": 8575,
+    "country": "US-MO",
+    "show": true
+  },
+  {
+    "token": "can_usa_93",
+    "text": "Canada / USA Border",
+    "kind": "unnamed",
+    "country": "CA",
+    "show": false
+  },
+  {
+    "token": "ne_hcr",
+    "text": "Harlan County Reservoir",
+    "country": "US-NE",
+    "show": false
+  },
+  {
+    "token": "ne_lak",
+    "text": "Lake McConaughy",
+    "country": "US-NE",
+    "show": false
+  },
+  {
+    "token": "ne_nnf",
+    "text": "Nebr Natl Forest",
+    "country": "US-NE",
+    "show": false
+  },
+  {
+    "token": "ne_npm",
+    "text": "Nebraska Prairie Museum",
+    "country": "US-NE",
+    "show": false
+  },
+  {
+    "text": "Akela",
+    "easting": -55728,
+    "southing": 34153,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_albuquerq",
+    "text": "Albuquerque",
+    "kind": "city",
+    "city": "albuquerque",
+    "country": "US-NM",
+    "show": false,
+    "checked": "2026-02"
+  },
+  {
+    "text": "Augustina Pass",
+    "easting": -49738,
+    "southing": 34018,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_bloomfiel",
+    "text": "Bloomfield",
+    "easting": -53282,
+    "southing": 9011,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_carlscav",
+    "text": "Carlsbad Caverns",
+    "access": false,
+    "country": "US-NM",
+    "show": false
+  },
+  {
+    "text": "Carunel",
+    "easting": -45050,
+    "southing": 19920,
+    "kind": "town",
+    "signed": "all",
+    "access": true,
+    "industry": false,
+    "country": "US-NM",
+    "show": true,
+    "checked": "2026-02",
+    "remark": "ATS uses the spelling \"Carunel\" as of 1.59, although the real-life town is spelled \"Carnuel\""
+  },
+  {
+    "token": "nm_carrizozo",
+    "text": "Carrizozo",
+    "easting": -46001,
+    "southing": 27769,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_clayton",
+    "text": "Clayton",
+    "country": "US-NM"
+  },
+  {
+    "token": "nm_corona",
+    "text": "Corona",
+    "easting": -44192,
+    "southing": 24137,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_desmoines",
+    "text": "Des Moines",
+    "country": "US-NM"
+  },
+  {
+    "token": "nm_eaglenest",
+    "text": "Eagle Nest",
+    "easting": -42881,
+    "southing": 11839,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_elida",
+    "text": "Elida",
+    "easting": -35373,
+    "southing": 26931,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_fortsumne",
+    "text": "Fort Sumner",
+    "easting": -38155,
+    "southing": 23745,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "azconmut4c",
+    "text": "Four Corners",
+    "easting": -58817,
+    "southing": 6087,
+    "country": "US-AZ",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_gallup",
+    "text": "Gallup",
+    "kind": "city",
+    "city": "gallup",
+    "country": "US-NM",
+    "show": false,
+    "checked": "2026-02"
+  },
+  {
+    "token": "nm_grants",
+    "text": "Grants",
+    "easting": -54488,
+    "southing": 16185,
+    "kind": "town",
+    "signed": "all",
+    "access": true,
+    "industry": false,
+    "country": "US-NM",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "text": "La Mesilla",
+    "easting": -52125,
+    "southing": 35483,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_logan",
+    "text": "Logan",
+    "country": "US-NM"
+  },
+  {
+    "token": "nm_lordsburg",
+    "text": "Lordsburg",
+    "easting": -60705,
+    "southing": 33424,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_mesita",
+    "text": "Mesita",
+    "easting": -52580,
+    "southing": 18430,
+    "kind": "town",
+    "signed": "remote",
+    "access": false,
+    "industry": false,
+    "country": "US-NM",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "token": "nm_mountpark",
+    "text": "Mountain Park",
+    "easting": -43754,
+    "southing": 32147,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_pastura",
+    "text": "Pastura",
+    "easting": -41165,
+    "southing": 21872,
+    "kind": "town",
+    "signed": "all",
+    "access": true,
+    "industry": false,
+    "country": "US-NM",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "token": "nm_quemado",
+    "text": "Quemado",
+    "easting": -57913,
+    "southing": 22239,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_riogranbr",
+    "text": "Rio Grande Gorge Bridge",
+    "country": "US-NM",
+    "show": false,
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_santarosa",
+    "text": "Santa Rosa",
+    "kind": "town",
+    "signed": "some",
+    "access": true,
+    "industry": false,
+    "country": "US-NM",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "token": "nm_shiprock",
+    "text": "Shiprock",
+    "easting": -57002,
+    "southing": 8425,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_texico",
+    "text": "Texico",
+    "easting": -31755,
+    "southing": 24919,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_tierra",
+    "text": "Tierra Amarilla",
+    "easting": -47366,
+    "southing": 9374,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_tucumcari",
+    "text": "Tucumcari",
+    "kind": "city",
+    "city": "tucumcari",
+    "country": "US-NM",
+    "show": false,
+    "checked": "2026-02"
+  },
+  {
+    "token": "nm_tularosa",
+    "text": "Tularosa",
+    "easting": -47185,
+    "southing": 30299,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_vaughn",
+    "text": "Vaughn",
+    "easting": -42399,
+    "southing": 22866,
+    "country": "US-NM",
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_whitesand",
+    "text": "White Sands Missile Range",
+    "country": "US-NM",
+    "show": false,
+    "checked": "2023-04"
+  },
+  {
+    "token": "nm_whitescit",
+    "text": "Whites City",
+    "country": "US-NM"
+  },
+  {
+    "token": "nv_austin",
+    "text": "Austin",
+    "easting": -91168,
+    "southing": -13707,
+    "country": "US-NV",
+    "show": true,
+    "remark": "coordinates deleted in 1.59 rework leak"
+  },
+  {
+    "token": "nv_alamo",
+    "text": "Alamo",
+    "country": "US-NV",
+    "show": false,
+    "remark": "coordinates added in 1.59 rework leak"
+  },
+  {
+    "token": "nv_battlemtn",
+    "text": "Battle Mountain",
+    "easting": -89284,
+    "southing": -21993,
+    "country": "US-NV",
+    "show": true,
+    "remark": "coordinates moved in 1.59 rework leak"
+  },
+  {
+    "token": "nv_caliente",
+    "text": "Caliente",
+    "country": "US-NV",
+    "show": false,
+    "remark": "coordinates added in 1.59 rework leak"
+  },
+  {
+    "token": "nv_carlin",
+    "text": "Carlin",
+    "country": "US-NV",
+    "show": false,
+    "remark": "coordinates added in 1.59 rework leak"
+  },
+  {
+    "token": "nv_denio",
+    "text": "Denio",
+    "country": "US-NV",
+    "show": false
+  },
+  {
+    "token": "nv_fallon",
+    "text": "Fallon",
+    "country": "US-NV",
+    "show": false,
+    "remark": "coordinates added in 1.59 rework leak"
+  },
+  {
+    "token": "nv_hoover",
+    "text": "Hoover Dam",
+    "easting": -81491,
+    "southing": 7571,
+    "kind": "dam",
+    "signed": "yes",
+    "access": true,
+    "industry": false,
+    "country": "US-NV",
+    "show": true,
+    "checked": "2026-02"
+  },
+  {
+    "token": "nv_lovelock",
+    "text": "Lovelock",
+    "country": "US-NV",
+    "show": false,
+    "remark": "coordinates added in 1.59 rework leak"
+  },
+  {
+    "token": "nv_rachel",
+    "text": "Rachel",
+    "easting": -86645,
+    "southing": -748,
+    "country": "US-NV",
+    "show": true,
+    "remark": "coordinates moved in 1.59 rework leak"
+  },
+  {
+    "token": "ok_miami",
+    "text": "Miami",
+    "easting": 4899,
+    "southing": 11834,
+    "country": "US-OK",
+    "show": true
+  },
+  {
+    "token": "ok_muldrow",
+    "text": "Muldrow",
+    "country": "US-OK",
+    "show": false
+  },
+  {
+    "token": "ok_tonkawa",
+    "text": "Tonkawa",
+    "country": "US-OK",
+    "show": false
+  },
+  {
+    "token": "or_porti5n",
+    "text": "Portland",
+    "kind": "city",
+    "city": "portland",
+    "country": "US-OR",
+    "show": false
+  },
+  {
+    "token": "or_porti5s",
+    "text": "Portland",
+    "kind": "city",
+    "city": "portland",
+    "country": "US-OR",
+    "show": false
+  },
+  {
+    "token": "or_porti84w",
+    "text": "Portland",
+    "kind": "city",
+    "city": "portland",
+    "country": "US-OR",
+    "show": false
+  },
+  {
+    "token": "or_porlus30e",
+    "text": "Portland",
+    "kind": "city",
+    "city": "portland",
+    "country": "US-OR",
+    "show": false
+  },
+  {
+    "token": "tx_abileni20",
+    "text": "Abilene",
+    "kind": "city",
+    "city": "abilene",
+    "country": "US-TX",
+    "show": false
+  },
+  {
+    "token": "tx_longvie80",
+    "text": "Longview",
+    "kind": "city",
+    "city": "longview_tx",
+    "country": "US-TX",
+    "show": false
+  },
+  {
+    "token": "tx_lubbi27",
+    "text": "Lubbock",
+    "kind": "city",
+    "city": "lubbock",
+    "country": "US-TX",
+    "show": false
+  },
+  {
+    "token": "tx_lubbus62",
+    "text": "Lubbock",
+    "kind": "city",
+    "city": "lubbock",
+    "country": "US-TX",
+    "show": false
+  },
+  {
+    "token": "tx_mineola",
+    "text": "Mineola",
+    "country": "US-TX",
+    "show": false
+  },
+  {
+    "token": "tx_sananti10",
+    "text": "San Antonio",
+    "kind": "city",
+    "city": "san_antonio",
+    "country": "US-TX",
+    "show": false
+  },
+  {
+    "text": "Texarkana",
+    "easting": 9048,
+    "southing": 30642,
+    "kind": "city",
+    "city": "texarkana",
+    "country": "US-TX",
+    "show": false
+  },
+  {
+    "token": "ut_bluff",
+    "text": "Bluff",
+    "easting": -60158,
+    "southing": 4761,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "text": "Brigham City",
+    "easting": -66690,
+    "southing": -20596,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "text": "Cove Fort",
+    "easting": -71894,
+    "southing": -5488,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_i70xus191",
+    "text": "Crescent Junction",
+    "easting": -59750,
+    "southing": -4915,
+    "kind": "junction",
+    "country": "US-UT",
+    "show": true,
+    "checked": "2023-05",
+    "remark": null
+  },
+  {
+    "token": "ut_delta",
+    "text": "Delta",
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_duchense",
+    "text": "Duchesne",
+    "easting": -61122,
+    "southing": -12298,
+    "country": "US-UT",
+    "checked": "2023-05",
+    "remark": "name typo: QA ID 105798"
+  },
+  {
+    "text": "Enoch",
+    "easting": -73954,
+    "southing": -2556,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_flaminggo",
+    "text": "Flaming Gorge",
+    "easting": -56686,
+    "southing": -15284,
+    "kind": "dam",
+    "signed": "some",
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_ftduchesn",
+    "text": "Fort Duchesne",
+    "easting": -58892,
+    "southing": -12610,
+    "signed": "some",
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_gardencit",
+    "text": "Garden City",
+    "easting": -63480,
+    "southing": -22125,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_hebercity",
+    "text": "Heber City",
+    "easting": -64997,
+    "southing": -14035,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "text": "Herriman",
+    "easting": -68203,
+    "southing": -14920,
+    "signed": "some",
+    "country": "US-UT",
+    "checked": "2023-05",
+    "remark": "Herriman City Hall"
+  },
+  {
+    "text": "Hildale",
+    "easting": -75364,
+    "southing": 3797,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_holden",
+    "text": "Holden",
+    "access": false,
+    "country": "US-UT",
+    "show": false,
+    "checked": "2023-05"
+  },
+  {
+    "text": "Hole N\"The Rock",
+    "easting": -58481,
+    "southing": -968,
+    "kind": "historic",
+    "country": "US-UT",
+    "checked": "2023-05",
+    "remark": "commercial tourist attraction--formerly a place of residence"
+  },
+  {
+    "token": "ut_hurricane",
+    "text": "Hurricane",
+    "easting": -75798,
+    "southing": 1949,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_kanab",
+    "text": "Kanab",
+    "country": "US-UT"
+  },
+  {
+    "token": "ut_knolls",
+    "text": "Knolls",
+    "access": false,
+    "country": "US-UT",
+    "show": false,
+    "checked": "2025-02",
+    "remark": "nothing there (not in ATS nor IRL)"
+  },
+  {
+    "token": "ut_laketown",
+    "text": "Laketown",
+    "easting": -63040,
+    "southing": -20442,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_mexicanha",
+    "text": "Mexican Hat",
+    "easting": -61925,
+    "southing": 5084,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_modena",
+    "text": "Modena",
+    "easting": -79332,
+    "southing": -2317,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_monticell",
+    "text": "Monticello",
+    "easting": -58690,
+    "southing": 1712,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_monumentv",
+    "text": "Monument Valley",
+    "country": "US-UT",
+    "show": false,
+    "checked": "2023-05"
+  },
+  {
+    "text": "Oak City",
+    "easting": -70107,
+    "southing": -9117,
+    "access": false,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "text": "Orem City",
+    "easting": -66608,
+    "southing": -13773,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_panguitch",
+    "text": "Panguitch",
+    "country": "US-UT"
+  },
+  {
+    "token": "ut_parkcity",
+    "text": "Park City",
+    "country": "US-UT",
+    "show": false,
+    "checked": "2023-05"
+  },
+  {
+    "text": "Pelican Lake",
+    "easting": -58585,
+    "southing": -11301,
+    "country": "US-UT",
+    "checked": "2023-05",
+    "remark": "not entirely clear what the name refers to"
+  },
+  {
+    "text": "Perry",
+    "easting": -66753,
+    "southing": -20272,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "text": "Potash",
+    "easting": -60170,
+    "southing": -2108,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_richfield",
+    "text": "Richfield",
+    "country": "US-UT"
+  },
+  {
+    "text": "Roy",
+    "easting": -67617,
+    "southing": -18272,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_stgeorge",
+    "text": "Saint George",
+    "kind": "city",
+    "city": "st_george",
+    "country": "US-UT",
+    "show": false,
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_scipio",
+    "text": "Scipio",
+    "easting": -69193,
+    "southing": -8147,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "text": "Soldier Summit",
+    "easting": -64410,
+    "southing": -11213,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_spanishfo",
+    "text": "Spanish Fork",
+    "easting": -66894,
+    "southing": -11563,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "ut_tremonton",
+    "text": "Tremonton",
+    "easting": -67432,
+    "southing": -22146,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "nv_wendover",
+    "text": "Wendover",
+    "easting": -75164,
+    "southing": -17738,
+    "country": "US-UT",
+    "checked": "2023-05"
+  },
+  {
+    "token": "wa_coupferry",
+    "text": "Coupeville Ferry",
+    "country": "US-WA",
+    "show": false
+  },
+  {
+    "token": "wa_diablo",
+    "text": "Diablo",
+    "country": "US-WA",
+    "show": false
+  },
+  {
+    "text": "Grand Coulee",
+    "easting": -86528,
+    "southing": -62695,
+    "kind": "city",
+    "city": "grand_coulee",
+    "country": "US-WA",
+    "show": false
+  },
+  {
+    "token": "wa_ritzvill2",
+    "show": false
+  },
+  {
+    "token": "wa_ritzville",
+    "text": "Ritzville",
+    "easting": -85720,
+    "southing": -56760,
+    "kind": "town",
+    "country": "US-WA",
+    "show": true
+  },
+  {
+    "token": "wa_snoquales",
+    "text": "Snoqualmie Pass",
+    "easting": -95313,
+    "southing": -61286,
+    "kind": "pass",
+    "country": "US-WA",
+    "show": true
+  },
+  {
+    "token": "wa_snoqualwe",
+    "show": false
+  },
+  {
+    "token": "wy_alpine",
+    "text": "Alpine",
+    "country": "US-WY"
+  },
+  {
+    "token": "wy_alpinejct",
+    "text": "Alpine Junction",
+    "country": "US-WY",
+    "show": false
+  },
+  {
+    "token": "wy_baggs",
+    "text": "Baggs",
+    "easting": -49555,
+    "southing": -15394,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_bill",
+    "text": "Bill",
+    "easting": -37572,
+    "southing": -25884,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_buffalo",
+    "text": "Buffalo",
+    "easting": -42853,
+    "southing": -32200,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "text": "Buford",
+    "easting": -37905,
+    "southing": -15281,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_crestonjc",
+    "text": "Creston Junction",
+    "easting": -50630,
+    "southing": -19177,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_danieljct",
+    "text": "Daniel Junction",
+    "easting": -57469,
+    "southing": -26970,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "text": "Devils Tower",
+    "easting": -35366,
+    "southing": -34624,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_douglas",
+    "text": "Douglas",
+    "easting": -37726,
+    "southing": -24304,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_i25x26",
+    "text": "Dwyer Junction",
+    "easting": -36720,
+    "southing": -20486,
+    "kind": "junction",
+    "country": "US-WY",
+    "show": true,
+    "checked": "2023-03",
+    "remark": "Dwyer Junction Rest Area"
+  },
+  {
+    "text": "Evansville",
+    "easting": -40733,
+    "southing": -25001,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_farson",
+    "text": "Farson",
+    "easting": -54238,
+    "southing": -23096,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_frannie",
+    "text": "Frannie",
+    "country": "US-WY"
+  },
+  {
+    "token": "wy_greybull",
+    "text": "Greybull",
+    "easting": -48324,
+    "southing": -34716,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_hiland",
+    "text": "Hiland",
+    "easting": -47415,
+    "southing": -27016,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_hoback",
+    "text": "Hoback Junction",
+    "easting": -60071,
+    "southing": -29364,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_kaycee",
+    "text": "Kaycee",
+    "easting": -42104,
+    "southing": -29011,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_kemmerer",
+    "text": "Kemmerer",
+    "easting": -60292,
+    "southing": -21095,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_lakejct",
+    "text": "Lake Junction",
+    "country": "US-WY"
+  },
+  {
+    "token": "wy_lander",
+    "text": "Lander",
+    "easting": -52485,
+    "southing": -25912,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_litmerica",
+    "text": "Little America",
+    "easting": -57206,
+    "southing": -19335,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_lovell",
+    "text": "Lovell",
+    "country": "US-WY"
+  },
+  {
+    "token": "wy_lus",
+    "text": "Lusk",
+    "country": "US-WY"
+  },
+  {
+    "token": "wy_medicine",
+    "text": "Medicine Bow",
+    "easting": -42752,
+    "southing": -20389,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_moorcroft",
+    "text": "Moorcroft",
+    "easting": -34317,
+    "southing": -32055,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_moranjct",
+    "text": "Moran Junction",
+    "easting": -57771,
+    "southing": -34356,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_muddygap",
+    "text": "Muddy Gap Junction",
+    "easting": -47144,
+    "southing": -22419,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_orin",
+    "text": "Orin",
+    "country": "US-WY"
+  },
+  {
+    "text": "Orin Junction",
+    "easting": -37671,
+    "southing": -22914,
+    "country": "US-WY",
+    "checked": "2023-04",
+    "remark": "Orin Jct Rest Area (name might be that of a railroad junction)"
+  },
+  {
+    "token": "wy_powderriv",
+    "text": "Powder River",
+    "easting": -44653,
+    "southing": -25968,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_reliance",
+    "text": "Reliance",
+    "easting": -53518,
+    "southing": -21023,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_rockriver",
+    "text": "Rock River",
+    "easting": -42015,
+    "southing": -19494,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_shoshoni",
+    "text": "Shoshoni",
+    "easting": -49039,
+    "southing": -28863,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "text": "Sinclair",
+    "easting": -45077,
+    "southing": -19680,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_tetonsth",
+    "text": "Teton",
+    "country": "US-WY",
+    "show": false
+  },
+  {
+    "token": "wy_thermo",
+    "text": "Thermopolis",
+    "easting": -48809,
+    "southing": -31139,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_wheatland",
+    "text": "Wheatland",
+    "easting": -35989,
+    "southing": -18822,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_wright",
+    "text": "Wright",
+    "easting": -38450,
+    "southing": -29148,
+    "country": "US-WY",
+    "checked": "2023-03"
+  },
+  {
+    "token": "wy_yellowsth",
+    "text": "Yellowstone",
+    "country": "US-WY",
+    "show": false
+  }
+]

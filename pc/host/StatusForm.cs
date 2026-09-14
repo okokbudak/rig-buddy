@@ -8,6 +8,8 @@ sealed class StatusForm : Form
 {
     readonly Supervisor _sup;
     readonly TelemetryBridge _bridge;
+    readonly MapBuilder _maps;
+    readonly Label _mapLink;
     readonly Label _status, _stage, _percent, _ip, _pair, _themeLink, _langLink;
     readonly Action _onThemeChanged;
     readonly ProgressLine _bar;
@@ -23,10 +25,11 @@ sealed class StatusForm : Form
     /** Raised when the user closes the window (the app keeps running). */
     public event Action? HiddenToTray;
 
-    public StatusForm(Supervisor sup, TelemetryBridge bridge, Action showLogs)
+    public StatusForm(Supervisor sup, TelemetryBridge bridge, MapBuilder maps, Action showLogs)
     {
         _sup = sup;
         _bridge = bridge;
+        _maps = maps;
         SuspendLayout();
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
@@ -49,6 +52,11 @@ sealed class StatusForm : Form
         _langLink = HeaderLink(38);
         _langLink.Click += (_, _) => LanguageMenu().Show(_langLink, new Point(0, _langLink.Height));
         Controls.AddRange([_themeLink, _langLink]);
+        _themeLink.BringToFront();
+        _langLink.BringToFront();
+        var tips = new ToolTip();
+        tips.SetToolTip(_themeLink, L.T("win.theme"));
+        tips.SetToolTip(_langLink, L.T("win.language"));
 
         // start-up progress
         var progress = new RoundedPanel { Location = new Point(16, 88), Size = new Size(328, 118) };
@@ -62,7 +70,15 @@ sealed class StatusForm : Form
         _percent.AutoSize = false;
         _percent.Size = new Size(48, 20);
         _percent.TextAlign = ContentAlignment.MiddleRight;
-        progress.Controls.AddRange([_status, _stage, _bar, _percent]);
+        // "update available" / "try again" / "only once" under the bar
+        _mapLink = Lbl("", 16, 96, 8.5F, p => p.Accent);
+        _mapLink.AutoSize = false;
+        _mapLink.Size = new Size(296, 18);
+        _mapLink.Click += (_, _) =>
+        {
+            if (_maps.State is MapState.UpdateAvailable or MapState.Failed) _maps.Build();
+        };
+        progress.Controls.AddRange([_status, _stage, _bar, _percent, _mapLink]);
         Controls.Add(progress);
 
         // PC address
@@ -152,9 +168,11 @@ sealed class StatusForm : Form
 
     Label HeaderLink(int y)
     {
-        var l = Lbl("", 174, y, 9F, p => p.Text2);
+        // short ("◐ System ▾"): the title sits left of it; the tooltip says what it is
+        var l = Lbl("", 224, y, 9F, p => p.Text2);
         l.AutoSize = false;
-        l.Size = new Size(170, 20);
+        l.Size = new Size(120, 20);
+        l.AutoEllipsis = true;
         l.TextAlign = ContentAlignment.MiddleRight;
         l.Cursor = Cursors.Hand;
         return l;
@@ -182,8 +200,8 @@ sealed class StatusForm : Form
         _autostart.ForeColor = p.Text1;
         _autostart.BackColor = p.Bg;
         foreach (var b in _buttons) StyleButton(b);
-        _themeLink.Text = L.T("win.theme", Theme.Label(Theme.Setting));
-        _langLink.Text = L.T("win.language", L.LanguageName(L.Setting));
+        _themeLink.Text = $"◐ {Theme.Label(Theme.Setting)} ▾";
+        _langLink.Text = $"🌐 {(L.Setting == "system" ? L.T("lang.auto") : L.LanguageName(L.Setting))} ▾";
         if (IsHandleCreated) Theme.ApplyTitleBar(Handle);
         Invalidate(true);
     }
@@ -210,7 +228,12 @@ sealed class StatusForm : Form
         bool navReady = st.Done && server.State == ServiceState.Running && telemetry.State == ServiceState.Running;
         bool agentUp = agent.State == ServiceState.Running;
 
-        double target = _sup.SetupProblem != null ? 0 : navReady ? 1 : Math.Min(st.Estimate(), 0.99);
+        var map = _maps.State;
+        bool building = map == MapState.Building;
+        bool noGame = map == MapState.NoGame && !_sup.Find("server")!.CanStart();
+        double target = _sup.SetupProblem != null || noGame ? 0
+            : building ? _maps.Percent / 100.0
+            : navReady ? 1 : Math.Min(st.Estimate(), 0.99);
         _shown += (target - _shown) * 0.2;
         if (Math.Abs(target - _shown) < 0.002) _shown = target;
         _bar.Value = _shown;
@@ -220,6 +243,24 @@ sealed class StatusForm : Form
         {
             Set(_status, L.T("win.setup"), p.Red);
             _stage.Text = L.T(_sup.SetupProblem);
+            _bar.Fill = p.Red;
+        }
+        else if (noGame)
+        {
+            Set(_status, L.T("win.no_game"), p.Red);
+            _stage.Text = L.T("win.no_game_hint");
+            _bar.Fill = p.Red;
+        }
+        else if (building)
+        {
+            Set(_status, L.T("win.map_building"), p.Orange);
+            _stage.Text = L.T(_maps.StepKey, _maps.StepArg);
+            _bar.Fill = p.Accent;
+        }
+        else if (map == MapState.Failed)
+        {
+            Set(_status, L.T("win.map_failed"), p.Red);
+            _stage.Text = _maps.Error ?? "";
             _bar.Fill = p.Red;
         }
         else if (navReady)
@@ -235,13 +276,20 @@ sealed class StatusForm : Form
             _bar.Fill = p.Accent;
         }
 
+        _mapLink.Text = building ? L.T("win.map_once")
+            : map == MapState.Failed ? L.T("win.map_retry")
+            : map == MapState.UpdateAvailable ? L.T("win.map_update") : "";
+        _mapLink.ForeColor = building ? p.Text2 : p.Accent;
+        _mapLink.Cursor = building ? Cursors.Default : Cursors.Hand;
+
         var ips = TrayApp.LanAddresses().ToList();
         _ip.Text = ips.Count > 0 ? ips[0] : L.T("win.no_network");
         _pair.Text = DateTime.UtcNow < _copiedUntil ? L.T("win.copied")
             : _sup.PairingCode != null ? L.T("win.pair", _sup.PairingCode)
             : L.T("win.click_copy");
 
-        _nav.Set(navReady ? p.Green : server.State == ServiceState.Stopped ? p.Gray : p.Orange,
+        if (building) _nav.Set(p.Orange, L.T("fs.map_building", _maps.Percent));
+        else _nav.Set(navReady ? p.Green : server.State == ServiceState.Stopped ? p.Gray : p.Orange,
             L.T(navReady ? "fs.ready" : server.State == ServiceState.Stopped ? "fs.stopped" : "fs.loading", Math.Round(_shown * 100)));
         _vehicle.Set(!agentUp ? p.Orange : _bridge.GameConnected ? p.Green : p.Gray,
             L.T(!agentUp ? "fs.starting" : _bridge.GameConnected ? "fs.game_data" : "fs.game_wait"));
