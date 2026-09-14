@@ -1,5 +1,7 @@
 package tr.ets2nav.ui;
 
+import tr.ets2nav.R;
+
 import android.content.Context;
 import android.view.Gravity;
 import android.view.View;
@@ -53,20 +55,20 @@ public final class ProfileScreen {
     top.addView(head, Ui.weight(1.2f));
 
     LinearLayout stats = Ui.card(c, false);
-    stats.addView(Ui.text(c, "ŞİRKET", 15, Ui.TEXT2, true));
-    hq = stat(stats, "Merkez");
-    trucks = stat(stats, "Kamyonlar");
-    trailers = stat(stats, "Dorseler");
-    drivers = stat(stats, "Şoförler");
-    distance = stat(stats, "Kat edilen yol");
-    cities = stat(stats, "Keşfedilen şehirler");
+    stats.addView(Ui.text(c, Ui.s(R.string.prof_company_hdr), 15, Ui.TEXT2, true));
+    hq = stat(stats, Ui.s(R.string.prof_hq));
+    trucks = stat(stats, Ui.s(R.string.prof_trucks));
+    trailers = stat(stats, Ui.s(R.string.prof_trailers));
+    drivers = stat(stats, Ui.s(R.string.prof_drivers));
+    distance = stat(stats, Ui.s(R.string.prof_distance));
+    cities = stat(stats, Ui.s(R.string.prof_cities));
     citiesBar = Ui.bar(c, Ui.ACCENT);
     stats.addView(citiesBar, Ui.margins(Ui.matchWrap(), c, 0, 6, 0, 0));
     top.addView(stats, Ui.margins(Ui.weight(1), c, 14, 0, 0, 0));
     root.addView(top, Ui.hweight(1.15f));
 
     LinearLayout gcard = Ui.card(c, false);
-    gcard.addView(Ui.text(c, "GARAJLAR", 15, Ui.TEXT2, true));
+    gcard.addView(Ui.text(c, Ui.s(R.string.prof_garages_hdr), 15, Ui.TEXT2, true));
     ScrollView sv = new ScrollView(c);
     garages = Ui.row(c);
     garages.setGravity(Gravity.TOP);
@@ -75,7 +77,7 @@ public final class ProfileScreen {
     sv.addView(hs);
     gcard.addView(sv, Ui.margins(Ui.matchWrap(), c, 0, 10, 0, 0));
     root.addView(gcard, Ui.margins(Ui.hweight(0.85f), c, 0, 14, 0, 0));
-    render(null, "Yükleniyor…");
+    render(null, Ui.s(R.string.loading));
   }
 
   private TextView stat(LinearLayout parent, String label) {
@@ -110,7 +112,7 @@ public final class ProfileScreen {
 
   private void render(JSONObject p, String error) {
     if (p == null) {
-      company.setText("Profil");
+      company.setText(Ui.s(R.string.home_profile));
       driver.setText("");
       money.setText("–");
       xp.setText(error != null ? error : "");
@@ -118,12 +120,12 @@ public final class ProfileScreen {
       return;
     }
     String cur = p.optString("currency", "€");
-    company.setText(p.optString("company", "Şirket"));
+    company.setText(p.optString("company", Ui.s(R.string.prof_company_default)));
     driver.setText(p.optString("name") + (p.optString("brand").isEmpty() ? "" : "  ·  " + prettyBrand(p.optString("brand"))));
     money.setText(Ui.money(p.optDouble("money"), cur));
-    xp.setText(Ui.number(p.optDouble("experience")) + " tecrübe puanı  ·  oyun saati " + Ui.gameClock(p.optLong("gameTime")));
+    xp.setText(Ui.s(R.string.prof_xp_line, Ui.number(p.optDouble("experience")), Ui.gameClock(p.optLong("gameTime"))));
     long age = Math.max(0, (System.currentTimeMillis() - p.optLong("savedAt")) / 60000);
-    status.setText("Son kayıttan okundu (" + (age == 0 ? "az önce" : age + " dk önce") + ")");
+    status.setText(Ui.s(R.string.prof_read_from_save, age == 0 ? Ui.s(R.string.ago_now) : Ui.s(R.string.ago_min, (int) age)));
     hq.setText(p.optString("hqCity", "–"));
     trucks.setText(String.valueOf(p.optInt("trucks")));
     trailers.setText(String.valueOf(p.optInt("trailers")));
@@ -142,11 +144,11 @@ public final class ProfileScreen {
       gv.setPadding(pp, pp, pp, pp);
       gv.setBackground(Ui.rounded(Ui.TRACK, Ui.dp(c, 14)));
       gv.addView(Ui.text(c, g.optString("cityName"), 20, Ui.TEXT, true));
-      gv.addView(Ui.text(c, g.optInt("vehicles") + " kamyon  ·  " + g.optInt("drivers") + " şoför", 16, Ui.TEXT2, false),
+      gv.addView(Ui.text(c, Ui.s(R.string.prof_garage_line, g.optInt("vehicles"), g.optInt("drivers")), 16, Ui.TEXT2, false),
           Ui.margins(Ui.wrap(), c, 0, 8, 0, 0));
       garages.addView(gv, Ui.margins(new LinearLayout.LayoutParams(Ui.dp(c, 220), LinearLayout.LayoutParams.WRAP_CONTENT), c, 0, 0, 12, 0));
     }
-    if (gs == null || gs.length() == 0) garages.addView(Ui.text(c, "Garaj yok", 18, Ui.TEXT2, false));
+    if (gs == null || gs.length() == 0) garages.addView(Ui.text(c, Ui.s(R.string.prof_no_garage), 18, Ui.TEXT2, false));
   }
 
   private static String prettyBrand(String token) {

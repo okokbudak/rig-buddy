@@ -17,6 +17,9 @@ import okhttp3.Response;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 
+import tr.ets2nav.R;
+import tr.ets2nav.ui.Ui;
+
 /**
  * Client for the PC-side ETS2 Nav agent (pc/agent): full telemetry and media
  * over WebSocket, save-game data (profile, jobs) over HTTP. Callbacks run on
@@ -161,12 +164,18 @@ public final class AgentClient {
     });
   }
 
+  /** The agent's error codes in the app's language; other messages are shown as they are. */
+  private static String errorText(String error, int httpCode) {
+    if ("nosave".equals(error)) return Ui.s(R.string.home_waiting_save);
+    return error.isEmpty() ? Ui.s(R.string.agent_error, httpCode) : error;
+  }
+
   public void get(String path, JsonCallback cb) {
     Request req = new Request.Builder().url("http://" + host + ":" + PORT + path).build();
     http.newCall(req).enqueue(new Callback() {
       @Override
       public void onFailure(Call call, IOException e) {
-        main.post(() -> cb.onResult(null, "PC'deki agent'a ulaşılamadı"));
+        main.post(() -> cb.onResult(null, Ui.s(R.string.agent_unreachable)));
       }
 
       @Override
@@ -180,8 +189,8 @@ public final class AgentClient {
         final JSONObject result = json;
         final boolean ok = response.isSuccessful();
         main.post(() -> {
-          if (result == null) cb.onResult(null, "geçersiz cevap");
-          else if (!ok) cb.onResult(null, result.optString("error", "hata " + response.code()));
+          if (result == null) cb.onResult(null, Ui.s(R.string.agent_bad_reply));
+          else if (!ok) cb.onResult(null, errorText(result.optString("error"), response.code()));
           else cb.onResult(result, null);
         });
       }

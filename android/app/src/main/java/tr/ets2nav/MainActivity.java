@@ -129,6 +129,28 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private String requestedDestNode;
   private boolean pickingRoute;
 
+  /** Short side, in dp, the screens are designed for (head units: 720). */
+  private static final int MIN_SHORT_SIDE_DP = 600;
+
+  /**
+   * Phones in landscape are only ~400 dp tall: draw the UI at a lower density
+   * there so it keeps the head-unit proportions (everything scaled down evenly)
+   * instead of clipping. Also applies the in-app language choice.
+   */
+  @Override
+  protected void attachBaseContext(android.content.Context base) {
+    android.content.res.Configuration config = new android.content.res.Configuration();
+    android.util.DisplayMetrics dm = base.getResources().getDisplayMetrics();
+    int shortPx = Math.min(dm.widthPixels, dm.heightPixels);
+    if (shortPx * 160 / dm.densityDpi < MIN_SHORT_SIDE_DP - 40) {
+      config.densityDpi = Math.max(120, shortPx * 160 / MIN_SHORT_SIDE_DP);
+    }
+    Locale locale = Lang.locale(base.getSharedPreferences("ets2nav", MODE_PRIVATE));
+    if (locale != null) config.setLocale(locale);
+    super.attachBaseContext(base);
+    applyOverrideConfiguration(config);
+  }
+
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     prefs = getSharedPreferences("ets2nav", MODE_PRIVATE);
@@ -136,6 +158,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     Ui.applyTheme(Ui.resolveDark(this, Ui.themeSetting(prefs)));
     setTheme(Ui.dark ? R.style.AppTheme_Dark : R.style.AppTheme);
     super.onCreate(savedInstanceState);
+    Ui.init(this); // strings and number formats of the chosen language
     Mapbox.getInstance(getApplicationContext());
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     setContentView(R.layout.activity_main);
@@ -188,7 +211,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     mapView.setMaximumFps(30);
     mapView.addOnDidFailLoadingMapListener(msg -> {
       Log.e(TAG, "map failed to load: " + msg);
-      showMessage("Harita yüklenemedi:\n" + msg);
+      showMessage(Ui.s(R.string.map_load_failed, msg));
     });
     mapView.onCreate(savedInstanceState);
     mapView.getMapAsync(this::onMapReady);
@@ -201,7 +224,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     tiles = new TileDownloader(prefs, mapDir(), new TileDownloader.Listener() {
       @Override
       public void onProgress(String g, double fraction, long total) {
-        showMessage(String.format(Ui.TR, "Harita PC'den indiriliyor… %%%d\n%d MB", Math.round(fraction * 100), total / 1_000_000));
+        showMessage(Ui.s(R.string.map_downloading, (int) Math.round(fraction * 100), (int) (total / 1_000_000)));
       }
 
       @Override
@@ -210,13 +233,13 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
         if (old != null) old.stop();
         tileUrlCache.remove(g);
         if (g.equals(game)) loadStyle();
-        flashMessage("Harita güncellendi");
+        flashMessage(Ui.s(R.string.map_updated));
       }
 
       @Override
       public void onFailed(String g, String error) {
         if (!TileDownloader.fileFor(mapDir(), g).exists()) {
-          showMessage("Harita indirilemedi: " + error + "\nPC bağlantısı kurulunca yeniden denenecek.");
+          showMessage(Ui.s(R.string.map_download_failed, error));
         }
       }
     });
@@ -288,13 +311,13 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     screenViews.put("map", findViewById(R.id.root));
 
     LinearLayout rail = findViewById(R.id.rail);
-    addRailButton(rail, "home", R.drawable.ic_home, "Ana ekran");
-    addRailButton(rail, "map", R.drawable.ic_map, "Harita");
-    addRailButton(rail, "media", R.drawable.ic_music, "Medya");
-    addRailButton(rail, "vehicle", R.drawable.ic_truck, "Araç");
-    addRailButton(rail, "jobs", R.drawable.ic_work, "İşler");
-    addRailButton(rail, "profile", R.drawable.ic_person, "Profil");
-    addRailAction(rail, R.drawable.ic_settings, "Ayarlar", this::showSettings);
+    addRailButton(rail, "home", R.drawable.ic_home, Ui.s(R.string.rail_home));
+    addRailButton(rail, "map", R.drawable.ic_map, Ui.s(R.string.rail_map));
+    addRailButton(rail, "media", R.drawable.ic_music, Ui.s(R.string.rail_media));
+    addRailButton(rail, "vehicle", R.drawable.ic_truck, Ui.s(R.string.rail_vehicle));
+    addRailButton(rail, "jobs", R.drawable.ic_work, Ui.s(R.string.rail_jobs));
+    addRailButton(rail, "profile", R.drawable.ic_person, Ui.s(R.string.rail_profile));
+    addRailAction(rail, R.drawable.ic_settings, Ui.s(R.string.rail_settings), this::showSettings);
     rail.addView(Ui.spacer(this), Ui.hweight(1));
     railClock = Ui.text(this, compactRail() ? 16 : 22, Ui.TEXT, true);
     railClock.setGravity(Gravity.CENTER);
@@ -322,7 +345,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private final Runnable clockTicker = this::tickClock;
 
   private void tickClock() {
-    railClock.setText(new SimpleDateFormat("HH:mm", Ui.TR).format(new Date()));
+    railClock.setText(new SimpleDateFormat("HH:mm", Ui.LOCALE).format(new Date()));
     home.tick();
     railClock.removeCallbacks(clockTicker);
     railClock.postDelayed(clockTicker, 15_000);
@@ -388,7 +411,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   /** From the jobs screen: truck -> pickup (-> destination) as a multi-segment route. */
   private void routeJob(String pickupNode, String destNode, String label) {
     if (pickupNode == null || pickupNode.isEmpty()) {
-      flashMessage("Bu firmanın konumu haritada bulunamadı");
+      flashMessage(Ui.s(R.string.company_not_on_map));
       return;
     }
     showScreen("map");
@@ -398,10 +421,10 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
       return;
     }
     JSONArray waypoints = new JSONArray().put(pickupNode).put(destNode);
-    flashMessage("Rota hesaplanıyor…\n" + label);
+    flashMessage(Ui.s(R.string.route_calculating, label));
     nav.query("app.generateRouteFromNodeUids", waypoints, (data, error) -> {
       if (!(data instanceof JSONObject)) {
-        flashMessage("Rota bulunamadı" + (error != null ? "\n" + error : ""));
+        flashMessage(Ui.s(R.string.route_not_found) + (error != null ? "\n" + error : ""));
         return;
       }
       JSONObject r = (JSONObject) data;
@@ -454,7 +477,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private void startClients() {
     if (host().isEmpty()) {
       // first run: look for the PC on the LAN before asking for its address
-      showMessage("PC aranıyor…\nPC'de Rig Buddy açık olmalı.");
+      showMessage(Ui.s(R.string.pc_searching_hint));
       PcFinder.find((found, name) -> {
         if (found != null) {
           useHost(found, name);
@@ -473,7 +496,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private void useHost(String found, String name) {
     prefs.edit().putString("host", found).apply();
     hideMessage();
-    flashMessage("PC bulundu: " + (name != null ? name + " (" + found + ")" : found));
+    flashMessage(Ui.s(R.string.pc_found, name != null ? name + " (" + found + ")" : found));
     restartClients();
   }
 
@@ -532,12 +555,12 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
         tileUrl = tileUrlCache.get(game);
         hideMessage();
       } catch (IOException e) {
-        showMessage("Harita dosyası açılamadı:\n" + e.getMessage());
+        showMessage(Ui.s(R.string.map_file_failed, e.getMessage()));
       }
     } else if (!tiles.isRunning()) {
       showMessage(host().isEmpty()
-          ? "Harita, PC'ye bağlanınca otomatik indirilecek."
-          : "Harita PC'den indirilecek…\nPC'de Rig Buddy'nin açık olduğundan emin olun.");
+          ? Ui.s(R.string.map_will_download)
+          : Ui.s(R.string.map_will_download_pc));
     }
     style = null;
     map.setStyle(new Style.Builder().fromJson(MapStyle.build(game, tileUrl, darkMode)), this::onStyleLoaded);
@@ -627,19 +650,19 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     int color;
     switch (state) {
       case CONNECTED:
-        text = tracker.hasData() ? "Bağlı" : "Bağlı · oyun bekleniyor";
+        text = Ui.s(tracker.hasData() ? R.string.st_connected : R.string.st_connected_wait);
         color = 0xff188038;
         break;
       case PAIRING:
-        text = "Eşleşiyor" + (detail != null ? " · " + detail : "");
+        text = Ui.s(R.string.st_pairing) + (detail != null ? " · " + detail : "");
         color = 0xffe37400;
         break;
       case CONNECTING:
-        text = "Bağlanıyor · " + detail;
+        text = Ui.s(R.string.st_connecting) + " · " + detail;
         color = 0xff5f6368;
         break;
       default:
-        text = "Bağlantı yok · " + (detail != null ? detail : "");
+        text = Ui.s(R.string.st_disconnected) + " · " + (detail != null ? detail : "");
         color = 0xffd93025;
     }
     statusView.setText(text);
@@ -706,14 +729,14 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
         if (data instanceof JSONObject) {
           JSONObject info = (JSONObject) data;
           isFinal = info.optBoolean("isFinal", true);
-          flashMessage((isFinal ? "Varış noktasına ulaştınız\n" : "Ara noktaya ulaşıldı\n")
+          flashMessage(Ui.s(isFinal ? R.string.arrived : R.string.waypoint_reached) + "\n"
               + info.optString("place") + "\n" + info.optString("placeInfo"));
         }
         nav.mutate("app.unpauseRouteEvents", null, null);
         if (isFinal) arrived();
         break;
       case "staleBinding":
-        statusView.setText("Oyun verisi gelmiyor");
+        statusView.setText(Ui.s(R.string.no_game_data));
         statusView.setTextColor(0xffe37400);
         break;
       default:
@@ -738,7 +761,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
       if (error != null || routes.length() == 0) {
         Log.w(TAG, "no route to " + nodeUid + ": " + error);
         requestedDestNode = null;
-        flashMessage("Rota bulunamadı" + (error != null ? "\n" + error : ""));
+        flashMessage(Ui.s(R.string.route_not_found) + (error != null ? "\n" + error : ""));
         return;
       }
       JSONObject best = routes.optJSONObject(0);
@@ -757,7 +780,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private void onMapLongPress(double lon, double lat) {
     searchPanel.hide();
     setPickMarker(lon, lat);
-    destTitle.setText("Konum aranıyor…");
+    destTitle.setText(Ui.s(R.string.searching_location));
     destSubtitle.setText("");
     destCard.setVisibility(View.VISIBLE);
     pendingDest = null;
@@ -769,8 +792,8 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     }
     nav.query("app.synthesizeSearchResult", input, (data, error) -> {
       if (!(data instanceof JSONObject)) {
-        destTitle.setText("Buraya rota bulunamadı");
-        destSubtitle.setText(error != null ? error : "Yola daha yakın bir yere basılı tutun");
+        destTitle.setText(Ui.s(R.string.no_route_here));
+        destSubtitle.setText(error != null ? error : Ui.s(R.string.press_closer_to_road));
         return;
       }
       showDestCard(SearchPanel.Result.from((JSONObject) data));
@@ -924,7 +947,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     boolean nextIsArrival = nextIdx >= route.steps.size() - 1
         && route.steps.get(route.steps.size() - 1).direction == Route.ARRIVE;
     if (nextIsArrival && progress.metersToManeuver < 40) {
-      flashMessage("Varış noktasına ulaştınız");
+      flashMessage(Ui.s(R.string.arrived));
       arrived();
       return;
     }
@@ -948,14 +971,14 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     } else {
       maneuverIcon.setDirection(Route.ARRIVE);
       maneuverDistance.setText(formatDistance(progress.metersToManeuver));
-      maneuverText.setText("Varış");
+      maneuverText.setText(Ui.s(R.string.m_arrive));
       thenPanel.setVisibility(View.GONE);
     }
 
     tripPanel.setVisibility(View.VISIBLE);
     long mins = Math.max(1, Math.round(progress.secondsRemaining / 60));
-    tripTime.setText(mins >= 60 ? (mins / 60) + " sa " + (mins % 60) + " dk" : mins + " dk");
-    String eta = new SimpleDateFormat("HH:mm", Locale.getDefault())
+    tripTime.setText(Ui.duration(mins));
+    String eta = new SimpleDateFormat("HH:mm", Ui.LOCALE)
         .format(new Date(System.currentTimeMillis() + (long) (progress.secondsRemaining * 1000)));
     // Trip totals are shown like the game's route advisor (world meters x map
     // scale); maneuver distances stay in world meters, i.e. what you drive.
@@ -973,22 +996,22 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private static String describe(Route.Step s) {
     if (s.bannerText != null && !s.bannerText.isEmpty()) return s.bannerText;
     switch (s.direction) {
-      case Route.SLIGHT_LEFT: return "Hafif sola";
-      case Route.LEFT: return "Sola dönün";
-      case Route.SHARP_LEFT: return "Keskin sola";
-      case Route.U_TURN_LEFT: case Route.U_TURN_RIGHT: return "U dönüşü yapın";
-      case Route.SLIGHT_RIGHT: return "Hafif sağa";
-      case Route.RIGHT: return "Sağa dönün";
-      case Route.SHARP_RIGHT: return "Keskin sağa";
-      case Route.MERGE: return "Yola katılın";
-      case Route.ARRIVE: return "Varış";
-      case Route.FERRY: return "Feribota binin";
-      case Route.ROUND_EXIT: return "Kavşaktan çıkın";
+      case Route.SLIGHT_LEFT: return Ui.s(R.string.m_slight_left);
+      case Route.LEFT: return Ui.s(R.string.m_left);
+      case Route.SHARP_LEFT: return Ui.s(R.string.m_sharp_left);
+      case Route.U_TURN_LEFT: case Route.U_TURN_RIGHT: return Ui.s(R.string.m_u_turn);
+      case Route.SLIGHT_RIGHT: return Ui.s(R.string.m_slight_right);
+      case Route.RIGHT: return Ui.s(R.string.m_right);
+      case Route.SHARP_RIGHT: return Ui.s(R.string.m_sharp_right);
+      case Route.MERGE: return Ui.s(R.string.m_merge);
+      case Route.ARRIVE: return Ui.s(R.string.m_arrive);
+      case Route.FERRY: return Ui.s(R.string.m_ferry);
+      case Route.ROUND_EXIT: return Ui.s(R.string.m_round_exit);
       default:
         if (s.direction >= Route.ROUND_BR && s.direction <= Route.ROUND_B) {
-          return s.roundaboutExit > 0 ? "Döner kavşakta " + s.roundaboutExit + ". çıkış" : "Döner kavşak";
+          return s.roundaboutExit > 0 ? Ui.s(R.string.m_roundabout_n, s.roundaboutExit) : Ui.s(R.string.m_roundabout);
         }
-        return "Düz devam edin";
+        return Ui.s(R.string.m_straight);
     }
   }
 
@@ -1028,27 +1051,29 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
 
   private void showSettings() {
     String[] items = {
-        "PC adresi: " + host(),
-        "Yeniden eşleş",
-        "Tema: " + themeLabel(Ui.themeSetting(prefs)),
+        Ui.s(R.string.set_pc_address, host()),
+        Ui.s(R.string.set_repair),
+        Ui.s(R.string.set_theme, themeLabel(Ui.themeSetting(prefs))),
+        Ui.s(R.string.set_language, langLabel(Lang.setting(prefs))),
     };
     new AlertDialog.Builder(this)
-        .setTitle("Ayarlar")
+        .setTitle(Ui.s(R.string.set_title))
         .setItems(items, (d, which) -> {
           if (which == 0) showHostDialog();
           else if (which == 1) {
             prefs.edit().remove("viewerId").apply();
             restartClients();
-          } else showThemeDialog();
+          } else if (which == 2) showThemeDialog();
+          else showLanguageDialog();
         })
-        .setNegativeButton("Kapat", null)
+        .setNegativeButton(Ui.s(R.string.btn_close), null)
         .show();
   }
 
   private static final String[] THEMES = {"system", "light", "dark"};
 
   private static String themeLabel(String theme) {
-    return "light".equals(theme) ? "Açık" : "dark".equals(theme) ? "Koyu" : "Sistem";
+    return Ui.s("light".equals(theme) ? R.string.theme_light : "dark".equals(theme) ? R.string.theme_dark : R.string.theme_system);
   }
 
   private void showThemeDialog() {
@@ -1056,17 +1081,42 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     String[] labels = new String[THEMES.length];
     int checked = 0;
     for (int i = 0; i < THEMES.length; i++) {
-      labels[i] = themeLabel(THEMES[i]) + ("system".equals(THEMES[i]) ? " (cihazın temasını izler)" : "");
+      labels[i] = "system".equals(THEMES[i]) ? Ui.s(R.string.theme_system_long) : themeLabel(THEMES[i]);
       if (THEMES[i].equals(current)) checked = i;
     }
     new AlertDialog.Builder(this)
-        .setTitle("Tema")
+        .setTitle(Ui.s(R.string.theme_title))
         .setSingleChoiceItems(labels, checked, (d, which) -> {
           d.dismiss();
           prefs.edit().putString("theme", THEMES[which]).apply();
           if (Ui.resolveDark(this, THEMES[which]) != Ui.dark) recreate();
         })
-        .setNegativeButton("İptal", null)
+        .setNegativeButton(Ui.s(R.string.btn_cancel), null)
+        .show();
+  }
+
+  private String langLabel(String code) {
+    for (int i = 1; i < Lang.CODES.length; i++) if (Lang.CODES[i].equals(code)) return Lang.NAMES[i];
+    return Ui.s(R.string.lang_system);
+  }
+
+  private void showLanguageDialog() {
+    String current = Lang.setting(prefs);
+    String[] labels = new String[Lang.CODES.length];
+    int checked = 0;
+    for (int i = 0; i < Lang.CODES.length; i++) {
+      labels[i] = i == 0 ? Ui.s(R.string.lang_system) : Lang.NAMES[i];
+      if (Lang.CODES[i].equals(current)) checked = i;
+    }
+    new AlertDialog.Builder(this)
+        .setTitle(Ui.s(R.string.lang_title))
+        .setSingleChoiceItems(labels, checked, (d, which) -> {
+          d.dismiss();
+          if (Lang.CODES[which].equals(current)) return;
+          prefs.edit().putString("lang", Lang.CODES[which]).apply();
+          recreate(); // attachBaseContext applies the new locale
+        })
+        .setNegativeButton(Ui.s(R.string.btn_cancel), null)
         .show();
   }
 
@@ -1081,29 +1131,29 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     EditText input = new EditText(this);
     input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
     input.setText(host());
-    input.setHint("örn. 192.168.1.50");
+    input.setHint(Ui.s(R.string.host_hint));
     input.setSelectAllOnFocus(true);
     new AlertDialog.Builder(this)
-        .setTitle("PC adresi (Rig Buddy çalışan bilgisayar)")
-        .setMessage("PC'deki Rig Buddy penceresinde yazan adresi girin ya da otomatik bulmayı deneyin.")
+        .setTitle(Ui.s(R.string.host_title))
+        .setMessage(Ui.s(R.string.host_message))
         .setView(input)
-        .setPositiveButton("Kaydet", (d, w) -> {
+        .setPositiveButton(Ui.s(R.string.btn_save), (d, w) -> {
           prefs.edit().putString("host", input.getText().toString().trim()).apply();
           restartClients();
         })
-        .setNeutralButton("Otomatik bul", (d, w) -> {
-          showMessage("PC aranıyor…");
+        .setNeutralButton(Ui.s(R.string.btn_find_pc), (d, w) -> {
+          showMessage(Ui.s(R.string.pc_searching));
           PcFinder.find((found, name) -> {
             if (found != null) {
               useHost(found, name);
             } else {
               hideMessage();
-              flashMessage("PC bulunamadı. Rig Buddy'nin açık ve aynı Wi-Fi'da olduğundan emin olun.");
+              flashMessage(Ui.s(R.string.pc_not_found));
               showHostDialog();
             }
           });
         })
-        .setNegativeButton("İptal", null)
+        .setNegativeButton(Ui.s(R.string.btn_cancel), null)
         .show();
   }
 

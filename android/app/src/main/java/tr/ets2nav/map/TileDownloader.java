@@ -19,6 +19,9 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
+import tr.ets2nav.R;
+import tr.ets2nav.ui.Ui;
+
 /**
  * Fetches the map (data/&lt;game&gt;.mbtiles) from the PC agent over Wi-Fi, so
  * phones and tablets need no adb: on connect the app asks GET /tiles for the
@@ -111,12 +114,12 @@ public final class TileDownloader {
           }
         }
       }
-      if (total > 0 && part.length() != total) throw new IOException("eksik indirme (" + part.length() + "/" + total + ")");
+      if (total > 0 && part.length() != total) throw new IOException(Ui.s(R.string.download_incomplete, part.length(), total));
       // swap on the main thread: the tile server may have the old file open
       main.post(() -> {
         if (target.exists() && !target.delete()) Log.w(TAG, "could not delete old " + target);
         if (!part.renameTo(target)) {
-          listener.onFailed(game, "dosya taşınamadı");
+          listener.onFailed(game, Ui.s(R.string.download_move_failed));
           return;
         }
         prefs.edit().putString(key, version).apply();

@@ -91,7 +91,7 @@ public final class HomeScreen {
     root.addView(bottom, Ui.margins(Ui.hweight(1), c, 0, 16, 0, 0));
 
     // navigation tile
-    LinearLayout nav = tile(c, R.drawable.ic_map, "Navigasyon", Ui.ACCENT);
+    LinearLayout nav = tile(c, R.drawable.ic_map, Ui.s(R.string.home_nav), Ui.ACCENT);
     LinearLayout navRow = Ui.row(c);
     navIcon = new ManeuverIconView(c, null);
     navIcon.setColor(Ui.TEXT);
@@ -110,11 +110,11 @@ public final class HomeScreen {
     top.addView(nav, Ui.weight(1.25f));
 
     // vehicle tile
-    LinearLayout veh = tile(c, R.drawable.ic_truck, "Araç", Ui.YELLOW);
+    LinearLayout veh = tile(c, R.drawable.ic_truck, Ui.s(R.string.home_vehicle), Ui.YELLOW);
     LinearLayout vrow = Ui.row(c);
     speed = Ui.text(c, 56, Ui.TEXT, false);
     vrow.addView(speed);
-    TextView unit = Ui.text(c, "km/s", 18, Ui.TEXT2, false);
+    TextView unit = Ui.text(c, Ui.s(R.string.unit_kmh), 18, Ui.TEXT2, false);
     vrow.addView(unit, Ui.margins(Ui.wrap(), c, 8, 0, 0, 0));
     vrow.addView(Ui.spacer(c));
     gear = Ui.text(c, 40, Ui.ACCENT, true);
@@ -134,7 +134,7 @@ public final class HomeScreen {
     top.addView(veh, Ui.margins(Ui.weight(1), c, 16, 0, 0, 0));
 
     // job tile
-    LinearLayout job = tile(c, R.drawable.ic_work, "İş", Ui.GREEN);
+    LinearLayout job = tile(c, R.drawable.ic_work, Ui.s(R.string.home_job), Ui.GREEN);
     jobTitle = Ui.text(c, 24, Ui.TEXT, true);
     jobLine = Ui.text(c, 18, Ui.TEXT2, false);
     jobLine2 = Ui.text(c, 18, Ui.TEXT2, false);
@@ -145,7 +145,7 @@ public final class HomeScreen {
     bottom.addView(job, Ui.weight(1.25f));
 
     // profile tile
-    LinearLayout prof = tile(c, R.drawable.ic_person, "Profil", Ui.PURPLE);
+    LinearLayout prof = tile(c, R.drawable.ic_person, Ui.s(R.string.home_profile), Ui.PURPLE);
     company = Ui.text(c, 22, Ui.TEXT, true);
     money = Ui.text(c, 32, Ui.GREEN, false);
     xp = Ui.text(c, 16, Ui.TEXT2, false);
@@ -180,13 +180,13 @@ public final class HomeScreen {
 
   /** Called every second or so. */
   public void tick() {
-    clock.setText(new SimpleDateFormat("HH:mm", Ui.TR).format(new Date()));
+    clock.setText(new SimpleDateFormat("HH:mm", Ui.LOCALE).format(new Date()));
   }
 
   public void setNav(String title, String line, String eta, int direction) {
     if (title == null) {
-      navTitle.setText("Rota yok");
-      navLine.setText("Harita · uzun bas: hedef seç");
+      navTitle.setText(Ui.s(R.string.home_no_route));
+      navLine.setText(Ui.s(R.string.home_no_route_hint));
       navEta.setText("");
       navIcon.setVisibility(View.GONE);
       return;
@@ -200,52 +200,52 @@ public final class HomeScreen {
 
   public void onTelemetry(JSONObject t) {
     if (t == null) {
-      gameClock.setText("Oyun bağlı değil");
-      subtitle.setText("PC'de Rig Buddy'yi ve oyunu başlatın");
+      gameClock.setText(Ui.s(R.string.home_game_off));
+      subtitle.setText(Ui.s(R.string.home_game_off_hint));
       speed.setText("–");
       gear.setText("");
-      fuelText.setText("Yakıt –");
+      fuelText.setText(Ui.s(R.string.home_fuel_none));
       rangeText.setText("");
       Ui.setBar(fuelBar, 0, Ui.GREEN);
-      jobTitle.setText("Aktif iş yok");
-      jobLine.setText("İş ilanlarını görmek için dokunun");
+      jobTitle.setText(Ui.s(R.string.home_no_job));
+      jobLine.setText(Ui.s(R.string.home_no_job_hint));
       jobLine2.setText("");
       return;
     }
     JSONObject truck = t.optJSONObject("truck");
-    gameClock.setText("Oyun saati  " + Ui.gameClock(t.optLong("gameTime")) + (t.optBoolean("paused") ? "  · duraklatıldı" : ""));
+    gameClock.setText(Ui.s(R.string.home_game_clock, Ui.gameClock(t.optLong("gameTime"))) + (t.optBoolean("paused") ? Ui.s(R.string.home_paused) : ""));
     subtitle.setText(truck.optString("brand") + " " + truck.optString("model") + "  ·  " + truck.optString("plate"));
     speed.setText(String.valueOf(Math.round(Math.abs(truck.optDouble("speedKph")))));
     gear.setText(gearText(truck.optInt("gear")));
     JSONObject fuel = truck.optJSONObject("fuel");
     double frac = fuel.optDouble("liters") / Math.max(1, fuel.optDouble("capacity"));
-    fuelText.setText("Yakıt " + Math.round(frac * 100) + "%");
-    rangeText.setText(Ui.number(fuel.optDouble("rangeKm")) + " km menzil");
+    fuelText.setText(Ui.s(R.string.home_fuel, (int) Math.round(frac * 100)));
+    rangeText.setText(Ui.s(R.string.home_range, Ui.number(fuel.optDouble("rangeKm"))));
     Ui.setBar(fuelBar, frac, frac < 0.15 ? Ui.RED : frac < 0.3 ? Ui.YELLOW : Ui.GREEN);
 
     JSONObject job = t.optJSONObject("job");
     if (job == null) {
-      jobTitle.setText("Aktif iş yok");
-      jobLine.setText("İş ilanlarını görmek için dokunun");
+      jobTitle.setText(Ui.s(R.string.home_no_job));
+      jobLine.setText(Ui.s(R.string.home_no_job_hint));
       jobLine2.setText("");
     } else {
       jobTitle.setText(job.optString("cargo") + " · " + job.optDouble("massT") + " t");
       jobLine.setText("→ " + job.optString("destination"));
       long left = job.optLong("deliveryTime") - t.optLong("gameTime");
-      jobLine2.setText(Ui.money(job.optDouble("income"), currency(t)) + "  ·  teslime " + Ui.duration(left));
+      jobLine2.setText(Ui.money(job.optDouble("income"), currency(t)) + "  ·  " + Ui.s(R.string.deliver_in, Ui.duration(left)));
     }
   }
 
   public void setProfile(JSONObject p, String error) {
     if (p == null) {
-      company.setText("Profil");
+      company.setText(Ui.s(R.string.home_profile));
       money.setText("–");
-      xp.setText(error != null ? error : "Kayıt dosyası bekleniyor");
+      xp.setText(error != null ? error : Ui.s(R.string.home_waiting_save));
       return;
     }
     company.setText(p.optString("company", p.optString("name")));
     money.setText(Ui.money(p.optDouble("money"), p.optString("currency", "€")));
-    xp.setText(Ui.number(p.optDouble("experience")) + " XP  ·  " + p.optInt("trucks") + " kamyon");
+    xp.setText(Ui.s(R.string.home_xp_trucks, Ui.number(p.optDouble("experience")), p.optInt("trucks")));
   }
 
   /**
@@ -268,7 +268,7 @@ public final class HomeScreen {
       nowPlaying.setVisibility(View.VISIBLE);
       String song = radio.optString("song");
       npTitle.setText(song.isEmpty() ? radio.optString("name") : song);
-      npArtist.setText(song.isEmpty() ? "Oyun radyosu" : radio.optString("name"));
+      npArtist.setText(song.isEmpty() ? Ui.s(R.string.home_radio) : radio.optString("name"));
       npButton.setVisibility(View.GONE);
     } else {
       nowPlaying.setVisibility(View.GONE);

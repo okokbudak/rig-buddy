@@ -1,5 +1,7 @@
 package tr.ets2nav.ui;
 
+import tr.ets2nav.R;
+
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
@@ -47,8 +49,8 @@ public final class SearchPanel {
       String label = o.optString("label", "?");
       r.type = o.optString("type");
       boolean synthesized = "Waypoint".equals(label);
-      r.title = synthesized ? "Seçilen nokta" : translate(label);
-      StringBuilder sub = new StringBuilder(synthesized ? "Haritadan" : typeName(r.type));
+      r.title = synthesized ? Ui.s(tr.ets2nav.R.string.search_picked) : translate(label);
+      StringBuilder sub = new StringBuilder(synthesized ? Ui.s(tr.ets2nav.R.string.search_from_map) : typeName(r.type));
       JSONObject city = o.optJSONObject("city");
       String cityName = city != null ? city.optString("name", "") : "";
       String state = o.optString("stateName", "");
@@ -71,15 +73,15 @@ public final class SearchPanel {
 
   private static String translate(String label) {
     switch (label) {
-      case "Gas Station": return "Benzinlik";
-      case "Service Area": return "Dinlenme tesisi";
-      case "Rest Area": return "Dinlenme alanı";
-      case "Parking": return "Park yeri";
-      case "Garage": return "Garaj";
-      case "Truck Dealer": return "Kamyon bayisi";
-      case "Recruitment Agency": return "İş bulma ajansı";
-      case "Weigh Station": return "Kantar";
-      case "Truck Stop": return "Tır parkı";
+      case "Gas Station": return Ui.s(tr.ets2nav.R.string.poi_gas);
+      case "Service Area": return Ui.s(tr.ets2nav.R.string.poi_service);
+      case "Rest Area": return Ui.s(tr.ets2nav.R.string.poi_rest);
+      case "Parking": return Ui.s(tr.ets2nav.R.string.poi_parking);
+      case "Garage": return Ui.s(tr.ets2nav.R.string.poi_garage);
+      case "Truck Dealer": return Ui.s(tr.ets2nav.R.string.poi_dealer);
+      case "Recruitment Agency": return Ui.s(tr.ets2nav.R.string.poi_recruitment);
+      case "Weigh Station": return Ui.s(tr.ets2nav.R.string.poi_weigh);
+      case "Truck Stop": return Ui.s(tr.ets2nav.R.string.poi_truckstop);
       default: return label;
     }
   }
@@ -116,11 +118,11 @@ public final class SearchPanel {
     panel.findViewById(tr.ets2nav.R.id.searchClose).setOnClickListener(v -> hide());
 
     LinearLayout chips = panel.findViewById(tr.ets2nav.R.id.searchChips);
-    addChip(ctx, chips, "⛽ Yakıt", POI_FUEL);
-    addChip(ctx, chips, "🅿 Dinlenme", POI_REST);
-    addChip(ctx, chips, "🔧 Servis", POI_SERVICE);
-    addChip(ctx, chips, "🏭 Firma", POI_COMPANY);
-    addChip(ctx, chips, "🚚 Bayi", POI_DEALER);
+    addChip(ctx, chips, Ui.s(tr.ets2nav.R.string.chip_fuel), POI_FUEL);
+    addChip(ctx, chips, Ui.s(tr.ets2nav.R.string.chip_rest), POI_REST);
+    addChip(ctx, chips, Ui.s(tr.ets2nav.R.string.chip_service), POI_SERVICE);
+    addChip(ctx, chips, Ui.s(tr.ets2nav.R.string.chip_company), POI_COMPANY);
+    addChip(ctx, chips, Ui.s(tr.ets2nav.R.string.chip_dealer), POI_DEALER);
 
     input.addTextChangedListener(new TextWatcher() {
       @Override public void beforeTextChanged(CharSequence s, int a, int b, int c) {}
@@ -167,17 +169,17 @@ public final class SearchPanel {
 
   private void autocomplete(String q) {
     int seq = ++querySeq;
-    status.setText("Aranıyor…");
+    status.setText(Ui.s(tr.ets2nav.R.string.search_searching));
     nav.query("app.getAutocompleteOptions", q, (data, error) -> {
       if (seq != querySeq) return; // a newer query is in flight
-      show(data, error, "Sonuç yok");
+      show(data, error, Ui.s(tr.ets2nav.R.string.search_no_results));
     });
   }
 
   private void nearby(int poiType, String label) {
     int seq = ++querySeq;
     hideKeyboard();
-    status.setText(label + " aranıyor…");
+    status.setText(Ui.s(tr.ets2nav.R.string.search_nearby, label));
     JSONObject in = new JSONObject();
     try {
       in.put("type", poiType).put("scope", SCOPE_NEARBY);
@@ -187,14 +189,14 @@ public final class SearchPanel {
     }
     nav.query("app.search", in, (data, error) -> {
       if (seq != querySeq) return;
-      show(data, error, "Yakında bulunamadı");
+      show(data, error, Ui.s(tr.ets2nav.R.string.search_none_nearby));
     });
   }
 
   private void show(Object data, String error, String emptyText) {
     results.clear();
     if (error != null) {
-      status.setText("Hata: " + error);
+      status.setText(Ui.s(tr.ets2nav.R.string.search_error, error));
     } else {
       JSONArray arr = NavClient.asArray(data);
       for (int i = 0; i < arr.length(); i++) {
@@ -206,7 +208,7 @@ public final class SearchPanel {
       if (!q.isEmpty()) {
         java.util.Collections.sort(results, (a, b) -> rank(a, q) - rank(b, q)); // stable
       }
-      status.setText(results.isEmpty() ? emptyText : results.size() + " sonuç");
+      status.setText(results.isEmpty() ? emptyText : Ui.s(tr.ets2nav.R.string.search_count, results.size()));
     }
     adapter.notifyDataSetChanged();
   }
@@ -236,15 +238,15 @@ public final class SearchPanel {
 
   private static String typeName(String type) {
     switch (type) {
-      case "city": return "Şehir";
-      case "scenery": return "Köy / yer";
-      case "company": return "Firma";
-      case "serviceArea": return "Servis alanı";
-      case "dealer": return "Bayi";
-      case "ferry": return "Feribot";
-      case "train": return "Tren";
-      case "landmark": return "Simge yapı";
-      case "viewpoint": return "Manzara";
+      case "city": return Ui.s(tr.ets2nav.R.string.kind_city);
+      case "scenery": return Ui.s(tr.ets2nav.R.string.kind_village);
+      case "company": return Ui.s(tr.ets2nav.R.string.kind_company);
+      case "serviceArea": return Ui.s(tr.ets2nav.R.string.kind_service);
+      case "dealer": return Ui.s(tr.ets2nav.R.string.kind_dealer);
+      case "ferry": return Ui.s(tr.ets2nav.R.string.kind_ferry);
+      case "train": return Ui.s(tr.ets2nav.R.string.kind_train);
+      case "landmark": return Ui.s(tr.ets2nav.R.string.kind_landmark);
+      case "viewpoint": return Ui.s(tr.ets2nav.R.string.kind_viewpoint);
       default: return type;
     }
   }

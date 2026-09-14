@@ -1,5 +1,7 @@
 package tr.ets2nav.ui;
 
+import tr.ets2nav.R;
+
 import android.content.Context;
 import android.view.Gravity;
 import android.view.View;
@@ -30,7 +32,7 @@ public final class VehicleScreen {
     root.setPadding(pad, pad, pad, pad);
     title = Ui.text(c, 22, Ui.TEXT, true);
     root.addView(title, Ui.margins(Ui.matchWrap(), c, 4, 0, 0, 14));
-    empty = Ui.text(c, "Oyundan veri gelmiyor.\nPC'de Rig Buddy'yi başlatıp oyuna girin.", 22, Ui.TEXT2, false);
+    empty = Ui.text(c, Ui.s(R.string.veh_no_data), 22, Ui.TEXT2, false);
     empty.setGravity(Gravity.CENTER);
     root.addView(empty, Ui.hweight(1));
 
@@ -40,12 +42,12 @@ public final class VehicleScreen {
 
     // --- driving
     LinearLayout drive = Ui.card(c, false);
-    drive.addView(Ui.text(c, "SÜRÜŞ", 15, Ui.TEXT2, true));
+    drive.addView(Ui.text(c, Ui.s(R.string.veh_driving_hdr), 15, Ui.TEXT2, true));
     LinearLayout srow = Ui.row(c);
     speed = Ui.text(c, 84, Ui.TEXT, false);
     srow.addView(speed);
     LinearLayout scol = Ui.column(c);
-    scol.addView(Ui.text(c, "km/s", 18, Ui.TEXT2, false));
+    scol.addView(Ui.text(c, Ui.s(R.string.unit_kmh), 18, Ui.TEXT2, false));
     limit = Ui.text(c, 18, Ui.RED, true);
     scol.addView(limit, Ui.margins(Ui.wrap(), c, 0, 8, 0, 0));
     srow.addView(scol, Ui.margins(Ui.wrap(), c, 10, 0, 0, 0));
@@ -60,39 +62,39 @@ public final class VehicleScreen {
     rpmBar = Ui.bar(c, Ui.ACCENT);
     drive.addView(rpmBar);
     drive.addView(Ui.spacer(c), Ui.hweight(1));
-    drive.addView(chipRow(c, "engine", "Motor", "electric", "Kontak", "parking", "El freni"));
-    drive.addView(chipRow(c, "motorBrake", "Motor freni", "retarder", "Retarder", "diff", "Dif. kilit"), Ui.margins(Ui.matchWrap(), c, 0, 8, 0, 0));
+    drive.addView(chipRow(c, "engine", Ui.s(R.string.veh_engine), "electric", Ui.s(R.string.veh_ignition), "parking", Ui.s(R.string.veh_parking_brake)));
+    drive.addView(chipRow(c, "motorBrake", Ui.s(R.string.veh_engine_brake), "retarder", Ui.s(R.string.veh_retarder), "diff", Ui.s(R.string.veh_diff_lock)), Ui.margins(Ui.matchWrap(), c, 0, 8, 0, 0));
     content.addView(drive, Ui.weight(1.1f));
 
     // --- engine & fuel
     LinearLayout eng = Ui.card(c, false);
-    eng.addView(Ui.text(c, "MOTOR VE YAKIT", 15, Ui.TEXT2, true));
-    barRow(c, eng, "fuel", "Yakıt");
-    valueRow(c, eng, "range", "Menzil");
-    valueRow(c, eng, "consumption", "Ortalama tüketim");
-    barRow(c, eng, "adblue", "AdBlue");
-    valueRow(c, eng, "water", "Soğutma suyu");
-    valueRow(c, eng, "oilTemp", "Yağ sıcaklığı");
-    valueRow(c, eng, "oilPressure", "Yağ basıncı");
-    valueRow(c, eng, "battery", "Akü");
-    valueRow(c, eng, "air", "Fren hava basıncı");
-    valueRow(c, eng, "brakeTemp", "Fren sıcaklığı");
+    eng.addView(Ui.text(c, Ui.s(R.string.veh_engine_fuel_hdr), 15, Ui.TEXT2, true));
+    barRow(c, eng, "fuel", Ui.s(R.string.veh_fuel));
+    valueRow(c, eng, "range", Ui.s(R.string.veh_range));
+    valueRow(c, eng, "consumption", Ui.s(R.string.veh_avg_consumption));
+    barRow(c, eng, "adblue", Ui.s(R.string.veh_adblue));
+    valueRow(c, eng, "water", Ui.s(R.string.veh_coolant));
+    valueRow(c, eng, "oilTemp", Ui.s(R.string.veh_oil_temp));
+    valueRow(c, eng, "oilPressure", Ui.s(R.string.veh_oil_pressure));
+    valueRow(c, eng, "battery", Ui.s(R.string.veh_battery));
+    valueRow(c, eng, "air", Ui.s(R.string.veh_air_pressure));
+    valueRow(c, eng, "brakeTemp", Ui.s(R.string.veh_brake_temp));
     content.addView(eng, Ui.margins(Ui.weight(1), c, 14, 0, 0, 0));
 
     // --- condition
     LinearLayout cond = Ui.card(c, false);
-    cond.addView(Ui.text(c, "DURUM", 15, Ui.TEXT2, true));
-    barRow(c, cond, "dmgEngine", "Motor hasarı");
-    barRow(c, cond, "dmgTransmission", "Şanzıman");
-    barRow(c, cond, "dmgCabin", "Kabin");
-    barRow(c, cond, "dmgChassis", "Şasi");
-    barRow(c, cond, "dmgWheels", "Tekerler");
-    barRow(c, cond, "dmgTrailer", "Dorse");
-    barRow(c, cond, "dmgCargo", "Yük");
-    valueRow(c, cond, "odometer", "Kilometre");
+    cond.addView(Ui.text(c, Ui.s(R.string.veh_status_hdr), 15, Ui.TEXT2, true));
+    barRow(c, cond, "dmgEngine", Ui.s(R.string.veh_engine_damage));
+    barRow(c, cond, "dmgTransmission", Ui.s(R.string.veh_transmission));
+    barRow(c, cond, "dmgCabin", Ui.s(R.string.veh_cabin));
+    barRow(c, cond, "dmgChassis", Ui.s(R.string.veh_chassis));
+    barRow(c, cond, "dmgWheels", Ui.s(R.string.veh_wheels));
+    barRow(c, cond, "dmgTrailer", Ui.s(R.string.veh_trailer));
+    barRow(c, cond, "dmgCargo", Ui.s(R.string.veh_cargo));
+    valueRow(c, cond, "odometer", Ui.s(R.string.veh_odometer));
     cond.addView(Ui.spacer(c), Ui.hweight(1));
-    cond.addView(chipRow(c, "low", "Kısa far", "high", "Uzun far", "beacon", "Tepe lambası"));
-    cond.addView(chipRow(c, "hazard", "Dörtlü", "wipers", "Silecek", "trailer", "Dorse bağlı"), Ui.margins(Ui.matchWrap(), c, 0, 8, 0, 0));
+    cond.addView(chipRow(c, "low", Ui.s(R.string.veh_low_beam), "high", Ui.s(R.string.veh_high_beam), "beacon", Ui.s(R.string.veh_beacon)));
+    cond.addView(chipRow(c, "hazard", Ui.s(R.string.veh_hazards), "wipers", Ui.s(R.string.veh_wipers), "trailer", Ui.s(R.string.veh_trailer_attached)), Ui.margins(Ui.matchWrap(), c, 0, 8, 0, 0));
     content.addView(cond, Ui.margins(Ui.weight(1), c, 14, 0, 0, 0));
 
     onTelemetry(null);
@@ -163,7 +165,7 @@ public final class VehicleScreen {
     empty.setVisibility(has ? View.GONE : View.VISIBLE);
     content.setVisibility(has ? View.VISIBLE : View.GONE);
     if (!has) {
-      title.setText("Araç bilgisayarı");
+      title.setText(Ui.s(R.string.veh_title_default));
       return;
     }
     JSONObject tr = t.optJSONObject("truck");
@@ -171,13 +173,15 @@ public final class VehicleScreen {
     speed.setText(String.valueOf(Math.round(Math.abs(tr.optDouble("speedKph")))));
     JSONObject nav = t.optJSONObject("navigation");
     double lim = nav != null ? nav.optDouble("speedLimitKph") : 0;
-    limit.setText(lim > 0 ? "Limit " + Math.round(lim) : "");
+    limit.setText(lim > 0 ? Ui.s(R.string.veh_limit, (int) Math.round(lim)) : "");
     JSONObject cc = tr.optJSONObject("cruise");
-    cruise.setText(cc != null && cc.optBoolean("enabled") ? "Hız sabitleyici  " + Math.round(cc.optDouble("kph")) + " km/s" : "Hız sabitleyici kapalı");
+    cruise.setText(cc != null && cc.optBoolean("enabled")
+        ? Ui.s(R.string.veh_cruise_on, (int) Math.round(cc.optDouble("kph")), Ui.s(R.string.unit_kmh))
+        : Ui.s(R.string.veh_cruise_off));
     cruise.setTextColor(cc != null && cc.optBoolean("enabled") ? Ui.GREEN : Ui.TEXT2);
     gear.setText(HomeScreen.gearText(tr.optInt("gear")));
     double r = tr.optDouble("rpm"), rmax = Math.max(1, tr.optDouble("rpmMax", 2500));
-    rpm.setText(Ui.number(r) + " dev/dk");
+    rpm.setText(Ui.s(R.string.unit_rpm, Ui.number(r)));
     Ui.setBar(rpmBar, r / rmax, r / rmax > 0.85 ? Ui.RED : Ui.ACCENT);
 
     chip("engine", tr.optBoolean("engineOn"), Ui.GREEN);
@@ -187,7 +191,7 @@ public final class VehicleScreen {
     JSONObject ret = tr.optJSONObject("retarder");
     int retLevel = ret != null ? ret.optInt("level") : 0;
     chip("retarder", retLevel > 0, Ui.ACCENT);
-    chips.get("retarder").setText(retLevel > 0 ? "Retarder " + retLevel : "Retarder");
+    chips.get("retarder").setText(retLevel > 0 ? Ui.s(R.string.veh_retarder_n, retLevel) : Ui.s(R.string.veh_retarder));
     chip("diff", tr.optBoolean("diffLock"), Ui.YELLOW);
 
     JSONObject fuel = tr.optJSONObject("fuel");
