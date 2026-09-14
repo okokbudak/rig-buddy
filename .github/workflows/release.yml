@@ -1,0 +1,113 @@
+# Builds RigBuddy-Setup.exe and RigBuddy.apk for a version tag (v1.2.3) and
+# attaches them to a draft GitHub release; publish the draft by hand after a
+# look. Can also be run by hand (Actions > release > Run workflow) to only
+# build the files, as workflow artifacts.
+#
+# Repository secrets for the APK signing key (see README, "Sürüm oluşturma"):
+#   RIGBUDDY_KEYSTORE_BASE64   the .jks file, base64
+#   RIGBUDDY_KEYSTORE_PASSWORD, RIGBUDDY_KEY_ALIAS, RIGBUDDY_KEY_PASSWORD
+name: release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'version (1.2.3)'
+        required: true
+        default: '0.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  addons:
+    # the parser's native addons, cross-compiled for Windows with MinGW
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: tm-maps at the pinned revision + patches
+        run: |
+          rev=$(grep -oP "TmMapsRev = '\K[0-9a-f]+" setup/lib.ps1)
+          git clone -q https://github.com/truckermudgeon/maps.git tm-maps
+          git -C tm-maps checkout -q "$rev"
+          git -C tm-maps -c user.name=ci -c user.email=ci@localhost am -q pc/patches/tm-maps/*.patch
+          (cd tm-maps && npm ci --ignore-scripts --no-audit --no-fund)
+      - name: build
+        run: |
+          sudo apt-get update -q && sudo apt-get install -yq g++-mingw-w64-x86-64-posix
+          npx --yes node-gyp install
+          bash pc/native/build-addons.sh "$PWD/tm-maps" "$PWD/addons"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: addons
+          path: addons/*.node
+
+  release:
+    needs: addons
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: addons
+          path: pc/native/win-x64
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: version
+        shell: pwsh
+        run: |
+          $v = $env:VERSION -replace '^v', ''
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "bad version '$env:VERSION'" }
+          "VERSION=$v" >> $env:GITHUB_ENV
+      - name: setup (Node, Gradle, tm-maps, fonts)
+        shell: pwsh
+        run: ./setup/setup-pc.ps1 -SkipPlugin -SkipFirewall
+      - name: Inno Setup
+        shell: pwsh
+        run: if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+      - name: signing key
+        shell: pwsh
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RIGBUDDY_KEYSTORE_BASE64 }}
+        run: |
+          if (-not $env:KEYSTORE_BASE64) {
+            if ('${{ github.event_name }}' -eq 'push') { throw 'RIGBUDDY_KEYSTORE_BASE64 secret missing: no unsigned releases' }
+            Write-Warning 'no signing key: the APK is signed with a debug key'
+            exit 0
+          }
+          $jks = Join-Path $env:RUNNER_TEMP 'rigbuddy.jks'
+          [IO.File]::WriteAllBytes($jks, [Convert]::FromBase64String($env:KEYSTORE_BASE64))
+          "RIGBUDDY_KEYSTORE=$jks" >> $env:GITHUB_ENV
+      - name: build
+        shell: pwsh
+        env:
+          RIGBUDDY_KEYSTORE_PASSWORD: ${{ secrets.RIGBUDDY_KEYSTORE_PASSWORD }}
+          RIGBUDDY_KEY_ALIAS: ${{ secrets.RIGBUDDY_KEY_ALIAS }}
+          RIGBUDDY_KEY_PASSWORD: ${{ secrets.RIGBUDDY_KEY_PASSWORD }}
+        run: ./setup/build-release.ps1 -Version $env:VERSION
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rig-buddy-${{ env.VERSION }}
+          path: |
+            local/release/RigBuddy-Setup.exe
+            local/release/RigBuddy.apk
+      - name: draft release
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" local/release/RigBuddy-Setup.exe local/release/RigBuddy.apk `
+            --draft --title "Rig Buddy $env:VERSION" --generate-notes
