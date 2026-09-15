@@ -72,9 +72,18 @@ const bindingsNextToBundle = {
   },
 };
 
+// tinypool starts its threads from `${import.meta.url}/../entry/worker.js`,
+// i.e. next to whatever file contains it, and that file imports tinypool's
+// shared chunks from one level up: copy its runtime next to such bundles.
+const TINYPOOL_DIST = path.dirname(createRequire(path.join(TM, 'package.json')).resolve('tinypool'));
+function copyTinypoolRuntime(dir) {
+  fs.cpSync(TINYPOOL_DIST, dir, { recursive: true, filter: src => !src.endsWith('.d.ts') && src !== path.join(TINYPOOL_DIST, 'index.js') });
+}
+
 async function bundle(name, entry, extra = {}) {
   const outfile = path.join(DIST, name, 'index.mjs');
-  await build({ ...common, entryPoints: [entry], outfile, ...extra });
+  const result = await build({ ...common, entryPoints: [entry], outfile, ...extra });
+  if (Object.keys(result.metafile.inputs).some(p => /node_modules[\\/]tinypool[\\/]/.test(p))) copyTinypoolRuntime(path.dirname(outfile));
   console.log(`${path.relative(ROOT, outfile)}  ${(fs.statSync(outfile).size / 1e6).toFixed(1)} MB`);
 }
 
