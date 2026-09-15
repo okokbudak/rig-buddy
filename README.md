@@ -130,6 +130,11 @@ the Jobs screen and its route is planned for you.
   the map of the game that changed is rebuilt. You can also start this at any
   time with **Rebuild map** in the icon's menu.
 - Several devices can be connected at the same time.
+- **Your network:** Rig Buddy trusts the devices on your private network. Any
+  device on the same Wi-Fi can see the game data and what is playing on the
+  PC, and control the PC's media. Use it on your home network; the firewall
+  rules it adds only apply to networks Windows marks as "Private". Web pages
+  can't reach Rig Buddy: requests coming from a browser are refused.
 
 ## Troubleshooting
 
@@ -378,6 +383,12 @@ ekranında bir ilanı seçtiğinizde rotası kendiliğinden çizilir.
   yeniden hazırlanır. Aynı işlemi istediğiniz zaman simgenin menüsündeki
   **Haritayı yeniden oluştur** ile de başlatabilirsiniz.
 - Aynı anda birden fazla cihaz bağlanabilir.
+- **Ağınız:** Rig Buddy, özel ağınızdaki cihazlara güvenir. Aynı Wi-Fi
+  ağındaki her cihaz oyun verilerini ve PC'de çalan medyayı görebilir, PC'deki
+  medyayı kontrol edebilir. Rig Buddy'yi ev ağınızda kullanın; eklediği
+  güvenlik duvarı izinleri yalnızca Windows'un "Özel" olarak işaretlediği
+  ağlarda geçerlidir. Web siteleri Rig Buddy'ye erişemez: tarayıcıdan gelen
+  istekler reddedilir.
 
 ### Sorun giderme
 
