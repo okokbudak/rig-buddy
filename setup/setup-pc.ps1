@@ -61,6 +61,8 @@ $tm = Join-Path $vendor 'tm-maps'
 if (Test-Path "$tm\.git") { Write-Host '  already there' } else {
   Exec { git clone -q $TmMapsRepo $tm } 'git clone'
   Exec { git -C $tm checkout -q -b ets2nav-local $TmMapsRev } 'git checkout'
+  # sources of the gdeflate addon (pc\native\build-addons.sh)
+  Exec { git -C $tm submodule update --init -q packages/clis/parser/gdeflate/libdeflate } 'git submodule'
   $patches = (Get-ChildItem "$Root\pc\patches\tm-maps\*.patch" | Sort-Object Name).FullName
   Exec { git -C $tm -c user.name=ets2nav -c user.email=ets2nav@localhost am -q $patches } 'git am'
 }
@@ -72,6 +74,13 @@ if (-not (Test-Path "$tm\node_modules\@truckermudgeon\base\package.json")) {
   # MSVC needed); pc\patches\scsSDKTelemetry.js replaces the telemetry addon.
   try { Exec { npm ci --ignore-scripts --no-audit --no-fund } 'npm ci (tm-maps)' } finally { Pop-Location }
 }
+
+Step 'map pipeline dependencies (pipeline)'
+$pipelineDeps = (Get-Content "$Root\pipeline\package.json" -Raw | ConvertFrom-Json).dependencies.PSObject.Properties.Name
+if ($pipelineDeps | Where-Object { -not (Test-Path "$Root\pipeline\node_modules\$_\package.json") }) {
+  Push-Location "$Root\pipeline"
+  try { Exec { npm ci --no-audit --no-fund } 'npm ci (pipeline)' } finally { Pop-Location }
+} else { Write-Host '  already there' }
 
 Step 'PC agent dependencies (pc\agent)'
 if (-not (Test-Path "$Root\pc\agent\node_modules\ws")) {

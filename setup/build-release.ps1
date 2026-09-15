@@ -51,9 +51,8 @@ if (-not $SkipInstaller) {
   Copy-Item "$Root\LICENSE" "$app\licenses\LICENSE.txt"
   Move-Item "$app\dist\THIRD-PARTY-LICENSES.txt" "$app\licenses\THIRD-PARTY-LICENSES.txt"
   Copy-Item (Join-Path (Split-Path $node) 'LICENSE') "$app\licenses\node.js-LICENSE.txt"
-  $lic = Invoke-RestMethod -UseBasicParsing 'https://api.github.com/repos/truckermudgeon/scs-sdk-plugin/license'
-  [IO.File]::WriteAllText("$app\licenses\scs-sdk-plugin-LICENSE.txt",
-    [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($lic.content)))
+  # raw file, not the API: the API's anonymous rate limit is often used up on shared CI machines
+  Get-File 'https://raw.githubusercontent.com/truckermudgeon/scs-sdk-plugin/HEAD/LICENSE' "$app\licenses\scs-sdk-plugin-LICENSE.txt"
   $size = (Get-ChildItem $app -Recurse -File | Measure-Object Length -Sum).Sum / 1MB
   Write-Host ("  {0:N0} MB staged" -f $size)
 

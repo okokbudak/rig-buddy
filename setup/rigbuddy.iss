@@ -1,4 +1,4 @@
-; Rig Buddy installer (Inno Setup 6). Built by setup\build-release.ps1, which
+﻿; Rig Buddy installer (Inno Setup 6). Built by setup\build-release.ps1, which
 ; stages the files first:
 ;   <SourceDir>\RigBuddy.exe          self-contained .NET app
 ;   <SourceDir>\node\node.exe         Node.js runtime for the services
