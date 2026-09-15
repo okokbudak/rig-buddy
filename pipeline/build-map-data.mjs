@@ -100,7 +100,47 @@ const step = (key, g) => {
   console.log(`@@expect ${Math.floor((doneWeight / totalWeight) * 100)} ${(weight * (SECONDS_PER_WEIGHT[g?.game] ?? 3)).toFixed(0)}`);
 };
 
+// A game that fails (e.g. its files changed in an update tm-maps can't read yet)
+// must not cost the other one its map: each game is built on its own, and a
+// failed one keeps its old stamp, so the next run tries it again.
+const failed = [];
 for (const g of todo) {
+  const weightBefore = doneWeight;
+  try {
+    await buildGame(g);
+    console.log(`@@built ${g.game}`); // RigBuddy.exe loads the new data even if another game fails
+  } catch (e) {
+    failed.push(`${g.name}: ${e.message}`);
+    console.log(`${g.name} failed: ${e.message}`);
+    doneWeight = weightBefore + STEP_TOTAL;
+  }
+}
+
+step('sprites');
+const withPois = games.filter(g => fs.existsSync(path.join(PARSER_OUT, `${g.map}-pois.json`)));
+try {
+  if (!withPois.length) throw new Error('no game data');
+  fs.mkdirSync(path.join(DATA, 'sprites'), { recursive: true });
+  tm('generator', ['spritesheet', ...withPois.flatMap(g => ['-m', g.map]), '-i', PARSER_OUT, '-o', WORK]);
+  for (const f of ['sprites@2x.json', 'sprites@2x.png']) fs.copyFileSync(path.join(WORK, f), path.join(DATA, 'sprites', f));
+  writeAppSprites();
+} catch (e) {
+  failed.push(`icons: ${e.message}`);
+}
+
+// the scratch files are ~1.5 GB; keep only what the spritesheet of a later
+// one-game rebuild needs from the other game (its POIs and the icons)
+for (const e of fs.readdirSync(WORK, { withFileTypes: true })) {
+  if (e.isFile()) fs.rmSync(path.join(WORK, e.name));
+}
+for (const e of fs.readdirSync(PARSER_OUT, { withFileTypes: true })) {
+  if (e.isFile() && !e.name.endsWith('-pois.json')) fs.rmSync(path.join(PARSER_OUT, e.name));
+}
+
+if (failed.length) fail(failed.join('; '));
+progress(100, 'map.done');
+
+async function buildGame(g) {
   const started = Date.now();
   // parser output is per game (europe-* / usa-*); stale files of this game go first
   for (const f of fs.readdirSync(PARSER_OUT)) if (f.startsWith(`${g.map}-`)) fs.rmSync(path.join(PARSER_OUT, f));
@@ -149,23 +189,6 @@ for (const g of todo) {
   console.log(`${g.name} done in ${Math.round((Date.now() - started) / 1000)} s`);
 }
 
-step('sprites');
-fs.mkdirSync(path.join(DATA, 'sprites'), { recursive: true });
-tm('generator', ['spritesheet', ...games.flatMap(g => ['-m', g.map]), '-i', PARSER_OUT, '-o', WORK]);
-for (const f of ['sprites@2x.json', 'sprites@2x.png']) fs.copyFileSync(path.join(WORK, f), path.join(DATA, 'sprites', f));
-writeAppSprites();
-
-// the scratch files are ~1.5 GB; keep only what the spritesheet of a later
-// one-game rebuild needs from the other game (its POIs and the icons)
-for (const e of fs.readdirSync(WORK, { withFileTypes: true })) {
-  if (e.isFile()) fs.rmSync(path.join(WORK, e.name));
-}
-for (const e of fs.readdirSync(PARSER_OUT, { withFileTypes: true })) {
-  if (e.isFile() && !e.name.endsWith('-pois.json')) fs.rmSync(path.join(PARSER_OUT, e.name));
-}
-
-progress(100, 'map.done');
-
 // --- helpers -----------------------------------------------------------------------------
 
 function progress(pct, key, arg = '') {
@@ -182,10 +205,12 @@ function tm(name, cliArgs) {
   const entry = BUNDLED
     ? [path.join(HERE, '..', name, 'index.mjs')]
     : [path.join(TM, 'node_modules/tsx/dist/cli.mjs'), path.join(TM, 'packages/clis', name, 'index.ts')];
-  node([...entry, ...cliArgs], path.join(TM, 'packages/clis', name));
+  const what = { parser: 'reading the game files', generator: `map data (${cliArgs[0]})` }[name];
+  node([...entry, ...cliArgs], path.join(TM, 'packages/clis', name), what);
 }
 
-function node(nodeArgs, cwd = HERE) {
+/** Runs a Node script; throws "<what> failed (exit n)" when it fails. */
+function node(nodeArgs, cwd = HERE, what = undefined) {
   console.log(`> ${path.basename(nodeArgs[nodeArgs[0].endsWith('cli.mjs') ? 1 : 0])} ${nodeArgs.slice(1).filter(a => !a.endsWith('index.ts')).join(' ')}`);
   const r = spawnSync(process.execPath, [HEAP, ...nodeArgs], {
     cwd: fs.existsSync(cwd) ? cwd : HERE,
@@ -193,7 +218,7 @@ function node(nodeArgs, cwd = HERE) {
     // NODE_OPTIONS, not just argv: tsx runs the CLI in a child node process
     env: { ...process.env, NODE_OPTIONS: HEAP, FORCE_COLOR: '0', NO_COLOR: '1' },
   });
-  if (r.status !== 0) fail(`${path.basename(nodeArgs[0])} exited with ${r.status ?? r.signal}`);
+  if (r.status !== 0) throw new Error(`${what ?? path.basename(nodeArgs[0])} failed (exit ${r.status ?? r.signal})`);
 }
 
 /**
