@@ -193,8 +193,10 @@ powershell -ExecutionPolicy Bypass -File setup\install-headunit.ps1 -Device <ip:
 
 Pushing a tag like `v1.2.3` makes GitHub Actions
 (`.github/workflows/release.yml`) build **RigBuddy-Setup.exe** and
-**RigBuddy.apk** and attach them to a draft release; publish the draft after
-checking it. The same files are built locally into `local\release` with:
+**RigBuddy.apk**. When the build is done,
+`setup\draft-release.ps1 -Version 1.2.3` turns it into a draft release with
+your own GitHub account (GitHub CLI, `gh auth login` once); publish the draft
+after checking it. The same files are built locally into `local\release` with:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File setup\build-release.ps1 -Version 1.2.3
@@ -442,7 +444,9 @@ klasörüne yazılır). `dist\` yoksa servisler kaynaktan, tsx ile çalıştır�
 
 `v1.2.3` biçiminde bir etiket gönderildiğinde GitHub Actions
 (`.github/workflows/release.yml`) **RigBuddy-Setup.exe** ile **RigBuddy.apk**
-dosyalarını derler ve taslak bir sürüme ekler; taslağı kontrol ettikten sonra
+dosyalarını derler. Derleme bittiğinde `setup\draft-release.ps1 -Version 1.2.3`
+bu dosyalardan kendi GitHub hesabınızla taslak bir sürüm oluşturur (GitHub
+CLI, bir kez `gh auth login`); taslağı kontrol ettikten sonra
 yayımlayabilirsiniz. Aynı dosyalar yerelde şu komutla `local\release`
 klasörüne üretilir:
 

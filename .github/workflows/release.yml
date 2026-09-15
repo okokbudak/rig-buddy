@@ -1,9 +1,10 @@
-# Builds RigBuddy-Setup.exe and RigBuddy.apk for a version tag (v1.2.3) and
-# attaches them to a draft GitHub release; publish the draft by hand after a
-# look. Can also be run by hand (Actions > release > Run workflow) to only
-# build the files, as workflow artifacts.
+# Builds RigBuddy-Setup.exe and RigBuddy.apk for a version tag (v1.2.3), as
+# the workflow artifact "rig-buddy-<version>". setup\draft-release.ps1 then
+# makes the draft GitHub release from it with your own account (a release
+# created here would show the github-actions bot as its author). Can also be
+# run by hand (Actions > release > Run workflow).
 #
-# Repository secrets for the APK signing key (see README, "Sürüm oluşturma"):
+# Repository secrets for the APK signing key (see README, "Releases"):
 #   RIGBUDDY_KEYSTORE_BASE64   the .jks file, base64
 #   RIGBUDDY_KEYSTORE_PASSWORD, RIGBUDDY_KEY_ALIAS, RIGBUDDY_KEY_PASSWORD
 name: release
@@ -19,7 +20,7 @@ on:
         default: '0.0.0'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   addons:
@@ -106,19 +107,3 @@ jobs:
           path: |
             local/release/RigBuddy-Setup.exe
             local/release/RigBuddy.apk
-      - name: draft release
-        if: github.event_name == 'push'
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $tag = '${{ github.ref_name }}'
-          $files = 'local/release/RigBuddy-Setup.exe', 'local/release/RigBuddy.apk'
-          gh release view $tag *> $null
-          if ($LASTEXITCODE -eq 0) {
-            # the tag was pushed again: refresh the files of the existing (draft) release
-            gh release upload $tag @files --clobber
-          } else {
-            gh release create $tag @files --draft --title "Rig Buddy $env:APP_VERSION" --generate-notes
-          }
-          if ($LASTEXITCODE -ne 0) { throw 'gh release failed' }
