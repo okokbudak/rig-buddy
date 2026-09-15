@@ -2,7 +2,11 @@
 // Apple Music, browsers, ... via Windows.Media.Control / GSMTC) and per-app
 // audio volume (Core Audio via NAudio) to the Node agent.
 //
-// Protocol on 127.0.0.1:62844, one JSON object per line:
+// Protocol on 127.0.0.1:62844. The agent's first line is Token (a per-run key it
+// gets from the Supervisor); without it the connection is dropped, and so is a
+// client on its first line that isn't a JSON object. Web pages can reach
+// 127.0.0.1 as well: an HTTP request carrying a JSON line in its body must not
+// be able to change the volume. Then one JSON object per line:
 //   bridge -> agent: {"type":"media","data":{...}}  (on change, and every second while playing)
 //                    {"type":"art","key":"...","mime":"image/jpeg","data":"<base64>"}  (once per track)
 //   agent -> bridge: {"cmd":"toggle|play|pause|next|prev","session":"<id>"}
@@ -23,6 +27,8 @@ using Windows.Media.Control;
 sealed class MediaService
 {
     const int Port = 62844;
+    /** Key the agent sends first (passed to it as RIGBUDDY_MEDIA_TOKEN). */
+    public static readonly string Token = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
     /** Windows media sessions are available (shown in the PC app's window). */
     public static bool Running { get; private set; }
     GlobalSystemMediaTransportControlsSessionManager? _mgr;
@@ -298,6 +304,19 @@ sealed class MediaService
         using (client)
         {
             var stream = client.GetStream();
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            string? first;
+            try
+            {
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                first = await reader.ReadLineAsync(timeout.Token);
+            }
+            catch (Exception) { first = null; }
+            if (first?.Trim() != Token)
+            {
+                Console.WriteLine("media: dropped a client without the key");
+                return;
+            }
             var writer = new StreamWriter(stream, new UTF8Encoding(false)) { AutoFlush = true, NewLine = "\n" };
             lock (_lock) _clients.Add(writer);
             _lastStateJson = ""; // send full state to the newcomer
@@ -305,10 +324,10 @@ sealed class MediaService
             Console.WriteLine("media: client connected");
             try
             {
-                using var reader = new StreamReader(stream, Encoding.UTF8);
                 string? line;
                 while ((line = await reader.ReadLineAsync()) != null)
                 {
+                    if (!line.TrimStart().StartsWith('{')) break; // not our protocol
                     try { await Handle(line); }
                     catch (Exception e) { Console.WriteLine($"media: command failed: {e.Message}"); }
                 }

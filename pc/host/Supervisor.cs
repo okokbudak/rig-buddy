@@ -134,7 +134,7 @@ sealed class Supervisor
             Title = "svc.agent",
             WorkDir = Cwd("agent", Path.Combine(paths.Root, @"pc\agent")),
             Args = dist != null ? [Path.Combine(dist, @"agent\index.mjs")] : [Path.Combine(paths.Root, @"pc\agent\index.mjs")],
-            Env = new() { ["ETS2NAV_DATA"] = data },
+            Env = new() { ["ETS2NAV_DATA"] = data, ["RIGBUDDY_MEDIA_TOKEN"] = MediaService.Token },
             HealthUrl = "http://127.0.0.1:62843/health",
             BeforeStart = dist != null ? null
                 : () => CopyShim(shim, Path.Combine(paths.Root, @"pc\agent\node_modules\trucksim-telemetry\build\Release")),

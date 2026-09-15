@@ -7,8 +7,11 @@
 //   GET  /tiles/ets2.mbtiles -> the map file itself
 //   GET  /tiles/sprites.json|png -> the map's POI icons ("sprites" in /tiles)
 //   POST /key {"action"}  -> (reserved) key emulation via RigBuddy.exe
+// Clients are the app and RigBuddy.exe, never a browser: see fromWebPage().
 import fs from 'node:fs';
 import http from 'node:http';
+import net from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import tst from 'trucksim-telemetry';
 import { WebSocketServer } from 'ws';
@@ -176,10 +179,18 @@ const mediaPayload = () => DEMO_MEDIA ?? { ...(media.state() ?? { sessions: [] }
 const media = createMedia(() => broadcast({ type: 'media', data: mediaPayload() }));
 const radio = createRadio(() => broadcast({ type: 'media', data: mediaPayload() }));
 
+const MAX_BODY = 16 * 1024; // media commands are a few dozen bytes
+
 function readBody(req) {
   return new Promise(resolve => {
     let body = '';
-    req.on('data', d => (body += d));
+    req.on('data', d => {
+      body += d;
+      if (body.length > MAX_BODY) {
+        req.destroy();
+        resolve(null);
+      }
+    });
     req.on('end', () => {
       try {
         resolve(JSON.parse(body || '{}'));
@@ -246,10 +257,29 @@ function sendTiles(req, res, g) {
 
 // --- HTTP + WebSocket --------------------------------------------------------------------
 
+/**
+ * True for requests made by a web page. Browsers send Origin with cross-site
+ * fetches, every POST and every WebSocket; without this check (and with CORS
+ * open) any site open on this PC or on the LAN could read what is playing,
+ * the profile and the telemetry, and control the PC's media. The Host check
+ * stops DNS rebinding: a page whose own domain resolves to this PC is
+ * same-origin, but its Host header carries that domain, not an address.
+ */
+function fromWebPage(req) {
+  if (req.headers.origin != null) return true;
+  const host = String(req.headers.host ?? '').replace(/:\d+$/, '').replace(/^\[(.*)\]$/, '$1').toLowerCase();
+  const me = os.hostname().toLowerCase();
+  return !(net.isIP(host) || host === 'localhost' || host === me || host.startsWith(`${me}.`));
+}
+
 const server = http.createServer((req, res) => {
+  if (fromWebPage(req)) {
+    res.writeHead(403);
+    return res.end();
+  }
   const url = new URL(req.url, 'http://x');
   const send = (code, body) => {
-    res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+    res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(body));
   };
   if (url.pathname === '/health') {
@@ -293,7 +323,7 @@ const server = http.createServer((req, res) => {
   send(404, { error: 'not found' });
 });
 
-const wss = new WebSocketServer({ server, path: '/ws' });
+const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_BODY, verifyClient: ({ req }) => !fromWebPage(req) });
 wss.on('connection', ws => {
   if (latest) ws.send(JSON.stringify({ type: 'telemetry', data: latest }));
   ws.send(JSON.stringify({ type: 'media', data: mediaPayload() }));
