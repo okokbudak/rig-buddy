@@ -459,10 +459,14 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     }
   }
 
-  /** adb shell am start -n tr.ets2nav/.MainActivity --es host <PC LAN IP> */
+  /**
+   * adb shell am start -n tr.ets2nav/.MainActivity --es host <PC LAN IP>, for the
+   * first setup only: any app on the device can start this activity, and must
+   * not be able to point an already set-up app at another server.
+   */
   private boolean applyIntent(Intent intent) {
     String host = intent != null ? intent.getStringExtra("host") : null;
-    if (host == null || host.isEmpty()) return false;
+    if (host == null || host.isEmpty() || !host().isEmpty()) return false;
     prefs.edit().putString("host", host.trim()).apply();
     return true;
   }

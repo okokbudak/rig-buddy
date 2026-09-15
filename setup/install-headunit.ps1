@@ -5,7 +5,8 @@
 #   setup\install-headunit.ps1 -Device 192.168.1.50:5555 -PcHost 192.168.1.10
 #
 # -Device   head unit's ADB address (Wi-Fi ADB ip:port), or a USB serial
-# -PcHost   this PC's LAN IP (the app connects to it); asked in the app if omitted
+# -PcHost   this PC's LAN IP (the app connects to it); asked in the app if omitted.
+#           Only taken while the app has no PC address yet (change it in the app's settings)
 # -NoBuild  install the last built APK
 param(
   [Parameter(Mandatory = $true)][string]$Device,
