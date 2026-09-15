@@ -35,7 +35,9 @@ jobs:
           rev=$(grep -oP "TmMapsRev = '\K[0-9a-f]+" setup/lib.ps1)
           git clone -q https://github.com/truckermudgeon/maps.git tm-maps
           git -C tm-maps checkout -q "$rev"
-          git -C tm-maps -c user.name=ci -c user.email=ci@localhost am -q pc/patches/tm-maps/*.patch
+          git -C tm-maps submodule update --init -q packages/clis/parser/gdeflate/libdeflate # gdeflate addon sources
+          # absolute paths: with -C, git resolves relative ones inside tm-maps
+          git -C tm-maps -c user.name=ci -c user.email=ci@localhost am -q "$PWD"/pc/patches/tm-maps/*.patch
           (cd tm-maps && npm ci --ignore-scripts --no-audit --no-fund)
       - name: build
         run: |
@@ -51,7 +53,8 @@ jobs:
     needs: addons
     runs-on: windows-latest
     env:
-      VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+      # the tag (v1.2.3) or the manual input; the "version" step turns it into APP_VERSION (1.2.3)
+      VERSION_INPUT: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -68,9 +71,9 @@ jobs:
       - name: version
         shell: pwsh
         run: |
-          $v = $env:VERSION -replace '^v', ''
-          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "bad version '$env:VERSION'" }
-          "VERSION=$v" >> $env:GITHUB_ENV
+          $v = $env:VERSION_INPUT -replace '^v', ''
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "bad version '$env:VERSION_INPUT'" }
+          "APP_VERSION=$v" >> $env:GITHUB_ENV
       - name: setup (Node, Gradle, tm-maps, fonts)
         shell: pwsh
         run: ./setup/setup-pc.ps1 -SkipPlugin -SkipFirewall
@@ -96,10 +99,10 @@ jobs:
           RIGBUDDY_KEYSTORE_PASSWORD: ${{ secrets.RIGBUDDY_KEYSTORE_PASSWORD }}
           RIGBUDDY_KEY_ALIAS: ${{ secrets.RIGBUDDY_KEY_ALIAS }}
           RIGBUDDY_KEY_PASSWORD: ${{ secrets.RIGBUDDY_KEY_PASSWORD }}
-        run: ./setup/build-release.ps1 -Version $env:VERSION
+        run: ./setup/build-release.ps1 -Version $env:APP_VERSION
       - uses: actions/upload-artifact@v4
         with:
-          name: rig-buddy-${{ env.VERSION }}
+          name: rig-buddy-${{ env.APP_VERSION }}
           path: |
             local/release/RigBuddy-Setup.exe
             local/release/RigBuddy.apk
@@ -110,4 +113,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${{ github.ref_name }}" local/release/RigBuddy-Setup.exe local/release/RigBuddy.apk `
-            --draft --title "Rig Buddy $env:VERSION" --generate-notes
+            --draft --title "Rig Buddy $env:APP_VERSION" --generate-notes
