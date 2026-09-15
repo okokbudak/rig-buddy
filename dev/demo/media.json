@@ -1,0 +1,24 @@
+{
+  "sessions": [
+    { "id": "demo.player", "app": "Music", "title": "Midnight Autobahn", "artist": "The Demo Drivers", "status": "playing" }
+  ],
+  "current": {
+    "id": "demo.player",
+    "app": "Music",
+    "title": "Midnight Autobahn",
+    "artist": "The Demo Drivers",
+    "album": "Long Haul",
+    "status": "playing",
+    "positionMs": 83000,
+    "durationMs": 214000,
+    "canNext": true,
+    "canPrev": true,
+    "canSeek": true,
+    "canToggle": true,
+    "artKey": null
+  },
+  "appVolume": 0.8,
+  "masterVolume": 1,
+  "masterMuted": false,
+  "radio": null
+}
