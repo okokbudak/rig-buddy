@@ -1,7 +1,7 @@
-From 3257741085f00baf55682146c28dd5df9bf5f494 Mon Sep 17 00:00:00 2001
-From: ets2nav <ets2nav@localhost>
+From a8285901516d4e2810c9654c65c31e54a1d0f011 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
 Date: Mon, 14 Sep 2026 22:31:16 +0300
-Subject: [PATCH 5/5] ets2nav-local: clear error when a game's map data was not
+Subject: [PATCH 5/6] ets2nav-local: clear error when a game's map data was not
  built
 
 Data is built only for the installed games; playing another one now logs
