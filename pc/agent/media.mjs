@@ -11,6 +11,8 @@ export function createMedia(onChange) {
 
   function connect() {
     sock = net.createConnection({ host: '127.0.0.1', port: PORT });
+    // first line: the per-run key RigBuddy.exe gave us; the service drops anyone without it
+    sock.on('connect', () => sock?.write(`${process.env.RIGBUDDY_MEDIA_TOKEN ?? ''}\n`));
     let buf = '';
     sock.setEncoding('utf8');
     sock.on('data', d => {
