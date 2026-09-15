@@ -112,5 +112,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ github.ref_name }}" local/release/RigBuddy-Setup.exe local/release/RigBuddy.apk `
-            --draft --title "Rig Buddy $env:APP_VERSION" --generate-notes
+          $tag = '${{ github.ref_name }}'
+          $files = 'local/release/RigBuddy-Setup.exe', 'local/release/RigBuddy.apk'
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            # the tag was pushed again: refresh the files of the existing (draft) release
+            gh release upload $tag @files --clobber
+          } else {
+            gh release create $tag @files --draft --title "Rig Buddy $env:APP_VERSION" --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'gh release failed' }
