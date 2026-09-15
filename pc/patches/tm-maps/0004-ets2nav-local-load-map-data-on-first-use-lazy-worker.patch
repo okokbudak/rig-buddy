@@ -1,7 +1,7 @@
 From 6e85ddca74053e196c9a17f3d62cf84fe5f63865 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
 Date: Mon, 14 Sep 2026 21:26:10 +0300
-Subject: [PATCH 4/6] ets2nav-local: load map data on first use; lazy worker
+Subject: [PATCH 4/7] ets2nav-local: load map data on first use; lazy worker
  pools; no env dump
 
 The server loaded both maps (ETS2 + ATS) and spun up 24 workers, each with a

@@ -1,0 +1,55 @@
+From f4f98234a7da7c9d51a518474a9c64357a3027c5 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
+Date: Wed, 16 Sep 2026 02:08:12 +0300
+Subject: [PATCH 7/7] ets2nav-local: read speed limits with arrays of unequal
+ length
+
+Since the ATS update of September 2026 one state's truck speed limits list three road classes but only two max limits; the parser asserted equal lengths and the whole ATS parse failed. A missing value now falls back to the plain limit, with a warning.
+---
+ packages/clis/parser/game-files/def-parser.ts | 26 +++++++++++++------
+ 1 file changed, 18 insertions(+), 8 deletions(-)
+
+diff --git a/packages/clis/parser/game-files/def-parser.ts b/packages/clis/parser/game-files/def-parser.ts
+index 4094551..6f2e8ee 100644
+--- a/packages/clis/parser/game-files/def-parser.ts
++++ b/packages/clis/parser/game-files/def-parser.ts
+@@ -417,18 +417,28 @@ function processSpeedLimitJson(obj: SpeedLimitsSii) {
+   const { laneSpeedClass, limit, maxLimit, urbanLimit } =
+     obj.countrySpeedLimit['.speed_limit.truck'];
+ 
+-  // HACK: extra validation that isn't expressed in schema
+-  assert(
+-    [limit, maxLimit, urbanLimit].every(
++  // ets2nav-local: these parallel arrays used to be the same length; since the
++  // ATS update of September 2026 some countries' are not, which made the whole
++  // parse fail. A missing value now falls back to the plain limit (and a
++  // missing plain limit to the last one given).
++  if (
++    ![limit, maxLimit, urbanLimit].every(
+       array => array.length === laneSpeedClass.length,
+-    ),
+-  );
++    )
++  ) {
++    logger.warn(
++      'speed limits of unequal length:',
++      JSON.stringify({ laneSpeedClass, limit, maxLimit, urbanLimit }),
++    );
++  }
++  assert(limit.length > 0, 'no speed limits');
+ 
+   return laneSpeedClass.reduce((obj, className, index) => {
++    const plain = limit[index] ?? limit[limit.length - 1];
+     obj[toLaneSpeedClass(className)] = {
+-      limit: limit[index],
+-      maxLimit: maxLimit[index],
+-      urbanLimit: urbanLimit[index],
++      limit: plain,
++      maxLimit: maxLimit[index] ?? plain,
++      urbanLimit: urbanLimit[index] ?? plain,
+     };
+     return obj;
+   }, {} as SpeedLimits);
+-- 
+2.55.0.windows.5
+
