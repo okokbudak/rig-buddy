@@ -82,7 +82,7 @@ sealed partial class MapBuilder
         StepArg = "";
         Task.Run(() =>
         {
-            var (code, _) = force ? RunPipeline("--force") : RunPipeline();
+            var (code, output) = force ? RunPipeline("--force") : RunPipeline();
             if (code == 0)
             {
                 State = MapState.UpToDate;
@@ -94,6 +94,8 @@ sealed partial class MapBuilder
             {
                 State = MapState.Failed;
                 Console.WriteLine($"map: build failed ({code}): {Error}");
+                // one game failed, the other was built: load that one's new data anyway
+                if (output.Contains("@@built ")) _onBuilt();
             }
         });
     }
