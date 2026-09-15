@@ -1,7 +1,7 @@
 From b1d4759a92bcc95a1cd477b65b574a9e95a42052 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
 Date: Mon, 14 Sep 2026 00:27:44 +0300
-Subject: [PATCH 1/6] ets2nav-local: expose last pairing code on LAN for
+Subject: [PATCH 1/7] ets2nav-local: expose last pairing code on LAN for
  head-unit auto-pairing
 
 ---

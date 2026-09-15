@@ -1,7 +1,7 @@
 From 722edf202e9fc8142b6d0d0b69e4ed0facfdba8c Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
 Date: Wed, 16 Sep 2026 01:05:18 +0300
-Subject: [PATCH 6/6] ets2nav-local: dependencies with known vulnerabilities to
+Subject: [PATCH 6/7] ets2nav-local: dependencies with known vulnerabilities to
  fixed versions
 
 ws 8.21.3 (the navigation server's LAN-facing WebSockets: memory disclosure, DoS), protobufjs 7.6.6, lodash 4.18.1, fast-uri 3.1.8, adm-zip 0.6.1, fflate 0.8.3, jimp 1.6.1 / file-type 21.3.4; same major versions. Also drops two stale workspace entries from the lock file.
