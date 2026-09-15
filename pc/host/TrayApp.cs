@@ -215,6 +215,8 @@ sealed class TrayApp : ApplicationContext
 
     static IReadOnlyList<string> QueryLan()
     {
+        // dev/demo/run-demo.ps1 (screenshots): a sample address instead of this PC's
+        if (Environment.GetEnvironmentVariable("RIGBUDDY_DEMO_ADDRESS") is { Length: > 0 } demo) return [demo];
         try
         {
             return NetworkInterface.GetAllNetworkInterfaces()

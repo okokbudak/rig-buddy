@@ -170,7 +170,9 @@ function jobsForApp(limit) {
 
 // --- media (PC players via the bridge) + in-game radio ------------------------------------
 
-const mediaPayload = () => ({ ...(media.state() ?? { sessions: [] }), radio: radio.state() });
+// dev/demo/run-demo.ps1 (screenshots): made-up media instead of what this PC is playing
+const DEMO_MEDIA = process.env.RIGBUDDY_DEMO_MEDIA ? JSON.parse(fs.readFileSync(process.env.RIGBUDDY_DEMO_MEDIA, 'utf8')) : null;
+const mediaPayload = () => DEMO_MEDIA ?? { ...(media.state() ?? { sessions: [] }), radio: radio.state() };
 const media = createMedia(() => broadcast({ type: 'media', data: mediaPayload() }));
 const radio = createRadio(() => broadcast({ type: 'media', data: mediaPayload() }));
 
