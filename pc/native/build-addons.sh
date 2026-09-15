@@ -32,7 +32,9 @@ $DLLTOOL -d "$TMP/node.def" -l "$TMP/libnode.a" -D node.exe
 
 FLAGS=(-O2 -DNAPI_DISABLE_CPP_EXCEPTIONS -DNAPI_VERSION=8 -DBUILDING_NODE_EXTENSION
   -I"$NODE_INC" -I"$ADDON_INC")
-LINK=(-shared -static-libgcc -static-libstdc++ -Wl,--no-undefined -L"$TMP" -lnode)
+# -static: also winpthread (the posix toolchain's threads), which a normal
+# Windows PC doesn't have; the addons may only import node.exe and system DLLs
+LINK=(-shared -static -static-libgcc -static-libstdc++ -Wl,--no-undefined -L"$TMP" -lnode)
 
 echo "cityhash.node"
 $CXX "${FLAGS[@]}" "$SRC/cityhash/city.cc" "$SRC/cityhash/cityhash.cc" "${LINK[@]}" -o "$OUT/cityhash.node"
@@ -45,4 +47,12 @@ for f in lib/deflate_decompress.c lib/utils.c lib/arm/cpu_features.c lib/x86/cpu
 done
 $CXX "${FLAGS[@]}" -I"$LD" "$SRC/gdeflate/gdeflate.cc" "$TMP"/*.o "${LINK[@]}" -o "$OUT/gdeflate.node"
 
+# guard: a DLL beyond node.exe and Windows' own fails to load on users' PCs
+# (but not on a dev PC that happens to have it on PATH, e.g. from Git)
+for f in "$OUT"/cityhash.node "$OUT"/gdeflate.node; do
+  imports=$(x86_64-w64-mingw32-objdump -p "$f" | sed -n 's/.*DLL Name: //p')
+  extra=$(echo "$imports" | grep -viE '^(node\.exe|kernel32\.dll|msvcrt\.dll|user32\.dll|advapi32\.dll|ws2_32\.dll|api-ms-win-.+\.dll)$' || true)
+  if [ -n "$extra" ]; then echo "$(basename "$f") imports $extra: not on a normal Windows PC" >&2; exit 1; fi
+  echo "$(basename "$f") imports: $(echo $imports)"
+done
 ls -la "$OUT"
