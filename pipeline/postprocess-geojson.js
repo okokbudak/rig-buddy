@@ -3,7 +3,7 @@
 //  - fixes road classes: short local/divided/unknown pieces whose both ends
 //    touch freeways (bridges, look changes, ramps inside interchanges) become
 //    freeway, and unknown roads inherit their neighbours' class;
-//  - drops hidden roads/prefabs (never shown);
+//  - drops hidden prefabs, and keeps hidden roads (the app draws them thin);
 //  - assigns per-feature tippecanoe minzooms so low-zoom tiles stay small
 //    (upstream keeps every point from z4, giving 100-400 KB tiles).
 //
@@ -63,7 +63,11 @@ console.log('road classes fixed:', JSON.stringify(changed));
 const all = [], low = [];
 for (const f of feats) {
   const p = f.properties;
-  if (p.hidden === true && (p.type === 'road' || p.type === 'prefab')) continue;
+  // Hidden roads (a third of the network: city streets, depot and service
+  // approaches the game's own map leaves out) are kept - the app draws them as
+  // thin lines, like truckermudgeon's own map does. Without them the network
+  // falls apart into pieces wherever a road leaves the trunk route.
+  if (p.hidden === true && p.type === 'prefab') continue;
   delete f.tippecanoe;
   // How wide the road really is, in game metres. The map is about 19x game
   // scale, so a road drawn thinner than it is leaves the truck - which drives
@@ -73,7 +77,7 @@ for (const f of feats) {
     p.width = Math.round(lanes * 4.5 + (p.shoulderSpaceLeft ?? 0) + (p.shoulderSpaceRight ?? 0));
   }
   all.push(f);
-  const major = p.type === 'road' && (p.roadType === 'freeway' || p.roadType === 'divided');
+  const major = p.type === 'road' && p.hidden !== true && (p.roadType === 'freeway' || p.roadType === 'divided');
   if (major || p.type === 'city' || p.type === 'country' || p.type === 'ferry') low.push(f);
 }
 const base = outFile.replace(/\.geojson$/, '');

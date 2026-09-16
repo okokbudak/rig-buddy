@@ -18,7 +18,7 @@ public final class MapStyle {
   private static final class Palette {
     String background, water, roadArea, lightArea, darkArea, greenArea, prefabRoad;
     String freeway, freewayCase, divided, dividedCase, local, localCase, noVehicles, noVehiclesCase;
-    String ferry, text, textHalo, secondaryText;
+    String ferry, hiddenRoad, text, textHalo, secondaryText;
   }
 
   private static Palette light() {
@@ -43,6 +43,8 @@ public final class MapStyle {
     p.noVehicles = "#d8d8d8";
     p.noVehiclesCase = "#bdbdbd";
     p.ferry = "#5b8fd6";
+    // the streets the game map leaves out: visible, but clearly a lesser road
+    p.hiddenRoad = "#e6e8eb";
     p.text = "#3c4043";
     p.textHalo = "#ffffff";
     p.secondaryText = "#5f6368";
@@ -67,6 +69,7 @@ public final class MapStyle {
     p.noVehicles = "#343b46";
     p.noVehiclesCase = "#1b222c";
     p.ferry = "#6f9ddb";
+    p.hiddenRoad = "#333b46";
     p.text = "#d6d9de";
     p.textHalo = "#101419";
     p.secondaryText = "#9aa0a6";
@@ -110,6 +113,17 @@ public final class MapStyle {
       JSONArray roadFilter = all(geom("LineString"), eq("type", "road"), eq("hidden", false),
           new JSONArray().put("!=").put(get("roadType")).put("train"));
       JSONObject roadLayout = new JSONObject().put("line-cap", "round").put("line-join", "round");
+      // The roads the game's own map leaves out (city streets, depot and
+      // service approaches) are still driven on, so they are drawn - quietly,
+      // under the rest - instead of leaving a gap where a route leaves the
+      // trunk road. truckermudgeon's own map does the same.
+      layers.put(layer("hidden-roads", "line", game).put("minzoom", 9)
+          .put("filter", all(geom("LineString"), eq("type", "road"), eq("hidden", true),
+              new JSONArray().put("!=").put(get("roadType")).put("train")))
+          .put("layout", roadLayout)
+          .put("paint", new JSONObject()
+              .put("line-color", c.hiddenRoad)
+              .put("line-width", roadWidth())));
       layers.put(layer("roads-case", "line", game).put("minzoom", 5)
           .put("filter", roadFilter)
           .put("layout", roadLayout)
