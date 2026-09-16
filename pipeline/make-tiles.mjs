@@ -2,6 +2,7 @@
 // plain Node: replaces tippecanoe so the map can be built on Windows without
 // WSL. Each input covers a zoom range and is tiled without dropping features
 // (postprocess-geojson.js already split the map into low / high zoom sets).
+// Inputs whose zoom ranges overlap share the tiles they both cover.
 //
 // usage: node make-tiles.mjs --layer ets2 --out ets2.mbtiles low.geojson:4:8 high.geojson:9:13
 import fs from 'node:fs';
@@ -51,6 +52,7 @@ let bounds = [180, 90, -180, -90];
 const stats = {};
 const started = Date.now();
 
+// One index per input; they are walked together below.
 for (const pass of passes) {
   const gj = JSON.parse(fs.readFileSync(pass.file, 'utf8'));
   for (const f of gj.features) {
@@ -64,7 +66,7 @@ for (const pass of passes) {
     f.properties = p;
     extendBounds(f.geometry);
   }
-  const index = geojsonvt(gj, {
+  pass.index = geojsonvt(gj, {
     maxZoom: pass.maxZ,
     indexMaxZoom: pass.minZ,
     indexMaxPoints: 0, // split fully down to minZ up front
@@ -73,37 +75,52 @@ for (const pass of passes) {
     tolerance: TOLERANCE,
   });
   gj.features = null; // let the GeoJSON go; geojson-vt keeps its own copy
-
-  // Depth-first from the non-empty tiles at minZ; finished subtrees are
-  // dropped from geojson-vt's cache to keep memory flat.
-  const n = 1 << pass.minZ;
-  const [x0, y1] = tileOf(bounds[0], bounds[1], pass.minZ);
-  const [x1, y0] = tileOf(bounds[2], bounds[3], pass.minZ);
-  db.exec('BEGIN');
-  for (let x = Math.max(0, x0); x <= Math.min(n - 1, x1); x++) {
-    for (let y = Math.max(0, y0); y <= Math.min(n - 1, y1); y++) walk(index, pass, pass.minZ, x, y);
-  }
-  db.exec('COMMIT');
 }
 
-function walk(index, pass, z, x, y) {
-  const tile = index.getTile(z, x, y);
-  if (!tile || tile.features.length === 0) return;
-  const pbf = vtpbf.fromGeojsonVt({ [layer]: tile }, { version: 2, extent: EXTENT });
-  const data = zlib.gzipSync(pbf);
-  insert.run(z, x, (1 << z) - 1 - y, data); // MBTiles rows are TMS (y flipped)
-  const s = (stats[z] ??= { tiles: 0, bytes: 0, max: 0 });
-  s.tiles++;
-  s.bytes += data.length;
-  s.max = Math.max(s.max, data.length);
-  if (z < pass.maxZ) {
-    for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) walk(index, pass, z + 1, x * 2 + dx, y * 2 + dy);
+// Depth-first from the lowest zoom any input starts at; finished subtrees are
+// dropped from the geojson-vt caches to keep memory flat.
+const top = Math.min(...passes.map(p => p.minZ));
+const deepest = Math.max(...passes.map(p => p.maxZ));
+const n = 1 << top;
+const [x0, y1] = tileOf(bounds[0], bounds[1], top);
+const [x1, y0] = tileOf(bounds[2], bounds[3], top);
+db.exec('BEGIN');
+for (let x = Math.max(0, x0); x <= Math.min(n - 1, x1); x++) {
+  for (let y = Math.max(0, y0); y <= Math.min(n - 1, y1); y++) walk(top, x, y);
+}
+db.exec('COMMIT');
+
+function walk(z, x, y) {
+  // Ask every input that still reaches this zoom, so an input that only starts
+  // deeper (the junction lanes) is not pruned away by an empty tile up here.
+  const parts = [];
+  let more = false;
+  for (const pass of passes) {
+    if (z > pass.maxZ) continue;
+    const tile = pass.index.getTile(z, x, y);
+    if (!tile || tile.features.length === 0) continue;
+    more = true;
+    if (z >= pass.minZ) parts.push(tile);
   }
-  delete index.tiles[toID(z, x, y)];
+  if (!more) return;
+  if (parts.length > 0) {
+    const tile = parts.length === 1 ? parts[0] : { features: parts.flatMap(t => t.features) };
+    const pbf = vtpbf.fromGeojsonVt({ [layer]: tile }, { version: 2, extent: EXTENT });
+    const data = zlib.gzipSync(pbf);
+    insert.run(z, x, (1 << z) - 1 - y, data); // MBTiles rows are TMS (y flipped)
+    const s = (stats[z] ??= { tiles: 0, bytes: 0, max: 0 });
+    s.tiles++;
+    s.bytes += data.length;
+    s.max = Math.max(s.max, data.length);
+  }
+  if (z < deepest) {
+    for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) walk(z + 1, x * 2 + dx, y * 2 + dy);
+  }
+  for (const pass of passes) delete pass.index.tiles[toID(z, x, y)];
 }
 
-const minZ = Math.min(...passes.map(p => p.minZ));
-const maxZ = Math.max(...passes.map(p => p.maxZ));
+const minZ = top;
+const maxZ = deepest;
 const meta = {
   name: layer,
   format: 'pbf',

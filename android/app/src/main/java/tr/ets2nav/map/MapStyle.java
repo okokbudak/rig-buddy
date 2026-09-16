@@ -29,7 +29,9 @@ public final class MapStyle {
     p.lightArea = "#f0e6d2";
     p.darkArea = "#e4cfa6";
     p.greenArea = "#c9e4c1";
-    p.prefabRoad = "#ffffff";
+    // junction and city road surfaces: white was invisible on the light
+    // background, so roads looked cut off wherever a junction was
+    p.prefabRoad = "#dfe1e5";
     p.freeway = "#fde293";
     p.freewayCase = "#e8b440";
     // Same as freeway: many DLC motorways are "divided" in the game data, and
@@ -37,7 +39,7 @@ public final class MapStyle {
     p.divided = "#fde293";
     p.dividedCase = "#e8b440";
     p.local = "#ffffff";
-    p.localCase = "#d3d5d9";
+    p.localCase = "#c9ccd2";
     p.noVehicles = "#d8d8d8";
     p.noVehiclesCase = "#bdbdbd";
     p.ferry = "#5b8fd6";
