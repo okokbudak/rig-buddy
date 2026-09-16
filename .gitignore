@@ -35,3 +35,4 @@ android/keystore.properties
 *.keystore
 # built by pc/native/build-addons.sh (and in the release workflow)
 pc/native/win-x64/
+references/
