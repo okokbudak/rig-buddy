@@ -14,6 +14,11 @@ import vtpbf from 'vt-pbf';
 const ATTRS = ['type', 'roadType', 'color', 'hidden', 'poiType', 'sprite', 'scaleRank', 'capital', 'name'];
 const EXTENT = 4096;
 const BUFFER = 160; // tippecanoe -b 10 (screen pixels of a 256 px tile) in tile units
+// How hard lines are simplified before they go into a tile. geojson-vt's
+// default (3) drops a fifth of the roads at low zoom, which tears the network
+// apart; 0.5 keeps the detail tippecanoe used to give (~5% larger tiles).
+// RIGBUDDY_TILE_TOLERANCE is there to try other values.
+const TOLERANCE = Number(process.env.RIGBUDDY_TILE_TOLERANCE ?? 0.5);
 
 const args = process.argv.slice(2);
 const opt = name => {
@@ -65,7 +70,7 @@ for (const pass of passes) {
     indexMaxPoints: 0, // split fully down to minZ up front
     extent: EXTENT,
     buffer: BUFFER,
-    tolerance: 3,
+    tolerance: TOLERANCE,
   });
   gj.features = null; // let the GeoJSON go; geojson-vt keeps its own copy
 

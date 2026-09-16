@@ -4,14 +4,16 @@
 // installation hasn't changed since the last build (unless --force).
 //
 // usage: node build-map-data.mjs --tm <tm-maps> --data <data dir> --work <work dir>
-//                                [--ets2 <game dir>] [--ats <game dir>] [--force] [--check]
+//                                [--ets2 <game dir>] [--ats <game dir>] [--first ets2|ats]
+//                                [--force] [--check]
 //
 // --check only reports, per game, whether a (re)build is needed ("@@needs <game> yes|no").
 // Progress for RigBuddy.exe: lines "@@progress <0-100> <stage key> [arg]", each followed by
 // "@@expect <percent at the end of the step> <usual seconds>" so the bar can move within a step.
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Zip, ZipDeflate } from 'fflate';
@@ -28,7 +30,8 @@ const TM = path.resolve(opt('--tm') ?? path.join(HERE, '../vendor/tm-maps'));
 const DATA = path.resolve(opt('--data') ?? path.join(HERE, '../data'));
 const WORK = path.resolve(opt('--work') ?? path.join(HERE, '../local/map-build'));
 const PARSER_OUT = path.join(WORK, 'parser');
-const HEAP = '--max-old-space-size=8192';
+// reading ETS2 with every map DLC peaks around 3.5 GB; leave small PCs some air
+const HEAP = `--max-old-space-size=${os.totalmem() >= 16 * 1024 ** 3 ? 8192 : 4096}`;
 // release layout (setup/bundle.mjs): dist/pipeline next to dist/parser, dist/generator, dist/resources
 const BUNDLED = fs.existsSync(path.join(HERE, '../parser/index.mjs'));
 const RESOURCES = BUNDLED ? path.join(HERE, '../resources') : path.join(TM, 'packages/clis/generator/resources');
@@ -63,12 +66,16 @@ function fingerprint(dir) {
   return h.digest('hex');
 }
 
+// Bump when the data this pipeline writes changes (new map detail, new fields):
+// the stamp then no longer matches and Rig Buddy offers to rebuild the map.
+const FORMAT = 2;
 const stampFile = g => path.join(DATA, `${g.game}.stamp`);
+const stamp = g => `${fingerprint(g.dir)} v${FORMAT}`;
 const needsBuild = g =>
   flag('--force') ||
   !fs.existsSync(path.join(DATA, `${g.map}-navigation.zip`)) ||
   !fs.existsSync(path.join(DATA, `${g.game}.mbtiles`)) ||
-  (fs.existsSync(stampFile(g)) ? fs.readFileSync(stampFile(g), 'utf8').trim() : '') !== fingerprint(g.dir);
+  (fs.existsSync(stampFile(g)) ? fs.readFileSync(stampFile(g), 'utf8').trim() : '') !== stamp(g);
 
 // data from before the app icon sheet existed (cheap, so also on --check)
 if (!fs.existsSync(path.join(DATA, 'sprites/app.png')) && fullSpriteSheet()) writeAppSprites();
@@ -78,7 +85,9 @@ if (flag('--check')) {
   process.exit(0);
 }
 
-const todo = games.filter(needsBuild);
+// the game being played (--first, from RigBuddy.exe) is prepared first, so its
+// map is ready as soon as possible; the other one follows
+const todo = games.filter(needsBuild).sort((a, b) => (b.game === opt('--first')) - (a.game === opt('--first')));
 if (!todo.length) {
   progress(100, 'map.uptodate');
   process.exit(0);
@@ -93,12 +102,36 @@ const SECONDS_PER_WEIGHT = { ets2: 2.9, ats: 1.9 };
 const STEP_TOTAL = Object.values(STEPS).reduce((a, b) => a + b, 0);
 let doneWeight = 0;
 const totalWeight = todo.length * STEP_TOTAL + 2; // + spritesheet
-const step = (key, g) => {
-  progress(Math.floor((doneWeight / totalWeight) * 100), `map.${key}`, g?.name ?? '');
+/** Runs one step: tells RigBuddy.exe what is happening, and times it. */
+async function step(key, g, work) {
   const weight = key === 'sprites' ? 2 : STEPS[key];
-  doneWeight += weight;
-  console.log(`@@expect ${Math.floor((doneWeight / totalWeight) * 100)} ${(weight * (SECONDS_PER_WEIGHT[g?.game] ?? 3)).toFixed(0)}`);
-};
+  const started = Date.now();
+  progress(Math.floor((doneWeight / totalWeight) * 100), `map.${key}`, g?.name ?? '');
+  console.log(`@@expect ${Math.floor(((doneWeight + weight) / totalWeight) * 100)} ${(weight * (SECONDS_PER_WEIGHT[g?.game] ?? 3)).toFixed(0)}`);
+  try {
+    return await work();
+  } finally {
+    doneWeight += weight;
+    console.log(`· ${key}${g ? ' ' + g.name : ''} ${Math.round((Date.now() - started) / 1000)} s`);
+  }
+}
+
+// Steps that only read the parser's output can run at the same time; each one
+// can take a few GB, so how many depends on this PC's memory (and on small
+// machines it stays one at a time, as it always was).
+const MAX_PARALLEL = Math.max(1, Math.min(3, Math.floor(os.totalmem() / (6 * 1024 ** 3))));
+let active = 0;
+const waiting = [];
+async function slot(work) {
+  if (active >= MAX_PARALLEL) await new Promise(resolve => waiting.push(resolve));
+  active++;
+  try {
+    return await work();
+  } finally {
+    active--;
+    waiting.shift()?.();
+  }
+}
 
 // A game that fails (e.g. its files changed in an update tm-maps can't read yet)
 // must not cost the other one its map: each game is built on its own, and a
@@ -116,25 +149,29 @@ for (const g of todo) {
   }
 }
 
-step('sprites');
 const withPois = games.filter(g => fs.existsSync(path.join(PARSER_OUT, `${g.map}-pois.json`)));
 try {
-  if (!withPois.length) throw new Error('no game data');
-  fs.mkdirSync(path.join(DATA, 'sprites'), { recursive: true });
-  tm('generator', ['spritesheet', ...withPois.flatMap(g => ['-m', g.map]), '-i', PARSER_OUT, '-o', WORK]);
-  for (const f of ['sprites@2x.json', 'sprites@2x.png']) fs.copyFileSync(path.join(WORK, f), path.join(DATA, 'sprites', f));
-  writeAppSprites();
+  await step('sprites', null, async () => {
+    if (!withPois.length) throw new Error('no game data');
+    fs.mkdirSync(path.join(DATA, 'sprites'), { recursive: true });
+    await tm('generator', ['spritesheet', ...withPois.flatMap(g => ['-m', g.map]), '-i', PARSER_OUT, '-o', WORK]);
+    for (const f of ['sprites@2x.json', 'sprites@2x.png']) fs.copyFileSync(path.join(WORK, f), path.join(DATA, 'sprites', f));
+    writeAppSprites();
+  });
 } catch (e) {
   failed.push(`icons: ${e.message}`);
 }
 
 // the scratch files are ~1.5 GB; keep only what the spritesheet of a later
-// one-game rebuild needs from the other game (its POIs and the icons)
+// one-game rebuild needs from the other game (its POIs and the icons).
+// RIGBUDDY_KEEP_WORK=1 keeps everything (working on the pipeline itself).
+if (!process.env.RIGBUDDY_KEEP_WORK) {
 for (const e of fs.readdirSync(WORK, { withFileTypes: true })) {
   if (e.isFile()) fs.rmSync(path.join(WORK, e.name));
 }
 for (const e of fs.readdirSync(PARSER_OUT, { withFileTypes: true })) {
   if (e.isFile() && !e.name.endsWith('-pois.json')) fs.rmSync(path.join(PARSER_OUT, e.name));
+}
 }
 
 if (failed.length) fail(failed.join('; '));
@@ -145,47 +182,53 @@ async function buildGame(g) {
   // parser output is per game (europe-* / usa-*); stale files of this game go first
   for (const f of fs.readdirSync(PARSER_OUT)) if (f.startsWith(`${g.map}-`)) fs.rmSync(path.join(PARSER_OUT, f));
 
-  step('parse', g);
-  tm('parser', ['-i', g.dir, '-o', PARSER_OUT]);
+  await step('parse', g, () => tm('parser', ['-i', g.dir, '-o', PARSER_OUT]));
 
-  step('labels', g);
   const labels = path.join(WORK, 'extra-labels.geojson');
-  if (g.map === 'usa') {
-    tm('generator', ['extra-labels', '-m', 'usa', '-t', BUNDLED ? path.join(RESOURCES, 'usa-labels-meta.json') : path.join(HERE, 'resources/usa-labels-meta.json'), '-i', PARSER_OUT, '-o', WORK]);
-  } else if (!fs.existsSync(labels) || !games.some(x => x.map === 'usa')) {
-    // US town labels only matter for ATS; ETS2's zip gets an empty set
-    fs.writeFileSync(labels, '{"type":"FeatureCollection","features":[]}');
-  }
+  await step('labels', g, async () => {
+    if (g.map === 'usa') {
+      await tm('generator', ['extra-labels', '-m', 'usa', '-t', BUNDLED ? path.join(RESOURCES, 'usa-labels-meta.json') : path.join(HERE, 'resources/usa-labels-meta.json'), '-i', PARSER_OUT, '-o', WORK]);
+    } else if (!fs.existsSync(labels) || !games.some(x => x.map === 'usa')) {
+      // US town labels only matter for ATS; ETS2's zip gets an empty set
+      fs.writeFileSync(labels, '{"type":"FeatureCollection","features":[]}');
+    }
+  });
 
-  step('search', g);
-  tm('generator', ['search', '-m', g.map, '-i', PARSER_OUT, '-o', WORK, ...(g.map === 'usa' ? ['-x', labels] : [])]);
-  step('graph', g);
-  tm('generator', ['graph', '-m', g.map, '-i', PARSER_OUT, '-o', WORK]);
-  step('roundabouts', g);
-  if (g.map === 'europe') tm('generator', ['roundabouts', '-m', 'europe', '-i', PARSER_OUT, '-g', WORK, '-o', WORK]);
+  // From here on three chains only read the parser's output, so they run at
+  // the same time (as far as this PC's memory allows): the search index, the
+  // routing graph, and the map itself down to the finished tiles.
+  const chains = [
+    step('search', g, () => tm('generator', ['search', '-m', g.map, '-i', PARSER_OUT, '-o', WORK, ...(g.map === 'usa' ? ['-x', labels] : [])])),
+    (async () => {
+      await step('graph', g, () => tm('generator', ['graph', '-m', g.map, '-i', PARSER_OUT, '-o', WORK]));
+      if (g.map === 'europe') await step('roundabouts', g, () => tm('generator', ['roundabouts', '-m', 'europe', '-i', PARSER_OUT, '-g', WORK, '-o', WORK]));
+    })(),
+    (async () => {
+      await step('geojson', g, () => tm('generator', ['map', '-h', '-m', g.map, '-i', PARSER_OUT, '-o', WORK,
+        '--dataOverridesPath', path.join(RESOURCES, 'trucksim-overrides.json'), '-t', 'geojson']));
+      await step('postprocess', g, () => node([path.join(HERE, BUNDLED ? 'postprocess-geojson.cjs' : 'postprocess-geojson.js'), path.join(WORK, `${g.game}.geojson`), path.join(WORK, `${g.game}-nav.geojson`)]));
+      // z4-z6 major roads only (country overview); from z7 the whole network
+      // with its junctions, so the roads join up like the game's own map
+      await step('tiles', g, () => node([path.join(HERE, 'make-tiles.mjs'), '--layer', g.game, '--out', path.join(DATA, `${g.game}.mbtiles`),
+        `${path.join(WORK, `${g.game}-nav-low.geojson`)}:4:6`, `${path.join(WORK, `${g.game}-nav-high.geojson`)}:7:13`]));
+    })(),
+  ];
+  const results = await Promise.allSettled(chains);
+  const bad = results.find(r => r.status === 'rejected');
+  if (bad) throw bad.reason;
 
-  step('zip', g);
-  const zipFiles = [
+  await step('zip', g, () => writeZip(path.join(DATA, `${g.map}-navigation.zip`), [
     ...PARSER_JSON.map(n => path.join(PARSER_OUT, `${g.map}-${n}.json`)),
     labels,
     path.join(WORK, `${g.game}-search.geojson`),
     path.join(WORK, `${g.map}-graph.json`),
     ...(g.map === 'europe' ? [path.join(WORK, 'europe-roundabouts.json')] : []),
-  ];
-  await writeZip(path.join(DATA, `${g.map}-navigation.zip`), zipFiles);
+  ]));
 
-  step('geojson', g);
-  tm('generator', ['map', '-h', '-m', g.map, '-i', PARSER_OUT, '-o', WORK,
-    '--dataOverridesPath', path.join(RESOURCES, 'trucksim-overrides.json'), '-t', 'geojson']);
-  step('postprocess', g);
-  node([path.join(HERE, BUNDLED ? 'postprocess-geojson.cjs' : 'postprocess-geojson.js'), path.join(WORK, `${g.game}.geojson`), path.join(WORK, `${g.game}-nav.geojson`)]);
-  step('tiles', g);
-  node([path.join(HERE, 'make-tiles.mjs'), '--layer', g.game, '--out', path.join(DATA, `${g.game}.mbtiles`),
-    `${path.join(WORK, `${g.game}-nav-low.geojson`)}:4:8`, `${path.join(WORK, `${g.game}-nav-high.geojson`)}:9:13`]);
-
-  step('copy', g);
-  for (const n of GAME_JSON) fs.copyFileSync(path.join(PARSER_OUT, `${g.map}-${n}.json`), path.join(DATA, 'game', `${g.map}-${n}.json`));
-  fs.writeFileSync(stampFile(g), fingerprint(g.dir));
+  await step('copy', g, async () => {
+    for (const n of GAME_JSON) fs.copyFileSync(path.join(PARSER_OUT, `${g.map}-${n}.json`), path.join(DATA, 'game', `${g.map}-${n}.json`));
+    fs.writeFileSync(stampFile(g), stamp(g));
+  });
   console.log(`${g.name} done in ${Math.round((Date.now() - started) / 1000)} s`);
 }
 
@@ -201,24 +244,29 @@ function fail(msg) {
 }
 
 /** Runs a tm-maps CLI: the bundled build in a release, else from source through tsx. */
-function tm(name, cliArgs) {
+async function tm(name, cliArgs) {
   const entry = BUNDLED
     ? [path.join(HERE, '..', name, 'index.mjs')]
     : [path.join(TM, 'node_modules/tsx/dist/cli.mjs'), path.join(TM, 'packages/clis', name, 'index.ts')];
   const what = { parser: 'reading the game files', generator: `map data (${cliArgs[0]})` }[name];
-  node([...entry, ...cliArgs], path.join(TM, 'packages/clis', name), what);
+  return node([...entry, ...cliArgs], path.join(TM, 'packages/clis', name), what);
 }
 
-/** Runs a Node script; throws "<what> failed (exit n)" when it fails. */
+/** Runs a Node script (one of MAX_PARALLEL); rejects with "<what> failed (exit n)". */
 function node(nodeArgs, cwd = HERE, what = undefined) {
-  console.log(`> ${path.basename(nodeArgs[nodeArgs[0].endsWith('cli.mjs') ? 1 : 0])} ${nodeArgs.slice(1).filter(a => !a.endsWith('index.ts')).join(' ')}`);
-  const r = spawnSync(process.execPath, [HEAP, ...nodeArgs], {
-    cwd: fs.existsSync(cwd) ? cwd : HERE,
-    stdio: 'inherit',
-    // NODE_OPTIONS, not just argv: tsx runs the CLI in a child node process
-    env: { ...process.env, NODE_OPTIONS: HEAP, FORCE_COLOR: '0', NO_COLOR: '1' },
-  });
-  if (r.status !== 0) throw new Error(`${what ?? path.basename(nodeArgs[0])} failed (exit ${r.status ?? r.signal})`);
+  return slot(() => new Promise((resolve, reject) => {
+    console.log(`> ${path.basename(nodeArgs[nodeArgs[0].endsWith('cli.mjs') ? 1 : 0])} ${nodeArgs.slice(1).filter(a => !a.endsWith('index.ts')).join(' ')}`);
+    const child = spawn(process.execPath, [HEAP, ...nodeArgs], {
+      cwd: fs.existsSync(cwd) ? cwd : HERE,
+      stdio: 'inherit',
+      // NODE_OPTIONS, not just argv: tsx runs the CLI in a child node process
+      env: { ...process.env, NODE_OPTIONS: HEAP, FORCE_COLOR: '0', NO_COLOR: '1' },
+    });
+    child.on('error', reject);
+    child.on('exit', (code, signal) => code === 0
+      ? resolve()
+      : reject(new Error(`${what ?? path.basename(nodeArgs[0])} failed (exit ${code ?? signal})`)));
+  }));
 }
 
 /**

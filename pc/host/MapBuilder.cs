@@ -123,6 +123,10 @@ sealed partial class MapBuilder
         }
         if (Games.Ets2 != null) { psi.ArgumentList.Add("--ets2"); psi.ArgumentList.Add(Games.Ets2); }
         if (Games.Ats != null) { psi.ArgumentList.Add("--ats"); psi.ArgumentList.Add(Games.Ats); }
+        // the game being played gets its map first
+        string? playing = Process.GetProcessesByName("amtrucks").Length > 0 ? "ats"
+            : Process.GetProcessesByName("eurotrucks2").Length > 0 ? "ets2" : null;
+        if (playing != null) { psi.ArgumentList.Add("--first"); psi.ArgumentList.Add(playing); }
         foreach (var e in extra) psi.ArgumentList.Add(e);
 
         Directory.CreateDirectory(_paths.Data);
