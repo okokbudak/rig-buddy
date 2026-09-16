@@ -7,10 +7,40 @@
 //  - assigns per-feature tippecanoe minzooms so low-zoom tiles stay small
 //    (upstream keeps every point from z4, giving 100-400 KB tiles).
 //
-// usage: node postprocess-geojson.js in.geojson out.geojson
+// usage: node postprocess-geojson.js in.geojson out.geojson [--looks <roadLooks.json>]
 const fs = require('fs');
 
-const [inFile, outFile] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const looksAt = argv.indexOf('--looks');
+const looksFile = looksAt >= 0 ? argv.splice(looksAt, 2)[1] : null;
+const [inFile, outFile] = argv;
+
+// How wide a road is, in game metres. A road item often says its lane counts
+// are -1, meaning "as the road look says", so the looks are the real source:
+// lanes each way, the shoulders, and the gap between the carriageways of a
+// divided road, which the map draws as one ribbon.
+const LANE_M = 4.5;
+const lookWidth = new Map();
+if (looksFile) {
+  const looks = JSON.parse(fs.readFileSync(looksFile, 'utf8'));
+  const list = Array.isArray(looks) ? looks : Object.entries(looks).map(([token, v]) => ({ token, ...v }));
+  for (const l of list) {
+    const lanes = (l.lanesLeft?.length ?? 0) + (l.lanesRight?.length ?? 0);
+    if (!lanes) continue;
+    lookWidth.set(l.token, lanes * LANE_M + (l.shoulderSpaceLeft ?? 0) + (l.shoulderSpaceRight ?? 0)
+      + Math.abs(l.offset ?? 0));
+  }
+  console.log('road looks:', lookWidth.size);
+}
+function widthOf(p) {
+  // The road's own lane counts first: a divided road is two carriageways with
+  // their own geometry, and its look describes both together - using that for
+  // each of them would draw one over the other.
+  const lanes = Math.max(0, p.leftLanes ?? 0) + Math.max(0, p.rightLanes ?? 0);
+  if (lanes) return Math.round(lanes * LANE_M + (p.shoulderSpaceLeft ?? 0) + (p.shoulderSpaceRight ?? 0));
+  return Math.round(lookWidth.get(p.lookToken) ?? 2 * LANE_M + 2.5);
+}
+
 const gj = JSON.parse(fs.readFileSync(inFile, 'utf8'));
 const feats = gj.features;
 console.log('features in:', feats.length);
@@ -72,10 +102,7 @@ for (const f of feats) {
   // How wide the road really is, in game metres. The map is about 19x game
   // scale, so a road drawn thinner than it is leaves the truck - which drives
   // in a lane, not on the centre line - beside it instead of on it.
-  if (p.type === 'road') {
-    const lanes = ((p.leftLanes ?? 0) + (p.rightLanes ?? 0)) || 2;
-    p.width = Math.round(lanes * 4.5 + (p.shoulderSpaceLeft ?? 0) + (p.shoulderSpaceRight ?? 0));
-  }
+  if (p.type === 'road') p.width = widthOf(p);
   all.push(f);
   const major = p.type === 'road' && p.hidden !== true && (p.roadType === 'freeway' || p.roadType === 'divided');
   if (major || p.type === 'city' || p.type === 'country' || p.type === 'ferry') low.push(f);

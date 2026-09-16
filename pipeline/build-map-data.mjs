@@ -207,7 +207,8 @@ async function buildGame(g) {
     (async () => {
       await step('geojson', g, () => tm('generator', ['map', '-h', '-m', g.map, '-i', PARSER_OUT, '-o', WORK,
         '--dataOverridesPath', path.join(RESOURCES, 'trucksim-overrides.json'), '-t', 'geojson']));
-      await step('postprocess', g, () => node([path.join(HERE, BUNDLED ? 'postprocess-geojson.cjs' : 'postprocess-geojson.js'), path.join(WORK, `${g.game}.geojson`), path.join(WORK, `${g.game}-nav.geojson`)]));
+      await step('postprocess', g, () => node([path.join(HERE, BUNDLED ? 'postprocess-geojson.cjs' : 'postprocess-geojson.js'), path.join(WORK, `${g.game}.geojson`), path.join(WORK, `${g.game}-nav.geojson`),
+        '--looks', path.join(PARSER_OUT, `${g.map}-roadLooks.json`)]));
       // From the town view down, roads are drawn as surfaces as wide as they
       // really are, the way the game's own map does it: a line thin enough to
       // look right at z9 leaves the truck beside the road at z14, and junctions
