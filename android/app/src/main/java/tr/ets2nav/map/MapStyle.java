@@ -59,17 +59,17 @@ public final class MapStyle {
     p.lightArea = "#2e3440";
     p.darkArea = "#39414d";
     p.greenArea = "#23372e";
-    p.prefabRoad = "#3d4654";
-    p.freeway = "#8a7a4e";
-    p.freewayCase = "#2a2a22";
-    p.divided = "#8a7a4e";
-    p.dividedCase = "#2a2a22";
-    p.local = "#3d4654";
-    p.localCase = "#1b222c";
-    p.noVehicles = "#343b46";
-    p.noVehiclesCase = "#1b222c";
+    p.prefabRoad = "#4d5768";
+    p.freeway = "#a8914f";
+    p.freewayCase = "#39301c";
+    p.divided = "#a8914f";
+    p.dividedCase = "#39301c";
+    p.local = "#566072";
+    p.localCase = "#2b3341";
+    p.noVehicles = "#414a57";
+    p.noVehiclesCase = "#2b3341";
     p.ferry = "#6f9ddb";
-    p.hiddenRoad = "#333b46";
+    p.hiddenRoad = "#414b5a";
     p.text = "#d6d9de";
     p.textHalo = "#101419";
     p.secondaryText = "#9aa0a6";
@@ -124,13 +124,19 @@ public final class MapStyle {
           .put("paint", new JSONObject()
               .put("line-color", c.hiddenRoad)
               .put("line-width", roadWidth())));
+      // Only real roads get an edge: a junction lane outlined on its own drew
+      // threads over the road surface it is part of. The edge grows with the
+      // road, since a fixed 3 px is invisible beside a 100 px wide motorway.
       layers.put(layer("roads-case", "line", game).put("minzoom", 5)
-          .put("filter", roadFilter)
+          .put("filter", all(geom("LineString"), eq("type", "road"), eq("hidden", false),
+              new JSONArray().put("!=").put(get("roadType")).put("train"),
+              new JSONArray().put("!=")
+                  .put(new JSONArray().put("coalesce").put(get("junction")).put(false)).put(true)))
           .put("layout", roadLayout)
           .put("paint", new JSONObject()
               .put("line-color", roadColor(c, true))
               .put("line-gap-width", roadWidth())
-              .put("line-width", interpolate(5, 0.6, 10, 0.8, 13, 1.5, 16, 3))));
+              .put("line-width", interpolate(5, 0.6, 10, 0.8, 13, 1.5, 14, 2.5, 16, 8))));
       layers.put(layer("roads", "line", game)
           .put("filter", roadFilter)
           .put("layout", roadLayout)
