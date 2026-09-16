@@ -65,6 +65,13 @@ for (const f of feats) {
   const p = f.properties;
   if (p.hidden === true && (p.type === 'road' || p.type === 'prefab')) continue;
   delete f.tippecanoe;
+  // How wide the road really is, in game metres. The map is about 19x game
+  // scale, so a road drawn thinner than it is leaves the truck - which drives
+  // in a lane, not on the centre line - beside it instead of on it.
+  if (p.type === 'road') {
+    const lanes = ((p.leftLanes ?? 0) + (p.rightLanes ?? 0)) || 2;
+    p.width = Math.round(lanes * 4.5 + (p.shoulderSpaceLeft ?? 0) + (p.shoulderSpaceRight ?? 0));
+  }
   all.push(f);
   const major = p.type === 'road' && (p.roadType === 'freeway' || p.roadType === 'divided');
   if (major || p.type === 'city' || p.type === 'country' || p.type === 'ferry') low.push(f);
