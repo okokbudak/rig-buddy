@@ -27,7 +27,6 @@ const heightOf = p => Math.max(elevation.get(p.startNodeUid) ?? 0, elevation.get
 const M_PER_DEG = 111320;
 const SCALE = 19.15;          // map metres per game metre (ETS2/ATS map factor)
 const MIN_WIDTH_M = 4;        // a road is never drawn thinner than this, in game metres
-const CAP_STEPS = 4;          // points per rounded end
 
 const files = [inFile, ...extra];
 const out = [];
@@ -100,57 +99,51 @@ function dedupe(coords) {
 
 /**
  * The outline of a road along `line`, from half-width `halfStart` to `halfEnd`
- * (in degrees of latitude): up one side, round the end, back down the other.
- * Corners use the average of the two segment normals (a mitre), limited so a
- * hairpin can't throw a spike across the map.
+ * (in degrees of latitude): up one side and back down the other, with both ends
+ * pushed half a width past the last point so neighbouring roads overlap at the
+ * node they share instead of leaving a notch between two rounded ends.
+ *
+ * Corners take the average of the two segment normals (a mitre); a corner too
+ * sharp for that is bevelled with both normals, because a long mitre spike
+ * crosses the other side of the road and the polygon turns into a bowtie.
  */
 function surface(line, halfStart, halfEnd = halfStart) {
   const cos = Math.max(0.05, Math.cos((line[0][1] * Math.PI) / 180));
   // work in metre-like units so the two axes are comparable
   const pts = line.map(c => [c[0] * cos, c[1]]);
-  const n = pts.length;
-  const normals = [];
-  for (let i = 0; i < n - 1; i++) {
+  const dirs = [];
+  for (let i = 0; i < pts.length - 1; i++) {
     const dx = pts[i + 1][0] - pts[i][0], dy = pts[i + 1][1] - pts[i][1];
     const len = Math.hypot(dx, dy);
     if (len === 0) return null;
-    normals.push([-dy / len, dx / len]);
+    dirs.push([dx / len, dy / len]);
   }
-  const at = i => {
-    const a = normals[Math.max(0, i - 1)], b = normals[Math.min(normals.length - 1, i)];
-    const mx = a[0] + b[0], my = a[1] + b[1];
-    const len = Math.hypot(mx, my);
-    if (len < 1e-6) return a; // a full turn-back: keep the incoming side
-    const scale = Math.min(4, 1 / Math.max(0.25, len / 2)); // mitre limit
-    return [(mx / len) * scale, (my / len) * scale];
-  };
-  // the width slides along the road, so a lane gained at the far end widens it
-  // gradually instead of in one step
+  // the ends stick out by half a width, so consecutive roads run into each other
+  pts[0] = [pts[0][0] - dirs[0][0] * halfStart, pts[0][1] - dirs[0][1] * halfStart];
+  const last = dirs[dirs.length - 1];
+  pts[pts.length - 1] = [pts[pts.length - 1][0] + last[0] * halfEnd, pts[pts.length - 1][1] + last[1] * halfEnd];
+
+  const n = pts.length;
+  const normals = dirs.map(d => [-d[1], d[0]]);
   const halfAtPoint = i => halfStart + ((halfEnd - halfStart) * i) / (n - 1);
   const left = [], right = [];
   for (let i = 0; i < n; i++) {
-    const m = at(i), half = halfAtPoint(i);
-    left.push([pts[i][0] + m[0] * half, pts[i][1] + m[1] * half]);
-    right.push([pts[i][0] - m[0] * half, pts[i][1] - m[1] * half]);
+    const a = normals[Math.max(0, i - 1)], b = normals[Math.min(normals.length - 1, i)];
+    const half = halfAtPoint(i);
+    const mx = a[0] + b[0], my = a[1] + b[1];
+    const len = Math.hypot(mx, my);
+    if (len > 1.2) { // gentle corner: one mitred point per side
+      const scale = (2 / len) * half;
+      left.push([pts[i][0] + (mx / 2) * scale, pts[i][1] + (my / 2) * scale]);
+      right.push([pts[i][0] - (mx / 2) * scale, pts[i][1] - (my / 2) * scale]);
+    } else { // sharp corner: bevel, so nothing crosses the road
+      left.push([pts[i][0] + a[0] * half, pts[i][1] + a[1] * half],
+        [pts[i][0] + b[0] * half, pts[i][1] + b[1] * half]);
+      right.push([pts[i][0] - a[0] * half, pts[i][1] - a[1] * half],
+        [pts[i][0] - b[0] * half, pts[i][1] - b[1] * half]);
+    }
   }
-  const ring = [
-    ...left,
-    ...cap(pts[n - 1], normals[normals.length - 1], halfEnd, false),
-    ...right.reverse(),
-    ...cap(pts[0], normals[0], halfStart, true),
-  ];
+  const ring = [...left, ...right.reverse()];
   ring.push(ring[0]);
   return ring.map(p => [p[0] / cos, p[1]]);
-}
-
-/** Half circle around an end point, so roads meet without a notch. */
-function cap(point, normal, half, start) {
-  const dir = start ? -1 : 1;
-  const base = Math.atan2(normal[1], normal[0]);
-  const pts = [];
-  for (let i = 1; i < CAP_STEPS; i++) {
-    const a = base - dir * Math.PI * (i / CAP_STEPS);
-    pts.push([point[0] + Math.cos(a) * half, point[1] + Math.sin(a) * half]);
-  }
-  return pts;
 }
