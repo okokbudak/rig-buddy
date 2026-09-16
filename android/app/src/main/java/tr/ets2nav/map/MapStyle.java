@@ -117,12 +117,19 @@ public final class MapStyle {
       // service approaches) are still driven on, so they are drawn - quietly,
       // under the rest - instead of leaving a gap where a route leaves the
       // trunk road. truckermudgeon's own map does the same.
+      // A motorway keeps its colour where the game hides it (tunnels and link
+      // pieces are marked hidden too, 7,000 of them in ETS2, and painting those
+      // grey broke the yellow in two); only lesser hidden roads stay quiet.
+      JSONArray hiddenColor = new JSONArray().put("match").put(get("roadType"))
+          .put("freeway").put(c.freeway)
+          .put("divided").put(c.divided)
+          .put(c.hiddenRoad);
       layers.put(layer("hidden-roads", "line", game).put("minzoom", 9).put("maxzoom", 10)
           .put("filter", all(geom("LineString"), eq("type", "road"), eq("hidden", true),
               new JSONArray().put("!=").put(get("roadType")).put("train")))
           .put("layout", roadLayout)
           .put("paint", new JSONObject()
-              .put("line-color", c.hiddenRoad)
+              .put("line-color", hiddenColor)
               .put("line-width", roadWidth())));
       layers.put(layer("roads-case", "line", game).put("minzoom", 5).put("maxzoom", 10)
           .put("filter", roadFilter)
@@ -142,8 +149,8 @@ public final class MapStyle {
       // what runs under it and the truck sits on tarmac, not beside a line.
       layers.put(layer("road-surfaces-hidden", "fill", game).put("minzoom", 10)
           .put("filter", all(geom("Polygon"), eq("type", "road"), eq("hidden", true)))
-          .put("paint", new JSONObject().put("fill-color", c.hiddenRoad)
-              .put("fill-outline-color", c.hiddenRoad)));
+          .put("paint", new JSONObject().put("fill-color", hiddenColor)
+              .put("fill-outline-color", hiddenColor)));
       layers.put(layer("road-surfaces", "fill", game).put("minzoom", 10)
           .put("filter", all(geom("Polygon"), eq("type", "road"), eq("hidden", false),
               new JSONArray().put("!=").put(get("roadType")).put("train")))
