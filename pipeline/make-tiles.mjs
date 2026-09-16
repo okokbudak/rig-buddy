@@ -12,7 +12,7 @@ import geojsonvt from 'geojson-vt';
 import vtpbf from 'vt-pbf';
 
 // the properties the app's map style reads (tippecanoe -y ...)
-const ATTRS = ['type', 'roadType', 'color', 'hidden', 'width', 'junction', 'poiType', 'sprite', 'scaleRank', 'capital', 'name'];
+const ATTRS = ['type', 'roadType', 'color', 'hidden', 'width', 'poiType', 'sprite', 'scaleRank', 'capital', 'name'];
 const EXTENT = 4096;
 const BUFFER = 160; // tippecanoe -b 10 (screen pixels of a 256 px tile) in tile units
 // How hard lines are simplified before they go into a tile. geojson-vt's
