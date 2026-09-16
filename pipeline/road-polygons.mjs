@@ -33,28 +33,52 @@ const files = [inFile, ...extra];
 const out = [];
 let roads = 0, skipped = 0;
 
+const input = [];
 for (const file of files) {
   const gj = JSON.parse(fs.readFileSync(file, 'utf8'));
-  for (const f of gj.features) {
-    const p = f.properties ?? {};
-    if (p.type !== 'road' || f.geometry?.type !== 'LineString') {
-      out.push(f); // prefab surfaces, areas, labels and POIs pass through
-      continue;
-    }
-    const line = dedupe(f.geometry.coordinates);
-    if (line.length < 2) { skipped++; continue; }
-    const halfDeg = (Math.max(MIN_WIDTH_M, p.width ?? 12) * SCALE) / 2 / M_PER_DEG;
-    const ring = surface(line, halfDeg);
-    if (!ring) { skipped++; continue; }
-    out.push({
-      type: 'Feature',
-      properties: p,
-      geometry: { type: 'Polygon', coordinates: [ring] },
-      height: heightOf(p),
-    });
-    roads++;
-  }
+  for (const f of gj.features) input.push(f);
   gj.features = null;
+}
+
+// What meets at each node, so a road can be drawn as wide as its neighbour
+// where they join: where a lane is gained or lost the width then slides from
+// one to the other instead of stepping, the way TruckSim GPS's own surfaces do
+// (StartHalfWidth / EndHalfWidth per road).
+const atNode = new Map();
+const widthOf = p => Math.max(MIN_WIDTH_M, p.width ?? 12);
+for (const f of input) {
+  const p = f.properties ?? {};
+  if (p.type !== 'road' || f.geometry?.type !== 'LineString') continue;
+  for (const uid of [p.startNodeUid, p.endNodeUid]) {
+    if (!uid) continue;
+    const w = widthOf(p);
+    atNode.set(uid, Math.max(atNode.get(uid) ?? 0, w));
+  }
+}
+/** Half the width to use at one end: half way to the widest road that joins there. */
+const halfAt = (p, uid) => {
+  const own = widthOf(p);
+  const neighbour = atNode.get(uid) ?? own;
+  return ((own + Math.min(neighbour, own * 2)) / 2) * SCALE / 2 / M_PER_DEG;
+};
+
+for (const f of input) {
+  const p = f.properties ?? {};
+  if (p.type !== 'road' || f.geometry?.type !== 'LineString') {
+    out.push(f); // prefab surfaces, areas, labels and POIs pass through
+    continue;
+  }
+  const line = dedupe(f.geometry.coordinates);
+  if (line.length < 2) { skipped++; continue; }
+  const ring = surface(line, halfAt(p, p.startNodeUid), halfAt(p, p.endNodeUid));
+  if (!ring) { skipped++; continue; }
+  out.push({
+    type: 'Feature',
+    properties: p,
+    geometry: { type: 'Polygon', coordinates: [ring] },
+    height: heightOf(p),
+  });
+  roads++;
 }
 
 // lowest first, so a bridge is drawn over the road it crosses; everything that
@@ -75,12 +99,12 @@ function dedupe(coords) {
 }
 
 /**
- * The outline of a road of half-width `half` (in degrees of latitude) along
- * `line`: up one side, round the end, back down the other. Corners use the
- * average of the two segment normals (a mitre), limited so a hairpin can't
- * throw a spike across the map.
+ * The outline of a road along `line`, from half-width `halfStart` to `halfEnd`
+ * (in degrees of latitude): up one side, round the end, back down the other.
+ * Corners use the average of the two segment normals (a mitre), limited so a
+ * hairpin can't throw a spike across the map.
  */
-function surface(line, half) {
+function surface(line, halfStart, halfEnd = halfStart) {
   const cos = Math.max(0.05, Math.cos((line[0][1] * Math.PI) / 180));
   // work in metre-like units so the two axes are comparable
   const pts = line.map(c => [c[0] * cos, c[1]]);
@@ -100,17 +124,20 @@ function surface(line, half) {
     const scale = Math.min(4, 1 / Math.max(0.25, len / 2)); // mitre limit
     return [(mx / len) * scale, (my / len) * scale];
   };
+  // the width slides along the road, so a lane gained at the far end widens it
+  // gradually instead of in one step
+  const halfAtPoint = i => halfStart + ((halfEnd - halfStart) * i) / (n - 1);
   const left = [], right = [];
   for (let i = 0; i < n; i++) {
-    const m = at(i);
+    const m = at(i), half = halfAtPoint(i);
     left.push([pts[i][0] + m[0] * half, pts[i][1] + m[1] * half]);
     right.push([pts[i][0] - m[0] * half, pts[i][1] - m[1] * half]);
   }
   const ring = [
     ...left,
-    ...cap(pts[n - 1], normals[normals.length - 1], half, false),
+    ...cap(pts[n - 1], normals[normals.length - 1], halfEnd, false),
     ...right.reverse(),
-    ...cap(pts[0], normals[0], half, true),
+    ...cap(pts[0], normals[0], halfStart, true),
   ];
   ring.push(ring[0]);
   return ring.map(p => [p[0] / cos, p[1]]);
