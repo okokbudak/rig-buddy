@@ -117,32 +117,38 @@ public final class MapStyle {
       // service approaches) are still driven on, so they are drawn - quietly,
       // under the rest - instead of leaving a gap where a route leaves the
       // trunk road. truckermudgeon's own map does the same.
-      layers.put(layer("hidden-roads", "line", game).put("minzoom", 9)
+      layers.put(layer("hidden-roads", "line", game).put("minzoom", 9).put("maxzoom", 10)
           .put("filter", all(geom("LineString"), eq("type", "road"), eq("hidden", true),
               new JSONArray().put("!=").put(get("roadType")).put("train")))
           .put("layout", roadLayout)
           .put("paint", new JSONObject()
               .put("line-color", c.hiddenRoad)
               .put("line-width", roadWidth())));
-      // Only real roads get an edge: a junction lane outlined on its own drew
-      // threads over the road surface it is part of. The edge grows with the
-      // road, since a fixed 3 px is invisible beside a 100 px wide motorway.
-      layers.put(layer("roads-case", "line", game).put("minzoom", 5)
-          .put("filter", all(geom("LineString"), eq("type", "road"), eq("hidden", false),
-              new JSONArray().put("!=").put(get("roadType")).put("train"),
-              new JSONArray().put("!=")
-                  .put(new JSONArray().put("coalesce").put(get("junction")).put(false)).put(true)))
+      layers.put(layer("roads-case", "line", game).put("minzoom", 5).put("maxzoom", 10)
+          .put("filter", roadFilter)
           .put("layout", roadLayout)
           .put("paint", new JSONObject()
               .put("line-color", roadColor(c, true))
               .put("line-gap-width", roadWidth())
               .put("line-width", interpolate(5, 0.6, 10, 0.8, 13, 1.5, 14, 2.5, 16, 8))));
-      layers.put(layer("roads", "line", game)
+      layers.put(layer("roads", "line", game).put("maxzoom", 10)
           .put("filter", roadFilter)
           .put("layout", roadLayout)
           .put("paint", new JSONObject()
               .put("line-color", roadColor(c, false))
               .put("line-width", roadWidth())));
+      // From z10 the tiles carry the roads as surfaces (pipeline/road-polygons.mjs),
+      // as wide as they really are and stacked lowest first, so a bridge covers
+      // what runs under it and the truck sits on tarmac, not beside a line.
+      layers.put(layer("road-surfaces-hidden", "fill", game).put("minzoom", 10)
+          .put("filter", all(geom("Polygon"), eq("type", "road"), eq("hidden", true)))
+          .put("paint", new JSONObject().put("fill-color", c.hiddenRoad)
+              .put("fill-outline-color", c.hiddenRoad)));
+      layers.put(layer("road-surfaces", "fill", game).put("minzoom", 10)
+          .put("filter", all(geom("Polygon"), eq("type", "road"), eq("hidden", false),
+              new JSONArray().put("!=").put(get("roadType")).put("train")))
+          .put("paint", new JSONObject().put("fill-color", roadColor(c, false))
+              .put("fill-outline-color", roadColor(c, true))));
       layers.put(layer("ferries", "line", game)
           .put("filter", all(geom("LineString"), eq("type", "ferry")))
           .put("paint", new JSONObject().put("line-color", c.ferry).put("line-width", 1.5)
