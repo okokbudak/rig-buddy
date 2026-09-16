@@ -76,7 +76,8 @@ for (const f of curves.features) {
     const roadType = (a && b) ? (rank(a) <= rank(b) ? a : b) : (a ?? b ?? 'local');
     out.push({
       type: 'Feature',
-      properties: { type: 'road', roadType, hidden: false, junction: true },
+      // one lane wide, in game metres (see postprocess-geojson.js)
+      properties: { type: 'road', roadType, hidden: false, junction: true, width: 6 },
       geometry: { type: 'LineString', coordinates: line },
     });
     kept++;

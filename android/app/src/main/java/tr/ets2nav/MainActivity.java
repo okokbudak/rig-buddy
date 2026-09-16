@@ -721,7 +721,9 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
         }
         break;
       case "themeModeUpdate":
-        boolean dark = "dark".equals(data);
+        // Night in the game turns the map dark; a dark app keeps it dark
+        // through the game's day too, instead of a white map on a dark screen.
+        boolean dark = Ui.dark || "dark".equals(data);
         if (dark != darkMode) {
           darkMode = dark;
           loadStyle();

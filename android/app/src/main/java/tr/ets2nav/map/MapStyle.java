@@ -223,9 +223,29 @@ public final class MapStyle {
     }
   }
 
-  // Map units are ~19x game meters, so a lane is wide on screen at zoom 13+.
+  /**
+   * Road width. The map is about 19x game scale, so from the regional view down
+   * a road is drawn as wide as it really is (its `width` in game metres, 12 m
+   * being a normal two-lane road): a motorway then covers the lane the truck
+   * drives in, instead of leaving it beside a thin line.
+   */
   private static JSONArray roadWidth() {
-    return interpolate(5, 1.2, 8, 1.8, 10, 2.4, 12, 4.8, 13, 9, 14, 18, 16, 72);
+    // "zoom" has to stay the input of the outer interpolate, so the road's own
+    // width scales each stop instead of the result.
+    try {
+      JSONArray factor = new JSONArray().put("/")
+          .put(new JSONArray().put("coalesce").put(get("width")).put(12)).put(12);
+      double[] stops = {5, 1.2, 8, 1.8, 10, 2.4, 12, 6, 13, 17, 14, 34, 16, 136};
+      JSONArray a = new JSONArray().put("interpolate")
+          .put(new JSONArray().put("exponential").put(1.5)).put(new JSONArray().put("zoom"));
+      for (int i = 0; i < stops.length; i += 2) {
+        a.put(stops[i]);
+        a.put(new JSONArray().put("*").put(stops[i + 1]).put(factor));
+      }
+      return a;
+    } catch (JSONException e) {
+      throw new IllegalStateException(e);
+    }
   }
 
   private static JSONArray roadColor(Palette c, boolean casing) {
