@@ -87,7 +87,17 @@ async function bundle(name, entry, extra = {}) {
   console.log(`${path.relative(ROOT, outfile)}  ${(fs.statSync(outfile).size / 1e6).toFixed(1)} MB`);
 }
 
-await bundle('server', path.join(TM, 'packages/apis/navigation/index.ts'));
+// The navigation server's tRPC has no transformer, so everything it sends goes
+// through JSON.stringify - and a single BigInt kills the app's whole
+// subscription ("Do not know how to serialize a BigInt"). It happens for real:
+// once the truck leaves its route, the new route carries rerouteInfo.fromNodeUid,
+// a node uid. Node's JSON has no BigInt support to fall back on, so give it one:
+// uids go out as the hex strings the server logs them as.
+const bigintJson =
+  "if (typeof BigInt.prototype.toJSON !== 'function') Object.defineProperty(BigInt.prototype, 'toJSON', "
+  + "{ value: function () { return this.toString(16); }, writable: true, configurable: true });";
+await bundle('server', path.join(TM, 'packages/apis/navigation/index.ts'),
+  { banner: { js: `${common.banner.js} ${bigintJson}` } });
 
 // workers: same exports as the tsx-based wrappers, with the worker code inlined
 const workersDir = path.join(TM, 'packages/apis/navigation/infra/workers');
