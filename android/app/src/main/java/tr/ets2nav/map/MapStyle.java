@@ -131,12 +131,12 @@ public final class MapStyle {
       layers.put(layer("road-surfaces-hidden", "fill", game).put("minzoom", 10)
           .put("filter", all(geom("Polygon"), eq("type", "road"), eq("hidden", true)))
           .put("paint", new JSONObject().put("fill-color", c.hiddenRoad)
-              .put("fill-outline-color", c.roadCase)));
+              .put("fill-outline-color", c.hiddenRoad)));
       layers.put(layer("road-surfaces", "fill", game).put("minzoom", 10)
           .put("filter", all(geom("Polygon"), eq("type", "road"), eq("hidden", false),
               new JSONArray().put("!=").put(get("roadType")).put("train")))
           .put("paint", new JSONObject().put("fill-color", roadColor(c, false))
-              .put("fill-outline-color", roadColor(c, true))));
+              .put("fill-outline-color", roadColor(c, false))));
       layers.put(layer("ferries", "line", game)
           .put("filter", all(geom("LineString"), eq("type", "ferry")))
           .put("paint", new JSONObject().put("line-color", c.ferry).put("line-width", 1.5)
