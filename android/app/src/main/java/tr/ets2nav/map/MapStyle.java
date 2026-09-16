@@ -15,36 +15,30 @@ public final class MapStyle {
 
   private MapStyle() {}
 
+  /**
+   * One colour for tarmac, like TruckSim GPS (a single ROAD_COLOR, told apart
+   * by material, not by class): the road reads against the ground, and the
+   * route and the truck are the only strong colours on the screen.
+   */
   private static final class Palette {
-    String background, water, roadArea, lightArea, darkArea, greenArea, prefabRoad;
-    String freeway, freewayCase, divided, dividedCase, local, localCase, noVehicles, noVehiclesCase;
-    String ferry, hiddenRoad, text, textHalo, secondaryText;
+    String background, water, roadArea, lightArea, darkArea, greenArea;
+    String road, roadCase, hiddenRoad, noVehicles;
+    String ferry, text, textHalo, secondaryText;
   }
 
   private static Palette light() {
     Palette p = new Palette();
-    p.background = "#ebe9e4";
+    p.background = "#e3e0d9";
     p.water = "#a8c8f0";
-    p.roadArea = "#e2e4e7";
-    p.lightArea = "#f0e6d2";
-    p.darkArea = "#e4cfa6";
-    p.greenArea = "#c9e4c1";
-    // junction and city road surfaces: white was invisible on the light
-    // background, so roads looked cut off wherever a junction was
-    p.prefabRoad = "#dfe1e5";
-    p.freeway = "#fde293";
-    p.freewayCase = "#e8b440";
-    // Same as freeway: many DLC motorways are "divided" in the game data, and
-    // two colors made one highway look striped.
-    p.divided = "#fde293";
-    p.dividedCase = "#e8b440";
-    p.local = "#ffffff";
-    p.localCase = "#c9ccd2";
-    p.noVehicles = "#d8d8d8";
-    p.noVehiclesCase = "#bdbdbd";
+    p.roadArea = "#d9d7d1";
+    p.lightArea = "#ece2ce";
+    p.darkArea = "#e0cba2";
+    p.greenArea = "#c6e0be";
+    p.road = "#ffffff";
+    p.roadCase = "#b6bac2";
+    p.hiddenRoad = "#f2f3f5";
+    p.noVehicles = "#d5d7db";
     p.ferry = "#5b8fd6";
-    // the streets the game map leaves out: visible, but clearly a lesser road
-    p.hiddenRoad = "#e6e8eb";
     p.text = "#3c4043";
     p.textHalo = "#ffffff";
     p.secondaryText = "#5f6368";
@@ -53,26 +47,20 @@ public final class MapStyle {
 
   private static Palette dark() {
     Palette p = new Palette();
-    p.background = "#1f2733";
-    p.water = "#17263c";
-    p.roadArea = "#2d3643";
-    p.lightArea = "#2e3440";
-    p.darkArea = "#39414d";
-    p.greenArea = "#23372e";
-    p.prefabRoad = "#4d5768";
-    p.freeway = "#a8914f";
-    p.freewayCase = "#39301c";
-    p.divided = "#a8914f";
-    p.dividedCase = "#39301c";
-    p.local = "#566072";
-    p.localCase = "#2b3341";
-    p.noVehicles = "#414a57";
-    p.noVehiclesCase = "#2b3341";
+    p.background = "#28313f";
+    p.water = "#1b2c45";
+    p.roadArea = "#333d4c";
+    p.lightArea = "#353f4d";
+    p.darkArea = "#3f4a59";
+    p.greenArea = "#2a4034";
+    p.road = "#7b8798";
+    p.roadCase = "#4a5462";
+    p.hiddenRoad = "#6b7585";
+    p.noVehicles = "#5b6472";
     p.ferry = "#6f9ddb";
-    p.hiddenRoad = "#414b5a";
-    p.text = "#d6d9de";
-    p.textHalo = "#101419";
-    p.secondaryText = "#9aa0a6";
+    p.text = "#e4e7ec";
+    p.textHalo = "#141a22";
+    p.secondaryText = "#a9b0ba";
     return p;
   }
 
@@ -117,19 +105,12 @@ public final class MapStyle {
       // service approaches) are still driven on, so they are drawn - quietly,
       // under the rest - instead of leaving a gap where a route leaves the
       // trunk road. truckermudgeon's own map does the same.
-      // A motorway keeps its colour where the game hides it (tunnels and link
-      // pieces are marked hidden too, 7,000 of them in ETS2, and painting those
-      // grey broke the yellow in two); only lesser hidden roads stay quiet.
-      JSONArray hiddenColor = new JSONArray().put("match").put(get("roadType"))
-          .put("freeway").put(c.freeway)
-          .put("divided").put(c.divided)
-          .put(c.hiddenRoad);
       layers.put(layer("hidden-roads", "line", game).put("minzoom", 9).put("maxzoom", 10)
           .put("filter", all(geom("LineString"), eq("type", "road"), eq("hidden", true),
               new JSONArray().put("!=").put(get("roadType")).put("train")))
           .put("layout", roadLayout)
           .put("paint", new JSONObject()
-              .put("line-color", hiddenColor)
+              .put("line-color", c.hiddenRoad)
               .put("line-width", roadWidth())));
       layers.put(layer("roads-case", "line", game).put("minzoom", 5).put("maxzoom", 10)
           .put("filter", roadFilter)
@@ -149,8 +130,8 @@ public final class MapStyle {
       // what runs under it and the truck sits on tarmac, not beside a line.
       layers.put(layer("road-surfaces-hidden", "fill", game).put("minzoom", 10)
           .put("filter", all(geom("Polygon"), eq("type", "road"), eq("hidden", true)))
-          .put("paint", new JSONObject().put("fill-color", hiddenColor)
-              .put("fill-outline-color", hiddenColor)));
+          .put("paint", new JSONObject().put("fill-color", c.hiddenRoad)
+              .put("fill-outline-color", c.roadCase)));
       layers.put(layer("road-surfaces", "fill", game).put("minzoom", 10)
           .put("filter", all(geom("Polygon"), eq("type", "road"), eq("hidden", false),
               new JSONArray().put("!=").put(get("roadType")).put("train")))
@@ -281,19 +262,21 @@ public final class MapStyle {
     }
   }
 
+  /**
+   * Tarmac is tarmac: every road takes the same colour, whatever its class, so
+   * nothing on the map competes with the route. Only roads closed to vehicles
+   * are dimmed, since driving onto one is a mistake.
+   */
   private static JSONArray roadColor(Palette c, boolean casing) {
     return new JSONArray().put("match").put(get("roadType"))
-        .put("freeway").put(casing ? c.freewayCase : c.freeway)
-        .put("divided").put(casing ? c.dividedCase : c.divided)
-        .put("local").put(casing ? c.localCase : c.local)
-        .put("no_vehicles").put(casing ? c.noVehiclesCase : c.noVehicles)
-        .put(casing ? c.localCase : c.local);
+        .put("no_vehicles").put(casing ? c.roadCase : c.noVehicles)
+        .put(casing ? c.roadCase : c.road);
   }
 
   // MapAreaColor: 0 road, 1 light, 2 dark, 3 green, 4-8 nav colors
   private static JSONArray areaColor(Palette c, boolean prefab) {
     return new JSONArray().put("match").put(get("color"))
-        .put(0).put(prefab ? c.prefabRoad : c.roadArea)
+        .put(0).put(prefab ? c.road : c.roadArea)
         .put(1).put(c.lightArea)
         .put(2).put(c.darkArea)
         .put(3).put(c.greenArea)
