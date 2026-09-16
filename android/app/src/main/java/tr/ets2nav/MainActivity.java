@@ -156,6 +156,9 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     prefs = getSharedPreferences("ets2nav", MODE_PRIVATE);
     // theme first: every screen reads Ui's palette while it is built
     Ui.applyTheme(Ui.resolveDark(this, Ui.themeSetting(prefs)));
+    // the map follows the app's theme until the game says whether it is day or
+    // night in the cab; without this a dark app showed a white map
+    darkMode = Ui.dark;
     setTheme(Ui.dark ? R.style.AppTheme_Dark : R.style.AppTheme);
     super.onCreate(savedInstanceState);
     Ui.init(this); // strings and number formats of the chosen language
