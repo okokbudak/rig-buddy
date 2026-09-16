@@ -3,6 +3,7 @@ package tr.ets2nav.ui;
 import tr.ets2nav.R;
 
 import android.content.Context;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -54,9 +55,12 @@ public final class JobsScreen {
     LinearLayout hcol = Ui.column(c);
     hcol.addView(Ui.text(c, Ui.s(R.string.jobs_title), 26, Ui.TEXT, true));
     status = Ui.text(c, 15, Ui.TEXT2, false);
+    status.setMaxLines(2);
+    status.setEllipsize(TextUtils.TruncateAt.END);
     hcol.addView(status, Ui.margins(Ui.wrap(), c, 0, 6, 0, 0));
-    header.addView(hcol);
-    header.addView(Ui.spacer(c));
+    // the column takes what is left: a long status (an error) must not push the
+    // sort and refresh buttons off the screen
+    header.addView(hcol, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
     header.addView(sortChip(Ui.s(R.string.jobs_sort_near), 0));
     header.addView(sortChip(Ui.s(R.string.jobs_sort_income), 1));
     header.addView(sortChip(Ui.s(R.string.jobs_sort_long), 2));

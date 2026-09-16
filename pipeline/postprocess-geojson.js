@@ -57,10 +57,9 @@ for (const f of roads) if (f.properties.roadType === 'unknown') f.properties.roa
 console.log('road classes fixed:', JSON.stringify(changed));
 
 // --- filtering -----------------------------------------------------------------
-// Two outputs: <out>-low.geojson for z4-z8 (major roads + labels only) and
-// <out>-high.geojson for z9-z13 (everything visible). tippecanoe's per-feature
-// `tippecanoe.minzoom` loses features with this tippecanoe version, so the
-// zoom split is done with two passes + tile-join instead.
+// Two outputs: <out>-low.geojson for the country overview (major roads and
+// labels only) and <out>-high.geojson for everything visible, from the
+// regional view down. build-map-data.mjs tiles them into one map.
 const all = [], low = [];
 for (const f of feats) {
   const p = f.properties;
