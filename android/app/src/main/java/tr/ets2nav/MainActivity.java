@@ -7,6 +7,8 @@ import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
+import android.graphics.PointF;
+import android.graphics.RectF;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.text.InputType;
@@ -26,6 +28,7 @@ import com.mapbox.geojson.Feature;
 import com.mapbox.geojson.FeatureCollection;
 import com.mapbox.geojson.LineString;
 import com.mapbox.geojson.Point;
+import com.mapbox.geojson.Polygon;
 import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
@@ -895,13 +898,16 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     if (!pose.valid) return;
 
     boolean mapShown = "map".equals(screen);
+    if (mapShown) updateSnap(now);
+    double shownLon = snapValid ? snapLon : pose.lon;
+    double shownLat = snapValid ? snapLat : pose.lat;
     if (following && mapShown) {
       double targetZoom = zoomForSpeed(pose.speed * 3.6);
       smoothedZoom += (targetZoom - smoothedZoom) * 0.03;
       int h = mapView.getHeight();
       double topPad = h * (2 * FOCUS_FROM_TOP - 1);
       map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
-          .target(new LatLng(pose.lat, pose.lon))
+          .target(new LatLng(shownLat, shownLon))
           .bearing(pose.bearingDeg())
           .tilt(FOLLOW_TILT)
           .zoom(smoothedZoom)
@@ -909,7 +915,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
           .build()));
     } else if (mapShown && !following && truckSource != null && now - lastTruckSourceMs > 200) {
       lastTruckSourceMs = now;
-      Feature f = Feature.fromGeometry(Point.fromLngLat(pose.lon, pose.lat));
+      Feature f = Feature.fromGeometry(Point.fromLngLat(shownLon, shownLat));
       f.addNumberProperty("bearing", pose.bearingDeg());
       truckSource.setGeoJson(f);
     }
@@ -941,6 +947,76 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private static double zoomForSpeed(double kph) {
     double k = Math.max(0, Math.min(1, kph / 100));
     return 14.0 - k * 1.4;
+  }
+
+  /**
+   * Puts the truck on the tarmac when the game says it is beside it. The map
+   * draws roads as surfaces, so as long as the reported position is inside one
+   * it is left alone; when it is not (a company yard's own roads are not in the
+   * map, and the truck drives in a lane, not on the centre line) the marker
+   * moves to the nearest road within SNAP_MAX_M. TruckSim GPS does the same
+   * (SnapToNearestRoad, ROAD_SNAP_MAX_DISTANCE), which is why its truck never
+   * hangs off the road.
+   */
+  private static final double SNAP_MAX_M = 450;    // map metres, i.e. ~23 game metres
+  private static final long SNAP_INTERVAL_MS = 250;
+  private double snapLon, snapLat;
+  private boolean snapValid;
+  private long lastSnapMs;
+
+  private void updateSnap(long now) {
+    if (now - lastSnapMs < SNAP_INTERVAL_MS) return;
+    lastSnapMs = now;
+    if (map == null || map.getCameraPosition().zoom < 10) { snapValid = false; return; }
+    PointF at = map.getProjection().toScreenLocation(new LatLng(pose.lat, pose.lon));
+    RectF box = new RectF(at.x - 80, at.y - 80, at.x + 80, at.y + 80);
+    List<Feature> found;
+    try {
+      found = map.queryRenderedFeatures(box, "road-surfaces", "road-surfaces-hidden");
+    } catch (RuntimeException e) {
+      snapValid = false;
+      return;
+    }
+    final double cos = Math.cos(Math.toRadians(pose.lat)), M = 111320;
+    double best = SNAP_MAX_M, bestLon = 0, bestLat = 0;
+    for (Feature f : found) {
+      if (!(f.geometry() instanceof Polygon)) continue;
+      for (List<Point> ring : ((Polygon) f.geometry()).coordinates()) {
+        if (ring.size() < 4) continue;
+        if (ringContains(ring, pose.lon, pose.lat)) { snapValid = false; return; } // on tarmac already
+        for (int i = 0; i < ring.size() - 1; i++) {
+          Point a = ring.get(i), b = ring.get(i + 1);
+          double ax = (a.longitude() - pose.lon) * cos * M, ay = (a.latitude() - pose.lat) * M;
+          double bx = (b.longitude() - pose.lon) * cos * M, by = (b.latitude() - pose.lat) * M;
+          double dx = bx - ax, dy = by - ay;
+          double len = dx * dx + dy * dy;
+          double t = len == 0 ? 0 : Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len));
+          double px = ax + dx * t, py = ay + dy * t;
+          double d = Math.hypot(px, py);
+          if (d < best) {
+            best = d;
+            bestLon = pose.lon + px / (cos * M);
+            bestLat = pose.lat + py / M;
+          }
+        }
+      }
+    }
+    snapValid = best < SNAP_MAX_M;
+    if (snapValid) {
+      snapLon = bestLon;
+      snapLat = bestLat;
+    }
+  }
+
+  /** Ray casting: is the point inside this ring? */
+  private static boolean ringContains(List<Point> ring, double lon, double lat) {
+    boolean in = false;
+    for (int i = 0, j = ring.size() - 1; i < ring.size(); j = i++) {
+      double xi = ring.get(i).longitude(), yi = ring.get(i).latitude();
+      double xj = ring.get(j).longitude(), yj = ring.get(j).latitude();
+      if (((yi > lat) != (yj > lat)) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) in = !in;
+    }
+    return in;
   }
 
   private void updateGuidance(boolean force) {

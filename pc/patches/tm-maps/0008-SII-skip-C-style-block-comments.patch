@@ -1,0 +1,39 @@
+From 35e5d60a9fe3a91d17379ddb440edd4ad3810d77 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
+Date: Fri, 18 Sep 2026 01:36:23 +0300
+Subject: [PATCH] SII: skip C-style block comments
+
+ETS2 1.61 starts def/world/model.stable.sii with a /* ... */ comment, which
+the lexer had no token for: it skipped the characters one by one and the parse
+failed, so reading the game files stopped at that file.
+---
+ packages/clis/parser/game-files/sii-parser.ts | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/packages/clis/parser/game-files/sii-parser.ts b/packages/clis/parser/game-files/sii-parser.ts
+index 7d5e6cf..5ba7e89 100644
+--- a/packages/clis/parser/game-files/sii-parser.ts
++++ b/packages/clis/parser/game-files/sii-parser.ts
+@@ -58,6 +58,14 @@ const Comment = createToken({
+   pattern: /(\/\/|#).*/,
+   group: Lexer.SKIPPED,
+ });
++// ETS2 1.61 writes a C-style block comment at the top of
++// def/world/model.stable.sii, which the lexer used to choke on.
++const BlockComment = createToken({
++  name: 'BlockComment',
++  pattern: /\/\*[\s\S]*?\*\//,
++  line_breaks: true,
++  group: Lexer.SKIPPED,
++});
+ 
+ const allTokens = [
+   SiiNunit,
+@@ -78,6 +86,7 @@ const allTokens = [
+   Property,
+   WhiteSpace,
+   Comment,
++  BlockComment,
+ ];
+ 
+ const SiiLexer = new Lexer(allTokens);
