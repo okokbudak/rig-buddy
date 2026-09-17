@@ -27,6 +27,7 @@ const heightOf = p => Math.max(elevation.get(p.startNodeUid) ?? 0, elevation.get
 const M_PER_DEG = 111320;
 const SCALE = 19.15;          // map metres per game metre (ETS2/ATS map factor)
 const MIN_WIDTH_M = 4;        // a road is never drawn thinner than this, in game metres
+const CAP_STEPS = 5;          // points in the half circle at each end
 
 const files = [inFile, ...extra];
 const out = [];
@@ -61,6 +62,7 @@ const halfAt = (p, uid) => {
   return ((own + Math.min(neighbour, own * 2)) / 2) * SCALE / 2 / M_PER_DEG;
 };
 
+const roadEnds = []; // every road end, for the junction pads below
 for (const f of input) {
   const p = f.properties ?? {};
   if (p.type !== 'road' || f.geometry?.type !== 'LineString') {
@@ -69,6 +71,11 @@ for (const f of input) {
   }
   const line = dedupe(f.geometry.coordinates);
   if (line.length < 2) { skipped++; continue; }
+  for (const [a, b] of [[line[0], line[1]], [line[line.length - 1], line[line.length - 2]]]) {
+    const dx = (b[0] - a[0]) * Math.cos((a[1] * Math.PI) / 180), dy = b[1] - a[1];
+    const len = Math.hypot(dx, dy) || 1;
+    roadEnds.push({ point: a, dir: [dx / len, dy / len], width: widthOf(p), properties: p, height: heightOf(p) });
+  }
   const ring = surface(line, halfAt(p, p.startNodeUid), halfAt(p, p.endNodeUid));
   if (!ring) { skipped++; continue; }
   out.push({
@@ -79,6 +86,75 @@ for (const f of input) {
   });
   roads++;
 }
+
+// Where roads meet, their round ends still leave a wedge between the outer
+// edges - the dark nick in the fork of a slip road - and the ends are often not
+// even at the same point: at a junction the game leaves a gap of a few metres
+// between them, with its own geometry (a prefab) that the map does not always
+// carry. A patch of tarmac over each group of ends that lie close together
+// covers both, which is what a junction looks like anyway. Ends that simply
+// continue the same road, straight and equally wide, get nothing.
+const CLUSTER_M = 260;        // map metres, i.e. ~14 game metres
+const PAD_MAX_M = 420;
+let pads = 0;
+const grid = new Map();
+const cell = p => `${Math.round((p[0] * Math.cos((p[1] * Math.PI) / 180) * M_PER_DEG) / CLUSTER_M)},`
+  + `${Math.round((p[1] * M_PER_DEG) / CLUSTER_M)}`;
+roadEnds.forEach((e, i) => {
+  const k = cell(e.point);
+  if (!grid.has(k)) grid.set(k, []);
+  grid.get(k).push(i);
+});
+const metresApart = (a, b) =>
+  Math.hypot((a[0] - b[0]) * Math.cos((a[1] * Math.PI) / 180), a[1] - b[1]) * M_PER_DEG;
+const taken = new Uint8Array(roadEnds.length);
+for (let i = 0; i < roadEnds.length; i++) {
+  if (taken[i]) continue;
+  const group = [i];
+  taken[i] = 1;
+  const kx = Math.round((roadEnds[i].point[0] * Math.cos((roadEnds[i].point[1] * Math.PI) / 180) * M_PER_DEG) / CLUSTER_M);
+  const ky = Math.round((roadEnds[i].point[1] * M_PER_DEG) / CLUSTER_M);
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (const j of grid.get(`${kx + dx},${ky + dy}`) ?? []) {
+        if (taken[j] || metresApart(roadEnds[i].point, roadEnds[j].point) > CLUSTER_M) continue;
+        group.push(j);
+        taken[j] = 1;
+      }
+    }
+  }
+  if (group.length < 2) continue;
+  let minW = Infinity, maxW = 0, widest = roadEnds[group[0]], straight = true;
+  let lon = 0, lat = 0;
+  for (const j of group) {
+    const e = roadEnds[j];
+    minW = Math.min(minW, e.width);
+    if (e.width > maxW) { maxW = e.width; widest = e; }
+    lon += e.point[0];
+    lat += e.point[1];
+  }
+  lon /= group.length;
+  lat /= group.length;
+  if (group.length === 2) {
+    const dot = roadEnds[group[0]].dir[0] * roadEnds[group[1]].dir[0]
+      + roadEnds[group[0]].dir[1] * roadEnds[group[1]].dir[1];
+    straight = Math.abs(dot) > 0.95 && maxW - minW < 2;
+  } else {
+    straight = false;
+  }
+  if (straight) continue;
+  let spread = 0;
+  for (const j of group) spread = Math.max(spread, metresApart([lon, lat], roadEnds[j].point));
+  const radius = Math.min(PAD_MAX_M, Math.max((maxW * SCALE) / 2, spread + (minW * SCALE) / 2));
+  out.push({
+    type: 'Feature',
+    properties: widest.properties,
+    geometry: { type: 'Polygon', coordinates: [disc([lon, lat], radius / M_PER_DEG)] },
+    height: widest.height,
+  });
+  pads++;
+}
+console.log(`junction pads: ${pads} for ${roadEnds.length} road ends`);
 
 // lowest first, so a bridge is drawn over the road it crosses; everything that
 // is not a road (areas, junction surfaces, labels) keeps its place underneath
@@ -99,9 +175,11 @@ function dedupe(coords) {
 
 /**
  * The outline of a road along `line`, from half-width `halfStart` to `halfEnd`
- * (in degrees of latitude): up one side and back down the other, with both ends
- * pushed half a width past the last point so neighbouring roads overlap at the
- * node they share instead of leaving a notch between two rounded ends.
+ * (in degrees of latitude): up one side, round the end, back down the other,
+ * round the start. The round ends matter - two roads that meet share a node, so
+ * the half disc of radius half-width around it covers the wedge between them
+ * however sharply they turn, where a squared-off end leaves either a notch or a
+ * rectangular flap sticking out of the junction.
  *
  * Corners take the average of the two segment normals (a mitre); a corner too
  * sharp for that is bevelled with both normals, because a long mitre spike
@@ -118,11 +196,6 @@ function surface(line, halfStart, halfEnd = halfStart) {
     if (len === 0) return null;
     dirs.push([dx / len, dy / len]);
   }
-  // the ends stick out by half a width, so consecutive roads run into each other
-  pts[0] = [pts[0][0] - dirs[0][0] * halfStart, pts[0][1] - dirs[0][1] * halfStart];
-  const last = dirs[dirs.length - 1];
-  pts[pts.length - 1] = [pts[pts.length - 1][0] + last[0] * halfEnd, pts[pts.length - 1][1] + last[1] * halfEnd];
-
   const n = pts.length;
   const normals = dirs.map(d => [-d[1], d[0]]);
   const halfAtPoint = i => halfStart + ((halfEnd - halfStart) * i) / (n - 1);
@@ -143,7 +216,38 @@ function surface(line, halfStart, halfEnd = halfStart) {
         [pts[i][0] - b[0] * half, pts[i][1] - b[1] * half]);
     }
   }
-  const ring = [...left, ...right.reverse()];
+  const ring = [
+    ...left,
+    ...cap(pts[n - 1], normals[normals.length - 1], halfEnd),
+    ...right.reverse(),
+    ...cap(pts[0], [-normals[0][0], -normals[0][1]], halfStart),
+  ];
   ring.push(ring[0]);
   return ring.map(p => [p[0] / cos, p[1]]);
+}
+
+/** A circle of `half` degrees of latitude around a point, for a junction pad. */
+function disc(point, half) {
+  const cos = Math.max(0.05, Math.cos((point[1] * Math.PI) / 180));
+  const ring = [];
+  for (let i = 0; i <= 10; i++) {
+    const a = (Math.PI * 2 * i) / 10;
+    ring.push([point[0] + (Math.cos(a) * half) / cos, point[1] + Math.sin(a) * half]);
+  }
+  return ring;
+}
+
+/**
+ * The half circle from `from` round to the opposite side, going the way that
+ * bulges past the end of the road (the points in between; the sides of the road
+ * already carry the two ends).
+ */
+function cap(point, from, half) {
+  const base = Math.atan2(from[1], from[0]);
+  const pts = [];
+  for (let i = 1; i < CAP_STEPS; i++) {
+    const a = base - Math.PI * (i / CAP_STEPS);
+    pts.push([point[0] + Math.cos(a) * half, point[1] + Math.sin(a) * half]);
+  }
+  return pts;
 }
