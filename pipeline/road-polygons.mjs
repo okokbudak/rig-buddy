@@ -95,7 +95,7 @@ for (const f of input) {
 // covers both, which is what a junction looks like anyway. Ends that simply
 // continue the same road, straight and equally wide, get nothing.
 const CLUSTER_M = 260;        // map metres, i.e. ~14 game metres
-const PAD_MAX_M = 420;
+const PAD_MAX_M = 260;
 let pads = 0;
 const grid = new Map();
 const cell = p => `${Math.round((p[0] * Math.cos((p[1] * Math.PI) / 180) * M_PER_DEG) / CLUSTER_M)},`
@@ -145,7 +145,7 @@ for (let i = 0; i < roadEnds.length; i++) {
   if (straight) continue;
   let spread = 0;
   for (const j of group) spread = Math.max(spread, metresApart([lon, lat], roadEnds[j].point));
-  const radius = Math.min(PAD_MAX_M, Math.max((maxW * SCALE) / 2, spread + (minW * SCALE) / 2));
+  const radius = Math.min(PAD_MAX_M, Math.max((maxW * SCALE) / 2, spread));
   out.push({
     type: 'Feature',
     properties: widest.properties,
