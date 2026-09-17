@@ -97,7 +97,7 @@ fs.mkdirSync(PARSER_OUT, { recursive: true });
 fs.mkdirSync(path.join(DATA, 'game'), { recursive: true });
 
 // progress: each game gets an equal share, split over its steps by typical duration
-const STEPS = { parse: 40, labels: 2, search: 5, graph: 20, roundabouts: 3, zip: 5, geojson: 15, postprocess: 5, surfaces: 5, tiles: 6, copy: 1 };
+const STEPS = { parse: 40, labels: 2, search: 5, graph: 20, roundabouts: 3, zip: 5, geojson: 15, postprocess: 5, curves: 3, junctions: 4, surfaces: 5, tiles: 7, copy: 1 };
 // seconds per step weight (measured: ETS2 with all map DLCs ~4.5 min, ATS ~3 min)
 const SECONDS_PER_WEIGHT = { ets2: 2.9, ats: 1.9 };
 const STEP_TOTAL = Object.values(STEPS).reduce((a, b) => a + b, 0);
@@ -213,6 +213,13 @@ async function buildGame(g) {
       // really are, the way the game's own map does it: a line thin enough to
       // look right at z9 leaves the truck beside the road at z14, and junctions
       // read as crossing threads instead of tarmac.
+      // The junctions come from the game's own prefab geometry - the lane curves
+      // it drives through every junction - turned into tarmac, which is how
+      // TruckSim GPS draws them. Nothing here is guessed from where roads end.
+      await step('curves', g, () => tm('generator', ['prefab-curves', '-m', g.map, '-i', PARSER_OUT, '-o', WORK]));
+      await step('junctions', g, () => node([path.join(HERE, 'prefab-surfaces.mjs'),
+        path.join(WORK, `${g.map}-prefab-curves.geojson`), path.join(WORK, `${g.game}-junctions.geojson`),
+        '--width', '12']));
       await step('surfaces', g, () => node([path.join(HERE, 'road-polygons.mjs'),
         path.join(WORK, `${g.game}-nav-high.geojson`), path.join(WORK, `${g.game}-surfaces.geojson`),
         '--nodes', path.join(PARSER_OUT, `${g.map}-nodes.json`)]));
@@ -221,6 +228,7 @@ async function buildGame(g) {
       await step('tiles', g, () => node([path.join(HERE, 'make-tiles.mjs'), '--layer', g.game, '--out', path.join(DATA, `${g.game}.mbtiles`),
         `${path.join(WORK, `${g.game}-nav-low.geojson`)}:4:6`,
         `${path.join(WORK, `${g.game}-nav-high.geojson`)}:7:9`,
+        `${path.join(WORK, `${g.game}-junctions.geojson`)}:10:13`,
         `${path.join(WORK, `${g.game}-surfaces.geojson`)}:10:13`]));
     })(),
   ];

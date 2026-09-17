@@ -62,7 +62,6 @@ const halfAt = (p, uid) => {
   return ((own + Math.min(neighbour, own * 2)) / 2) * SCALE / 2 / M_PER_DEG;
 };
 
-const roadEnds = []; // every road end, for the junction pads below
 for (const f of input) {
   const p = f.properties ?? {};
   if (p.type !== 'road' || f.geometry?.type !== 'LineString') {
@@ -71,12 +70,6 @@ for (const f of input) {
   }
   const line = dedupe(f.geometry.coordinates);
   if (line.length < 2) { skipped++; continue; }
-  for (const [a, b, uid] of [[line[0], line[1], p.startNodeUid], [line[line.length - 1], line[line.length - 2], p.endNodeUid]]) {
-    const dx = (b[0] - a[0]) * Math.cos((a[1] * Math.PI) / 180), dy = b[1] - a[1];
-    const len = Math.hypot(dx, dy) || 1;
-    roadEnds.push({ point: a, dir: [dx / len, dy / len], width: widthOf(p), properties: p,
-      height: heightOf(p), z: elevation.get(uid) ?? 0 });
-  }
   const ring = surface(line, halfAt(p, p.startNodeUid), halfAt(p, p.endNodeUid));
   if (!ring) { skipped++; continue; }
   out.push({
@@ -88,101 +81,6 @@ for (const f of input) {
   roads++;
 }
 
-// Where roads meet, their round ends still leave a wedge between the outer
-// edges - the dark nick in the fork of a slip road - and the ends are often not
-// even at the same point: at a junction the game leaves a gap of a few metres
-// between them, with its own geometry (a prefab) that the map does not always
-// carry. A patch of tarmac over each group of ends that lie close together
-// covers both, which is what a junction looks like anyway. Ends that simply
-// continue the same road, straight and equally wide, get nothing.
-const CLUSTER_M = 260;        // map metres, i.e. ~14 game metres
-const PAD_MAX_M = 260;
-let pads = 0;
-const grid = new Map();
-const cell = p => `${Math.round((p[0] * Math.cos((p[1] * Math.PI) / 180) * M_PER_DEG) / CLUSTER_M)},`
-  + `${Math.round((p[1] * M_PER_DEG) / CLUSTER_M)}`;
-roadEnds.forEach((e, i) => {
-  const k = cell(e.point);
-  if (!grid.has(k)) grid.set(k, []);
-  grid.get(k).push(i);
-});
-const metresApart = (a, b) =>
-  Math.hypot((a[0] - b[0]) * Math.cos((a[1] * Math.PI) / 180), a[1] - b[1]) * M_PER_DEG;
-const taken = new Uint8Array(roadEnds.length);
-for (let i = 0; i < roadEnds.length; i++) {
-  if (taken[i]) continue;
-  const group = [i];
-  taken[i] = 1;
-  const kx = Math.round((roadEnds[i].point[0] * Math.cos((roadEnds[i].point[1] * Math.PI) / 180) * M_PER_DEG) / CLUSTER_M);
-  const ky = Math.round((roadEnds[i].point[1] * M_PER_DEG) / CLUSTER_M);
-  for (let dx = -1; dx <= 1; dx++) {
-    for (let dy = -1; dy <= 1; dy++) {
-      for (const j of grid.get(`${kx + dx},${ky + dy}`) ?? []) {
-        if (taken[j] || metresApart(roadEnds[i].point, roadEnds[j].point) > CLUSTER_M) continue;
-        group.push(j);
-        taken[j] = 1;
-      }
-    }
-  }
-  if (group.length < 2) continue;
-  const middle = list => {
-    let lon = 0, lat = 0;
-    for (const j of list) {
-      lon += roadEnds[j].point[0];
-      lat += roadEnds[j].point[1];
-    }
-    return [lon / list.length, lat / list.length];
-  };
-  // Only ends that lead away from the middle of the group belong to a junction.
-  // A motorway's two carriageways run side by side: their ends sit close to each
-  // other but point the same way, across the line from the middle, and tarmac
-  // between them ties the far carriageway to this one - which is what it looked
-  // like coming off a bridge.
-  let [lon, lat] = middle(group);
-  const facing = group.filter(j => {
-    const e = roadEnds[j];
-    const dx = (e.point[0] - lon) * Math.cos((lat * Math.PI) / 180), dy = e.point[1] - lat;
-    const len = Math.hypot(dx, dy);
-    // an end sitting on the middle is at the junction whichever way it points
-    if (len * M_PER_DEG < 80) return true;
-    return (e.dir[0] * dx + e.dir[1] * dy) / len > 0.35;
-  });
-  if (facing.length < 2) continue;
-  // Roads that cross at different heights do not meet: a bridge passes over the
-  // road beneath it, so only the ends around the lowest height here belong to
-  // the same piece of tarmac.
-  const lowest = Math.min(...facing.map(j => roadEnds[j].z));
-  const level = facing.filter(j => roadEnds[j].z - lowest < 3);
-  if (level.length < 2) continue;
-  group.length = 0;
-  group.push(...level);
-  [lon, lat] = middle(group);
-  let minW = Infinity, maxW = 0, widest = roadEnds[group[0]], straight = true;
-  for (const j of group) {
-    const e = roadEnds[j];
-    minW = Math.min(minW, e.width);
-    if (e.width > maxW) { maxW = e.width; widest = e; }
-  }
-  if (group.length === 2) {
-    const dot = roadEnds[group[0]].dir[0] * roadEnds[group[1]].dir[0]
-      + roadEnds[group[0]].dir[1] * roadEnds[group[1]].dir[1];
-    straight = Math.abs(dot) > 0.95 && maxW - minW < 2;
-  } else {
-    straight = false;
-  }
-  if (straight) continue;
-  let spread = 0;
-  for (const j of group) spread = Math.max(spread, metresApart([lon, lat], roadEnds[j].point));
-  const radius = Math.min(PAD_MAX_M, Math.max((maxW * SCALE) / 2, spread));
-  out.push({
-    type: 'Feature',
-    properties: widest.properties,
-    geometry: { type: 'Polygon', coordinates: [disc([lon, lat], radius / M_PER_DEG)] },
-    height: widest.height,
-  });
-  pads++;
-}
-console.log(`junction pads: ${pads} for ${roadEnds.length} road ends`);
 
 // lowest first, so a bridge is drawn over the road it crosses; everything that
 // is not a road (areas, junction surfaces, labels) keeps its place underneath
@@ -254,16 +152,6 @@ function surface(line, halfStart, halfEnd = halfStart) {
   return ring.map(p => [p[0] / cos, p[1]]);
 }
 
-/** A circle of `half` degrees of latitude around a point, for a junction pad. */
-function disc(point, half) {
-  const cos = Math.max(0.05, Math.cos((point[1] * Math.PI) / 180));
-  const ring = [];
-  for (let i = 0; i <= 10; i++) {
-    const a = (Math.PI * 2 * i) / 10;
-    ring.push([point[0] + (Math.cos(a) * half) / cos, point[1] + Math.sin(a) * half]);
-  }
-  return ring;
-}
 
 /**
  * The half circle from `from` round to the opposite side, going the way that
