@@ -71,10 +71,11 @@ for (const f of input) {
   }
   const line = dedupe(f.geometry.coordinates);
   if (line.length < 2) { skipped++; continue; }
-  for (const [a, b] of [[line[0], line[1]], [line[line.length - 1], line[line.length - 2]]]) {
+  for (const [a, b, uid] of [[line[0], line[1], p.startNodeUid], [line[line.length - 1], line[line.length - 2], p.endNodeUid]]) {
     const dx = (b[0] - a[0]) * Math.cos((a[1] * Math.PI) / 180), dy = b[1] - a[1];
     const len = Math.hypot(dx, dy) || 1;
-    roadEnds.push({ point: a, dir: [dx / len, dy / len], width: widthOf(p), properties: p, height: heightOf(p) });
+    roadEnds.push({ point: a, dir: [dx / len, dy / len], width: widthOf(p), properties: p,
+      height: heightOf(p), z: elevation.get(uid) ?? 0 });
   }
   const ring = surface(line, halfAt(p, p.startNodeUid), halfAt(p, p.endNodeUid));
   if (!ring) { skipped++; continue; }
@@ -124,17 +125,44 @@ for (let i = 0; i < roadEnds.length; i++) {
     }
   }
   if (group.length < 2) continue;
+  const middle = list => {
+    let lon = 0, lat = 0;
+    for (const j of list) {
+      lon += roadEnds[j].point[0];
+      lat += roadEnds[j].point[1];
+    }
+    return [lon / list.length, lat / list.length];
+  };
+  // Only ends that lead away from the middle of the group belong to a junction.
+  // A motorway's two carriageways run side by side: their ends sit close to each
+  // other but point the same way, across the line from the middle, and tarmac
+  // between them ties the far carriageway to this one - which is what it looked
+  // like coming off a bridge.
+  let [lon, lat] = middle(group);
+  const facing = group.filter(j => {
+    const e = roadEnds[j];
+    const dx = (e.point[0] - lon) * Math.cos((lat * Math.PI) / 180), dy = e.point[1] - lat;
+    const len = Math.hypot(dx, dy);
+    // an end sitting on the middle is at the junction whichever way it points
+    if (len * M_PER_DEG < 80) return true;
+    return (e.dir[0] * dx + e.dir[1] * dy) / len > 0.35;
+  });
+  if (facing.length < 2) continue;
+  // Roads that cross at different heights do not meet: a bridge passes over the
+  // road beneath it, so only the ends around the lowest height here belong to
+  // the same piece of tarmac.
+  const lowest = Math.min(...facing.map(j => roadEnds[j].z));
+  const level = facing.filter(j => roadEnds[j].z - lowest < 3);
+  if (level.length < 2) continue;
+  group.length = 0;
+  group.push(...level);
+  [lon, lat] = middle(group);
   let minW = Infinity, maxW = 0, widest = roadEnds[group[0]], straight = true;
-  let lon = 0, lat = 0;
   for (const j of group) {
     const e = roadEnds[j];
     minW = Math.min(minW, e.width);
     if (e.width > maxW) { maxW = e.width; widest = e; }
-    lon += e.point[0];
-    lat += e.point[1];
   }
-  lon /= group.length;
-  lat /= group.length;
   if (group.length === 2) {
     const dot = roadEnds[group[0]].dir[0] * roadEnds[group[1]].dir[0]
       + roadEnds[group[0]].dir[1] * roadEnds[group[1]].dir[1];
