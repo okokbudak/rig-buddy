@@ -15,30 +15,30 @@ const looksAt = argv.indexOf('--looks');
 const looksFile = looksAt >= 0 ? argv.splice(looksAt, 2)[1] : null;
 const [inFile, outFile] = argv;
 
-// How wide a road is, in game metres. A road item often says its lane counts
-// are -1, meaning "as the road look says", so the looks are the real source:
-// lanes each way, the shoulders, and the gap between the carriageways of a
-// divided road, which the map draws as one ribbon.
+// How wide a road is, in game metres: lanes times a lane's width. A road item
+// often says its lane counts are -1, meaning "as the road look says", so the
+// looks fill those in.
 const LANE_M = 4.5;
-const lookWidth = new Map();
+const lookLanes = new Map();
 if (looksFile) {
   const looks = JSON.parse(fs.readFileSync(looksFile, 'utf8'));
   const list = Array.isArray(looks) ? looks : Object.entries(looks).map(([token, v]) => ({ token, ...v }));
   for (const l of list) {
     const lanes = (l.lanesLeft?.length ?? 0) + (l.lanesRight?.length ?? 0);
-    if (!lanes) continue;
-    lookWidth.set(l.token, lanes * LANE_M + (l.shoulderSpaceLeft ?? 0) + (l.shoulderSpaceRight ?? 0)
-      + Math.abs(l.offset ?? 0));
+    if (lanes) lookLanes.set(l.token, lanes);
   }
-  console.log('road looks:', lookWidth.size);
+  console.log('road looks:', lookLanes.size);
 }
 function widthOf(p) {
-  // The road's own lane counts first: a divided road is two carriageways with
-  // their own geometry, and its look describes both together - using that for
-  // each of them would draw one over the other.
+  // Lanes only, as TruckSim GPS does it (laneCount * ROAD_LANE_WIDTH): the
+  // shoulders are the space beside the tarmac, and counting them made a
+  // motorway's two carriageways swell into one fat ribbon.
+  //
+  // The road's own lane counts come first: a divided road is two carriageways
+  // with their own geometry, and its look describes both together - using that
+  // for each of them would draw one over the other.
   const lanes = Math.max(0, p.leftLanes ?? 0) + Math.max(0, p.rightLanes ?? 0);
-  if (lanes) return Math.round(lanes * LANE_M + (p.shoulderSpaceLeft ?? 0) + (p.shoulderSpaceRight ?? 0));
-  return Math.round(lookWidth.get(p.lookToken) ?? 2 * LANE_M + 2.5);
+  return Math.round((lanes || lookLanes.get(p.lookToken) || 2) * LANE_M);
 }
 
 const gj = JSON.parse(fs.readFileSync(inFile, 'utf8'));
