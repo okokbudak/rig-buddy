@@ -1,0 +1,53 @@
+From 70e5e2e91dd94db1b0504d382f00cb8d607a37f8 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
+Date: Fri, 18 Sep 2026 01:49:13 +0300
+Subject: [PATCH] Read the icon texture format ETS2 1.61 added, and survive the
+ next one
+
+ETS2 1.61 stores some POI icons as B8G8R8X8_UNORM_SRGB (93). It is the same
+32-bit BGRX data as 88, which is already read, so it goes down the same path.
+
+An icon in a format that cannot be read no longer costs the whole map either:
+it is logged and skipped, and the spritesheet goes without it.
+---
+ packages/clis/parser/game-files/map-files-parser.ts | 9 ++++++++-
+ packages/clis/parser/game-files/scs-archive.ts      | 4 +++-
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/packages/clis/parser/game-files/map-files-parser.ts b/packages/clis/parser/game-files/map-files-parser.ts
+index b65d4c8..3b63fec 100644
+--- a/packages/clis/parser/game-files/map-files-parser.ts
++++ b/packages/clis/parser/game-files/map-files-parser.ts
+@@ -404,7 +404,14 @@ function parseIconMatFiles(map: 'usa' | 'europe', entries: Entries) {
+     // .dds pixel data. Assume that the concrete instance of the FileEntry for
+     // the .tobj file is an ScsArchiveTobjFile, whose .read() returns a complete
+     // header-ful .dds file.
+-    pngs.set(key, parseDds(tobj.read(), sdfAuxData.get(key)));
++    try {
++      pngs.set(key, parseDds(tobj.read(), sdfAuxData.get(key)));
++    } catch (e) {
++      // A game update can ship an icon in a texture format this cannot read
++      // yet; one unreadable icon must not cost the whole map, so it is skipped
++      // and the spritesheet goes without it.
++      logger.warn('could not read', tobjPath, String(e));
++    }
+   }
+ 
+   const mapPngs = [0, 1, 2, 3].map(i =>
+diff --git a/packages/clis/parser/game-files/scs-archive.ts b/packages/clis/parser/game-files/scs-archive.ts
+index 73a4a8f..f6fa495 100644
+--- a/packages/clis/parser/game-files/scs-archive.ts
++++ b/packages/clis/parser/game-files/scs-archive.ts
+@@ -542,9 +542,11 @@ class ScsArchiveTobjFile extends ScsArchiveFile {
+       // BC3_UNORM_SRGB
+       const firstMipmapBytes = width * height;
+       ddsBytes = super.read().subarray(0, firstMipmapBytes);
+-    } else if (imageFormat === 91 || imageFormat === 88) {
++    } else if (imageFormat === 91 || imageFormat === 88 || imageFormat === 93) {
+       // 91: B8G8R8A8_UNORM_SRGB
+       // 88: B8G8R8X8_UNORM
++      // 93: B8G8R8X8_UNORM_SRGB, which ETS2 1.61 uses for some icons; same
++      //     32-bit BGRX pixels as 88, so it is read the same way
+ 
+       // fudge widths/heights. seems to fix problem with ETS2's sr_e763 icon.
+       width = closestPowerOf2(this.imageMetadata.width);
