@@ -36,6 +36,7 @@ public final class SearchPanel {
   /** A pickable destination (SearchResultWithRelativeTruckInfo). */
   public static final class Result {
     public String nodeUid, title, subtitle, subtitleBase;
+    public boolean hasRoute; // subtitle already carries the distance by road
     public double lon, lat;
 
     public static Result from(JSONObject o) {
@@ -57,15 +58,16 @@ public final class SearchPanel {
       String place = !cityName.isEmpty() ? cityName : state;
       if (!place.isEmpty() && !place.equals(r.title)) sub.append(" · ").append(place);
       r.subtitleBase = sub.toString();
-      // the server measures search results in a straight line from the truck; the road is longer
-      if (o.has("distance")) {
-        sub.append(" · ").append(Ui.s(tr.ets2nav.R.string.search_straight, formatKm(o.optDouble("distance") * distanceScale)));
-      }
-      r.subtitle = sub.toString();
+      r.subtitle = r.subtitleBase;
       return r;
     }
 
     public String type;
+
+    public void setRouteMeters(double meters) {
+      subtitle = subtitleBase + " · " + formatKm(meters);
+      hasRoute = true;
+    }
   }
 
   public interface Listener {
@@ -213,9 +215,36 @@ public final class SearchPanel {
         java.util.Collections.sort(results, (a, b) -> rank(a, q) - rank(b, q)); // stable
       }
       status.setText(results.isEmpty() ? emptyText : Ui.s(tr.ets2nav.R.string.search_count, results.size()));
+      fetchRouteDistances(querySeq, 0);
     }
     adapter.notifyDataSetChanged();
   }
+
+  /**
+   * The search only knows the straight line from the truck, so each result's
+   * distance is the route's, asked for one after the other (the first few).
+   */
+  private void fetchRouteDistances(int seq, int i) {
+    if (seq != querySeq || i >= results.size() || i >= MAX_ROUTE_DISTANCES) return;
+    Result r = results.get(i);
+    JSONObject in = new JSONObject();
+    try {
+      in.put("toNodeUid", r.nodeUid);
+    } catch (JSONException e) {
+      return;
+    }
+    nav.query("app.previewRoutes", in, (data, error) -> {
+      if (seq != querySeq) return;
+      JSONArray routes = NavClient.asArray(data);
+      if (error == null && routes.length() > 0) {
+        r.setRouteMeters(tr.ets2nav.nav.Route.parse(routes.optJSONObject(0)).distanceMeters * distanceScale);
+        adapter.notifyDataSetChanged();
+      }
+      fetchRouteDistances(seq, i + 1);
+    });
+  }
+
+  private static final int MAX_ROUTE_DISTANCES = 12;
 
   private void addChip(Context ctx, LinearLayout parent, String text, int poiType) {
     TextView chip = new TextView(ctx);
