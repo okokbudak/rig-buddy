@@ -65,6 +65,7 @@ static class L
         ["tray.restart_hint"] = ["Tıkla: yeniden başlat", "Click: restart", "Klicken: neu starten", "Нажмите: перезапустить", "Clique: reiniciar", "Clic: reiniciar", "Clic : redémarrer"],
         ["tray.copy_hint"] = ["Tıkla: kopyala", "Click: copy", "Klicken: kopieren", "Нажмите: копировать", "Clique: copiar", "Clic: copiar", "Clic : copier"],
         ["tray.logs"] = ["Logları göster", "Show logs", "Protokolle anzeigen", "Показать журналы", "Mostrar logs", "Mostrar registros", "Afficher les journaux"],
+        ["tray.game"] = ["Oyun (tek harita)", "Game (one map)", "Spiel (eine Karte)", "Игра (одна карта)", "Jogo (um mapa)", "Juego (un mapa)", "Jeu (une carte)"],
         ["tray.theme"] = ["Tema", "Theme", "Design", "Тема", "Tema", "Tema", "Thème"],
         ["tray.language"] = ["Dil", "Language", "Sprache", "Язык", "Idioma", "Idioma", "Langue"],
         ["tray.exit"] = ["Çıkış", "Exit", "Beenden", "Выход", "Sair", "Salir", "Quitter"],

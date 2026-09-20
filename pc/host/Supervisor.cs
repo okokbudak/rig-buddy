@@ -221,7 +221,8 @@ sealed class Supervisor
         catch { s.State = ServiceState.Starting; }
     }
 
-    bool HasMap(string map) => File.Exists(Path.Combine(_data, $"{map}-navigation.zip"));
+    bool HasMap(string map) =>
+        GameChoice.Wants(map == "usa" ? "ats" : "ets2") && File.Exists(Path.Combine(_data, $"{map}-navigation.zip"));
 
     /**
      * The map the server loads before it starts listening (others load when

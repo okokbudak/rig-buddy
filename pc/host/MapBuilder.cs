@@ -46,15 +46,47 @@ sealed partial class MapBuilder
     }
 
     bool HasAnyData() =>
-        File.Exists(Path.Combine(_paths.Data, "europe-navigation.zip")) ||
-        File.Exists(Path.Combine(_paths.Data, "usa-navigation.zip"));
+        (Games.Ets2 != null && File.Exists(Path.Combine(_paths.Data, "europe-navigation.zip"))) ||
+        (Games.Ats != null && File.Exists(Path.Combine(_paths.Data, "usa-navigation.zip")));
+
+    /** The installed games, minus the one the user did not choose. */
+    static (string? Ets2, string? Ats) ChosenGames()
+    {
+        var (ets2, ats) = FindGames();
+        return (GameChoice.Wants("ets2") ? ets2 : null, GameChoice.Wants("ats") ? ats : null);
+    }
+
+    /**
+     * Only `game`'s map from now on: the other game's map, route data and
+     * game data are deleted (they are rebuilt if that game is chosen again),
+     * `game`'s are built when missing, and the server restarts without the other.
+     */
+    public void SelectGame(string game)
+    {
+        if (State == MapState.Building) return;
+        GameChoice.Setting = game;
+        _onBuilt(); // the server lets go of the other map's files first
+        string other = game == "ats" ? "ets2" : "ats", otherMap = GameChoice.MapName(other);
+        foreach (string name in new[] { $"{other}.mbtiles", $"{other}.mbtiles.part", $"{other}.stamp", $"{otherMap}-navigation.zip" })
+            TryDelete(Path.Combine(_paths.Data, name));
+        string gameData = Path.Combine(_paths.Data, "game");
+        if (Directory.Exists(gameData))
+            foreach (string f in Directory.GetFiles(gameData, $"{otherMap}-*.json")) TryDelete(f);
+        Console.WriteLine($"map: game set to {game}, {other} data removed");
+        Check();
+    }
+
+    static void TryDelete(string path)
+    {
+        try { File.Delete(path); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+    }
 
     /** Looks at the installed games; builds right away when there is no data at all. */
     public void Check()
     {
         Task.Run(() =>
         {
-            Games = FindGames();
+            Games = ChosenGames();
             if (Games.Ets2 == null && Games.Ats == null)
             {
                 State = MapState.NoGame;

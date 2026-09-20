@@ -158,6 +158,8 @@
     <string name="prof_no_garage">Нет гаражей</string>
     <string name="search_picked">Выбранная точка</string>
     <string name="search_from_map">С карты</string>
+    <string name="search_straight">%s по прямой</string>
+    <string name="dest_by_road">%s по дороге</string>
     <string name="poi_gas">АЗС</string>
     <string name="poi_service">Зона обслуживания</string>
     <string name="poi_rest">Зона отдыха</string>

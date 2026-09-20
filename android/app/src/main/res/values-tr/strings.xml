@@ -158,6 +158,8 @@
     <string name="prof_no_garage">Garaj yok</string>
     <string name="search_picked">Seçilen nokta</string>
     <string name="search_from_map">Haritadan</string>
+    <string name="search_straight">%s düz hat</string>
+    <string name="dest_by_road">%s yol</string>
     <string name="poi_gas">Benzinlik</string>
     <string name="poi_service">Dinlenme tesisi</string>
     <string name="poi_rest">Dinlenme alanı</string>
