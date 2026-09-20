@@ -32,7 +32,7 @@ const DATA = path.resolve(opt('--data') ?? path.join(HERE, '../data'));
 const WORK = path.resolve(opt('--work') ?? path.join(HERE, '../local/map-build'));
 const PARSER_OUT = path.join(WORK, 'parser');
 // reading ETS2 with every map DLC peaks around 3.5 GB; leave small PCs some air
-const HEAP = `--max-old-space-size=${os.totalmem() >= 16 * 1024 ** 3 ? 8192 : 4096}`;
+const HEAP = `--max-old-space-size=${os.totalmem() >= 24 * 1024 ** 3 ? 16384 : os.totalmem() >= 16 * 1024 ** 3 ? 10240 : 4096}`;
 // release layout (setup/bundle.mjs): dist/pipeline next to dist/parser, dist/generator, dist/resources
 const BUNDLED = fs.existsSync(path.join(HERE, '../parser/index.mjs'));
 const RESOURCES = BUNDLED ? path.join(HERE, '../resources') : path.join(TM, 'packages/clis/generator/resources');
@@ -69,7 +69,7 @@ function fingerprint(dir) {
 
 // Bump when the data this pipeline writes changes (new map detail, new fields):
 // the stamp then no longer matches and Rig Buddy offers to rebuild the map.
-const FORMAT = 5;
+const FORMAT = 6;
 const stampFile = g => path.join(DATA, `${g.game}.stamp`);
 const stamp = g => `${fingerprint(g.dir)} v${FORMAT}`;
 const needsBuild = g =>
