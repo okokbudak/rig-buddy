@@ -219,7 +219,7 @@ async function buildGame(g) {
       await step('curves', g, () => tm('generator', ['prefab-curves', '-m', g.map, '-i', PARSER_OUT, '-o', WORK]));
       await step('junctions', g, () => node([path.join(HERE, 'prefab-surfaces.mjs'),
         path.join(WORK, `${g.map}-prefab-curves.geojson`), path.join(WORK, `${g.game}-junctions.geojson`),
-        '--width', '8']));
+        '--roads', path.join(WORK, `${g.game}-nav-high.geojson`)]));
       await step('surfaces', g, () => node([path.join(HERE, 'road-polygons.mjs'),
         path.join(WORK, `${g.game}-nav-high.geojson`), path.join(WORK, `${g.game}-surfaces.geojson`),
         '--nodes', path.join(PARSER_OUT, `${g.map}-nodes.json`)]));
