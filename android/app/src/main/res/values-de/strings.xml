@@ -158,8 +158,6 @@
     <string name="prof_no_garage">Keine Garagen</string>
     <string name="search_picked">Gewählter Punkt</string>
     <string name="search_from_map">Von der Karte</string>
-    <string name="search_straight">%s Luftlinie</string>
-    <string name="dest_by_road">%s Straße</string>
     <string name="poi_gas">Tankstelle</string>
     <string name="poi_service">Raststätte</string>
     <string name="poi_rest">Rastplatz</string>

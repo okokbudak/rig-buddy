@@ -158,8 +158,6 @@
     <string name="prof_no_garage">Sin garajes</string>
     <string name="search_picked">Punto seleccionado</string>
     <string name="search_from_map">Del mapa</string>
-    <string name="search_straight">%s en línea recta</string>
-    <string name="dest_by_road">%s por carretera</string>
     <string name="poi_gas">Gasolinera</string>
     <string name="poi_service">Área de servicio</string>
     <string name="poi_rest">Área de descanso</string>

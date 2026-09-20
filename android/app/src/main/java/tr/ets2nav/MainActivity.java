@@ -833,9 +833,9 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     }
   }
 
-  /** Adds the distance by road to the destination card (the search list only knows the straight line). */
+  /** Adds the distance by road to the destination card when the search list did not have it yet. */
   private void showRouteDistance(SearchPanel.Result r) {
-    if (r.nodeUid == null || r.nodeUid.isEmpty() || r.subtitleBase == null) return;
+    if (r.hasRoute || r.nodeUid == null || r.nodeUid.isEmpty() || r.subtitleBase == null) return;
     JSONObject input = new JSONObject();
     try {
       input.put("toNodeUid", r.nodeUid);
@@ -845,8 +845,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     nav.query("app.previewRoutes", input, (data, error) -> {
       JSONArray routes = NavClient.asArray(data);
       if (error != null || routes.length() == 0 || pendingDest != r) return;
-      double meters = Route.parse(routes.optJSONObject(0)).distanceMeters * distanceScale();
-      r.subtitle = r.subtitleBase + " · " + Ui.s(R.string.dest_by_road, SearchPanel.formatKm(meters));
+      r.setRouteMeters(Route.parse(routes.optJSONObject(0)).distanceMeters * distanceScale());
       destSubtitle.setText(r.subtitle);
     });
   }
