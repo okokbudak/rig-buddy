@@ -824,12 +824,31 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     destSubtitle.setText(r.subtitle);
     destCard.setVisibility(View.VISIBLE);
     setPickMarker(r.lon, r.lat);
+    showRouteDistance(r);
     if (map != null) {
       setFollowing(false);
       map.animateCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
           .target(new LatLng(r.lat, r.lon)).zoom(Math.min(map.getCameraPosition().zoom, 12)).tilt(0)
           .padding(0, 0, 0, 0).build()), 600);
     }
+  }
+
+  /** Adds the distance by road to the destination card (the search list only knows the straight line). */
+  private void showRouteDistance(SearchPanel.Result r) {
+    if (r.nodeUid == null || r.nodeUid.isEmpty() || r.subtitleBase == null) return;
+    JSONObject input = new JSONObject();
+    try {
+      input.put("toNodeUid", r.nodeUid);
+    } catch (Exception e) {
+      return;
+    }
+    nav.query("app.previewRoutes", input, (data, error) -> {
+      JSONArray routes = NavClient.asArray(data);
+      if (error != null || routes.length() == 0 || pendingDest != r) return;
+      double meters = Route.parse(routes.optJSONObject(0)).distanceMeters * distanceScale();
+      r.subtitle = r.subtitleBase + " · " + Ui.s(R.string.dest_by_road, SearchPanel.formatKm(meters));
+      destSubtitle.setText(r.subtitle);
+    });
   }
 
   private void hideDestCard() {

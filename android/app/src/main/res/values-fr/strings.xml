@@ -158,6 +158,8 @@
     <string name="prof_no_garage">Aucun garage</string>
     <string name="search_picked">Point sélectionné</string>
     <string name="search_from_map">Depuis la carte</string>
+    <string name="search_straight">%s à vol d’oiseau</string>
+    <string name="dest_by_road">%s par la route</string>
     <string name="poi_gas">Station-service</string>
     <string name="poi_service">Aire de service</string>
     <string name="poi_rest">Aire de repos</string>

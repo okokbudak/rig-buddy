@@ -84,6 +84,8 @@ sealed class TrayApp : ApplicationContext
         // update when the game changed, full rebuild otherwise
         var map = new ToolStripMenuItem(L.T("tray.map_update"));
         map.Click += (_, _) => { _maps.Build(force: _maps.State == MapState.UpToDate); ShowWindow(); };
+        var game = Choices(L.T("tray.game"), [("ets2", "Euro Truck Simulator 2"), ("ats", "American Truck Simulator")],
+            () => GameChoice.Setting ?? "", v => { if (_maps.State != MapState.Building) _maps.SelectGame(v); });
         var logs = new ToolStripMenuItem(L.T("tray.logs"));
         logs.Click += (_, _) => ShowLogs();
         var theme = Choices(L.T("tray.theme"), Theme.Choices.Select(c => (c.Value, L.T(c.Label))),
@@ -94,12 +96,13 @@ sealed class TrayApp : ApplicationContext
         _autostart.Click += (_, _) => SetAutostart(_autostart.Checked);
         var exit = new ToolStripMenuItem(L.T("tray.exit"));
         exit.Click += (_, _) => Exit();
-        _menu.Items.AddRange([restart, map, logs, theme, language, _autostart, new ToolStripSeparator(), exit]);
+        _menu.Items.AddRange([restart, map, game, logs, theme, language, _autostart, new ToolStripSeparator(), exit]);
         _menu.Opening += (_, _) =>
         {
             _autostart.Checked = AutostartEnabled(); // the window may have changed it
             map.Text = L.T(_maps.State == MapState.UpToDate ? "tray.map_rebuild" : "tray.map_update");
             map.Enabled = _maps.State is not (MapState.Building or MapState.NoGame);
+            game.Enabled = _maps.State is not MapState.Building;
         };
         _tray.ContextMenuStrip = _menu;
     }

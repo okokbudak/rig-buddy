@@ -35,7 +35,7 @@ import tr.ets2nav.nav.NavClient;
 public final class SearchPanel {
   /** A pickable destination (SearchResultWithRelativeTruckInfo). */
   public static final class Result {
-    public String nodeUid, title, subtitle;
+    public String nodeUid, title, subtitle, subtitleBase;
     public double lon, lat;
 
     public static Result from(JSONObject o) {
@@ -56,7 +56,11 @@ public final class SearchPanel {
       String state = o.optString("stateName", "");
       String place = !cityName.isEmpty() ? cityName : state;
       if (!place.isEmpty() && !place.equals(r.title)) sub.append(" · ").append(place);
-      if (o.has("distance")) sub.append(" · ").append(formatKm(o.optDouble("distance") * distanceScale));
+      r.subtitleBase = sub.toString();
+      // the server measures search results in a straight line from the truck; the road is longer
+      if (o.has("distance")) {
+        sub.append(" · ").append(Ui.s(tr.ets2nav.R.string.search_straight, formatKm(o.optDouble("distance") * distanceScale)));
+      }
       r.subtitle = sub.toString();
       return r;
     }
@@ -251,7 +255,7 @@ public final class SearchPanel {
     }
   }
 
-  private static String formatKm(double meters) {
+  public static String formatKm(double meters) {
     return meters < 1000 ? Math.round(meters) + " m" : String.format(Locale.getDefault(), "%.1f km", meters / 1000);
   }
 

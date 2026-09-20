@@ -160,6 +160,8 @@
     <string name="prof_no_garage">No garages</string>
     <string name="search_picked">Selected point</string>
     <string name="search_from_map">From the map</string>
+    <string name="search_straight">%s straight line</string>
+    <string name="dest_by_road">%s by road</string>
     <string name="poi_gas">Gas station</string>
     <string name="poi_service">Service area</string>
     <string name="poi_rest">Rest area</string>
