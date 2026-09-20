@@ -1,6 +1,6 @@
 // Builds Rig Buddy's map, route and game data from the user's own ETS2 / ATS
 // files, natively on Windows (no WSL): tm-maps parser + generator, then
-// postprocess-geojson.js, road-polygons.mjs and make-tiles.mjs. Games are
+// postprocess-geojson.js, road-surfaces.mjs and make-tiles.mjs. Games are
 // skipped when their installation has not changed since the last build
 // (unless --force).
 //
@@ -69,7 +69,7 @@ function fingerprint(dir) {
 
 // Bump when the data this pipeline writes changes (new map detail, new fields):
 // the stamp then no longer matches and Rig Buddy offers to rebuild the map.
-const FORMAT = 4;
+const FORMAT = 5;
 const stampFile = g => path.join(DATA, `${g.game}.stamp`);
 const stamp = g => `${fingerprint(g.dir)} v${FORMAT}`;
 const needsBuild = g =>
@@ -97,7 +97,7 @@ fs.mkdirSync(PARSER_OUT, { recursive: true });
 fs.mkdirSync(path.join(DATA, 'game'), { recursive: true });
 
 // progress: each game gets an equal share, split over its steps by typical duration
-const STEPS = { parse: 40, labels: 2, search: 5, graph: 20, roundabouts: 3, zip: 5, geojson: 15, postprocess: 5, curves: 3, junctions: 4, surfaces: 5, tiles: 7, copy: 1 };
+const STEPS = { parse: 40, labels: 2, search: 5, graph: 20, roundabouts: 3, zip: 5, geojson: 15, postprocess: 5, curves: 3, surfaces: 15, tiles: 7, copy: 1 };
 // seconds per step weight (measured: ETS2 with all map DLCs ~4.5 min, ATS ~3 min)
 const SECONDS_PER_WEIGHT = { ets2: 2.9, ats: 1.9 };
 const STEP_TOTAL = Object.values(STEPS).reduce((a, b) => a + b, 0);
@@ -209,26 +209,22 @@ async function buildGame(g) {
         '--dataOverridesPath', path.join(RESOURCES, 'trucksim-overrides.json'), '-t', 'geojson']));
       await step('postprocess', g, () => node([path.join(HERE, BUNDLED ? 'postprocess-geojson.cjs' : 'postprocess-geojson.js'), path.join(WORK, `${g.game}.geojson`), path.join(WORK, `${g.game}-nav.geojson`),
         '--looks', path.join(PARSER_OUT, `${g.map}-roadLooks.json`)]));
-      // From the town view down, roads are drawn as surfaces as wide as they
-      // really are, the way the game's own map does it: a line thin enough to
-      // look right at z9 leaves the truck beside the road at z14, and junctions
-      // read as crossing threads instead of tarmac.
-      // The junctions come from the game's own prefab geometry - the lane curves
-      // it drives through every junction - turned into tarmac, which is how
-      // TruckSim GPS draws them. Nothing here is guessed from where roads end.
+      // From the town view down the roads are drawn as tarmac, built from the game's own
+      // data in game metres (road-surfaces.mjs): every road item with the lane blocks its look
+      // has - learned from the lane curves the game starts at the road ends, not assumed -
+      // and every junction lane curve as a strip one lane wide, so a road ends exactly where
+      // the junction strips begin: same edges, same width, nothing sticking out.
       await step('curves', g, () => tm('generator', ['prefab-curves', '-m', g.map, '-i', PARSER_OUT, '-o', WORK]));
-      await step('junctions', g, () => node([path.join(HERE, 'prefab-surfaces.mjs'),
-        path.join(WORK, `${g.map}-prefab-curves.geojson`), path.join(WORK, `${g.game}-junctions.geojson`),
-        '--roads', path.join(WORK, `${g.game}-nav-high.geojson`)]));
-      await step('surfaces', g, () => node([path.join(HERE, 'road-polygons.mjs'),
-        path.join(WORK, `${g.game}-nav-high.geojson`), path.join(WORK, `${g.game}-surfaces.geojson`),
-        '--nodes', path.join(PARSER_OUT, `${g.map}-nodes.json`)]));
+      await step('surfaces', g, () => node([path.join(HERE, 'road-surfaces.mjs'),
+        '--game', g.game, '--parser', PARSER_OUT,
+        '--curves', path.join(WORK, `${g.map}-prefab-curves.geojson`),
+        '--lines', path.join(WORK, `${g.game}-nav-high.geojson`),
+        '--out', path.join(WORK, `${g.game}-surfaces.geojson`)]));
       // z4-z6 major roads only (country overview), z7-z9 the whole network as
-      // lines, z10 and closer the same network as surfaces
+      // lines, z10 and closer the roads as tarmac
       await step('tiles', g, () => node([path.join(HERE, 'make-tiles.mjs'), '--layer', g.game, '--out', path.join(DATA, `${g.game}.mbtiles`),
         `${path.join(WORK, `${g.game}-nav-low.geojson`)}:4:6`,
         `${path.join(WORK, `${g.game}-nav-high.geojson`)}:7:9`,
-        `${path.join(WORK, `${g.game}-junctions.geojson`)}:10:13`,
         `${path.join(WORK, `${g.game}-surfaces.geojson`)}:10:13`]));
     })(),
   ];
