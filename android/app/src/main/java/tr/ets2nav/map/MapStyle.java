@@ -36,7 +36,7 @@ public final class MapStyle {
     p.greenArea = "#c6e0be";
     p.road = "#ffffff";
     p.roadCase = "#b6bac2";
-    p.hiddenRoad = "#f2f3f5";
+    p.hiddenRoad = "#ffffff";
     p.noVehicles = "#d5d7db";
     p.ferry = "#5b8fd6";
     p.text = "#3c4043";
@@ -55,7 +55,7 @@ public final class MapStyle {
     p.greenArea = "#2a4034";
     p.road = "#7b8798";
     p.roadCase = "#4a5462";
-    p.hiddenRoad = "#6b7585";
+    p.hiddenRoad = "#7b8798";
     p.noVehicles = "#5b6472";
     p.ferry = "#6f9ddb";
     p.text = "#e4e7ec";
