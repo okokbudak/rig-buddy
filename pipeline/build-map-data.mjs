@@ -72,11 +72,18 @@ function fingerprint(dir) {
 const FORMAT = 6;
 const stampFile = g => path.join(DATA, `${g.game}.stamp`);
 const stamp = g => `${fingerprint(g.dir)} v${FORMAT}`;
+/** A map built by a NEWER format is kept: an older Rig Buddy must never overwrite it. */
+function staleStamp(g) {
+  const have = fs.existsSync(stampFile(g)) ? fs.readFileSync(stampFile(g), 'utf8').trim() : '';
+  const m = /^(\S+) v(\d+)$/.exec(have);
+  if (m && m[1] === fingerprint(g.dir) && Number(m[2]) > FORMAT) return false;
+  return have !== stamp(g);
+}
 const needsBuild = g =>
   flag('--force') ||
   !fs.existsSync(path.join(DATA, `${g.map}-navigation.zip`)) ||
   !fs.existsSync(path.join(DATA, `${g.game}.mbtiles`)) ||
-  (fs.existsSync(stampFile(g)) ? fs.readFileSync(stampFile(g), 'utf8').trim() : '') !== stamp(g);
+  staleStamp(g);
 
 // data from before the app icon sheet existed (cheap, so also on --check)
 if (!fs.existsSync(path.join(DATA, 'sprites/app.png')) && fullSpriteSheet()) writeAppSprites();
