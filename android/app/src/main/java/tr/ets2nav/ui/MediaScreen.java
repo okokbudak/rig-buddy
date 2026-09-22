@@ -67,7 +67,8 @@ public final class MediaScreen {
   private String selectedPlaylistId, playingPlaylistId, libArtKey;
   private int playingIndex = -1;
   private boolean libAvailable, libPlaying, libUserSeeking;
-  private long libPosMs, libDurMs, libPosAt;
+  private long libPosMs, libDurMs, libPosAt, lastPlaylistLoad;
+  private static final long PLAYLIST_REFRESH_MS = 8000;
 
   public MediaScreen(Context c, AgentClient agent) {
     this.c = c;
@@ -316,6 +317,11 @@ public final class MediaScreen {
       libSeek.setProgress((int) (Math.min(now, libDurMs) / 1000));
       libPosition.setText(time(Math.min(now, libDurMs)));
     }
+    // Beefweb has no "playlists changed" push, so while the library tab is open,
+    // re-poll the playlist list now and then (new/renamed playlists on the PC).
+    if (showingLibrary && libAvailable && SystemClock.uptimeMillis() - lastPlaylistLoad > PLAYLIST_REFRESH_MS) {
+      loadPlaylists();
+    }
   }
 
   private void setTab(boolean library) {
@@ -326,7 +332,7 @@ public final class MediaScreen {
     tabPlayer.setTextColor(library ? Ui.TEXT : Ui.ON_ACCENT);
     tabLibrary.setBackground(Ui.rounded(library ? Ui.ACCENT : Ui.TRACK, Ui.dp(c, 18)));
     tabLibrary.setTextColor(library ? Ui.ON_ACCENT : Ui.TEXT);
-    if (library && libAvailable && playlists.isEmpty()) loadPlaylists();
+    if (library && libAvailable) loadPlaylists();
   }
 
   // --- PC player + radio (unchanged behaviour) --------------------------------------
@@ -524,6 +530,7 @@ public final class MediaScreen {
   }
 
   private void loadPlaylists() {
+    lastPlaylistLoad = SystemClock.uptimeMillis(); // stamped up front: also throttles a slow/failed request
     agent.get("/library/playlists", (json, error) -> {
       if (error != null || json == null) return;
       JSONArray arr = json.optJSONArray("playlists");
