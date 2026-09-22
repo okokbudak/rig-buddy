@@ -15,6 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import tst from 'trucksim-telemetry';
 import { WebSocketServer } from 'ws';
+import { createLibrary } from './library.mjs';
 import { createMedia } from './media.mjs';
 import { createRadio } from './radio.mjs';
 import { findLatestSave, loadSave } from './save.mjs';
@@ -178,6 +179,7 @@ const DEMO_MEDIA = process.env.RIGBUDDY_DEMO_MEDIA ? JSON.parse(fs.readFileSync(
 const mediaPayload = () => DEMO_MEDIA ?? { ...(media.state() ?? { sessions: [] }), radio: radio.state() };
 const media = createMedia(() => broadcast({ type: 'media', data: mediaPayload() }));
 const radio = createRadio(() => broadcast({ type: 'media', data: mediaPayload() }));
+const library = createLibrary(() => broadcast({ type: 'library', data: library.state() }));
 
 const MAX_BODY = 16 * 1024; // media commands are a few dozen bytes
 
@@ -320,6 +322,38 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+
+  // --- foobar2000 library (Beefweb), see library.mjs ---
+  if (url.pathname === '/library') return send(200, library.state());
+  if (url.pathname === '/library/playlists') {
+    library.playlists().then(p => send(200, { playlists: p })).catch(e => send(502, { error: e.message }));
+    return;
+  }
+  const items = /^\/library\/playlists\/([^/]+)\/items$/.exec(url.pathname);
+  if (items) {
+    const offset = Math.max(0, Number(url.searchParams.get('offset') || 0));
+    const count = Math.min(500, Number(url.searchParams.get('count') || 100));
+    library.items(decodeURIComponent(items[1]), offset, count)
+      .then(r => send(200, r)).catch(e => send(502, { error: e.message }));
+    return;
+  }
+  const art = /^\/library\/art\/([^/]+)\/(\d+)$/.exec(url.pathname);
+  if (art) {
+    library.art(decodeURIComponent(art[1]), Number(art[2])).then(a => {
+      if (!a) return send(404, { error: 'no art' });
+      res.writeHead(200, { 'Content-Type': a.mime, 'Cache-Control': 'max-age=86400' });
+      res.end(a.data);
+    }).catch(() => send(502, { error: 'art failed' }));
+    return;
+  }
+  if (url.pathname === '/library/cmd' && req.method === 'POST') {
+    readBody(req).then(cmd => {
+      const allowed = ['play', 'toggle', 'pause', 'resume', 'stop', 'next', 'prev', 'seek'];
+      if (!cmd || !allowed.includes(cmd.cmd)) return send(400, { error: 'bad command' });
+      library.command(cmd).then(() => send(200, { ok: true })).catch(e => send(502, { error: e.message }));
+    });
+    return;
+  }
   send(404, { error: 'not found' });
 });
 
@@ -327,6 +361,7 @@ const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_BODY, ver
 wss.on('connection', ws => {
   if (latest) ws.send(JSON.stringify({ type: 'telemetry', data: latest }));
   ws.send(JSON.stringify({ type: 'media', data: mediaPayload() }));
+  ws.send(JSON.stringify({ type: 'library', data: library.state() }));
 });
 function broadcast(msg) {
   const s = JSON.stringify(msg);

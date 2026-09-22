@@ -145,6 +145,14 @@
     <string name="media_radio_off_hint">When the radio is on in the game, the station and song show up here.</string>
     <string name="media_no_song">No song information</string>
     <string name="media_radio_keys">Use the game’s radio keys to change the station.</string>
+    <string name="media_tab_player">Playing</string>
+    <string name="media_tab_library">Library</string>
+    <string name="media_library_unavailable">foobar2000 not found</string>
+    <string name="media_library_hint">Install foobar2000\'s Beefweb Remote Control component on the PC (Preferences → Tools), then reopen this tab.</string>
+    <string name="media_library_empty">This playlist is empty.</string>
+    <string name="media_library_nothing">Nothing is playing.\nPick a track from a playlist.</string>
+    <string name="media_playlists">PLAYLISTS</string>
+    <string name="media_tracks_count">%1$d tracks</string>
     <string name="prof_company_hdr">COMPANY</string>
     <string name="prof_hq">Headquarters</string>
     <string name="prof_trucks">Trucks</string>
