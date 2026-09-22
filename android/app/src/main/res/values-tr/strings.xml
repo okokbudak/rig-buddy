@@ -143,6 +143,14 @@
     <string name="media_radio_off_hint">Oyunda radyo açıldığında istasyon ve çalan şarkı burada görünür.</string>
     <string name="media_no_song">Şarkı bilgisi yayınlanmıyor</string>
     <string name="media_radio_keys">İstasyonu değiştirmek için oyundaki radyo tuşlarını kullanın.</string>
+    <string name="media_tab_player">Çalıyor</string>
+    <string name="media_tab_library">Kitaplık</string>
+    <string name="media_library_unavailable">foobar2000 bulunamadı</string>
+    <string name="media_library_hint">PC\'de foobar2000\'in Beefweb Remote Control eklentisini kur (Preferences → Tools), sonra bu sekmeyi yeniden aç.</string>
+    <string name="media_library_empty">Bu çalma listesi boş.</string>
+    <string name="media_library_nothing">Hiçbir şey çalmıyor.\nBir çalma listesinden parça seç.</string>
+    <string name="media_playlists">ÇALMA LİSTELERİ</string>
+    <string name="media_tracks_count">%1$d parça</string>
     <string name="prof_company_hdr">ŞİRKET</string>
     <string name="prof_hq">Merkez</string>
     <string name="prof_trucks">Kamyonlar</string>

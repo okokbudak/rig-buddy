@@ -285,6 +285,11 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
       }
 
       @Override
+      public void onLibrary(JSONObject library) {
+        mediaScreen.onLibrary(library);
+      }
+
+      @Override
       public void onMedia(JSONObject media) {
         mediaScreen.onMedia(media);
         home.setNowPlaying(media, () -> {

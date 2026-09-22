@@ -38,6 +38,9 @@ public final class AgentClient {
     /** PC media sessions + in-game radio ({"sessions","current","appVolume","masterVolume","radio"}). */
     void onMedia(JSONObject media);
 
+    /** foobar2000/Beefweb now-playing state, see pc/agent/library.mjs. */
+    void onLibrary(JSONObject library);
+
     void onAgentConnected(boolean connected);
   }
 
@@ -104,6 +107,7 @@ public final class AgentClient {
           if ("telemetry".equals(type)) listener.onTelemetry(msg.optJSONObject("data"));
           else if ("save".equals(type)) listener.onSaveChanged();
           else if ("media".equals(type)) listener.onMedia(msg.optJSONObject("data"));
+          else if ("library".equals(type)) listener.onLibrary(msg.optJSONObject("data"));
         });
       }
 
@@ -130,10 +134,19 @@ public final class AgentClient {
 
   /** Fire-and-forget media command, e.g. {"cmd":"toggle"}. */
   public void mediaCommand(JSONObject cmd) {
+    post("/media/cmd", cmd);
+  }
+
+  /** Fire-and-forget foobar2000/Beefweb command, e.g. {"cmd":"toggle"} or {"cmd":"play","playlistId":..,"index":..}. */
+  public void libraryCommand(JSONObject cmd) {
+    post("/library/cmd", cmd);
+  }
+
+  private void post(String path, JSONObject body) {
     if (host == null) return;
     Request req = new Request.Builder()
-        .url("http://" + host + ":" + PORT + "/media/cmd")
-        .post(okhttp3.RequestBody.create(cmd.toString(), okhttp3.MediaType.get("application/json")))
+        .url("http://" + host + ":" + PORT + path)
+        .post(okhttp3.RequestBody.create(body.toString(), okhttp3.MediaType.get("application/json")))
         .build();
     http.newCall(req).enqueue(new Callback() {
       @Override public void onFailure(Call call, IOException e) {}
@@ -147,7 +160,12 @@ public final class AgentClient {
 
   /** Album art for a key from the media state (decoded off the main thread). */
   public void loadArt(String key, BitmapCallback cb) {
-    Request req = new Request.Builder().url("http://" + host + ":" + PORT + "/media/art/" + key).build();
+    loadArtPath("/media/art/" + key, cb);
+  }
+
+  /** Image at any agent path (e.g. a track's /library/art/...), decoded off the main thread. */
+  public void loadArtPath(String path, BitmapCallback cb) {
+    Request req = new Request.Builder().url("http://" + host + ":" + PORT + path).build();
     http.newCall(req).enqueue(new Callback() {
       @Override
       public void onFailure(Call call, IOException e) {
