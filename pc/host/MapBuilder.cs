@@ -2,7 +2,8 @@
 // the map pipeline (dist\pipeline\build-map-data.mjs, or pipeline\ in dev)
 // with the bundled Node, and reports its progress to the window.
 //   - first start (no data yet): runs by itself
-//   - after a game update or a new map DLC: offers "Update map"
+//   - after a game update, a new map DLC or a new Rig Buddy map format: rebuilds by
+//     itself too, and the new map replaces the old one ("Update map" stays as a manual rebuild)
 
 using System.Diagnostics;
 using System.Text;
@@ -100,6 +101,9 @@ sealed partial class MapBuilder
             var output = RunPipeline("--check").Output;
             State = output.Contains(" yes") ? MapState.UpdateAvailable : MapState.UpToDate;
             Console.WriteLine($"map: {State} ({output.Trim().Replace('\n', ' ')})");
+            // a game update, a new map DLC or a newer Rig Buddy map format: rebuild by itself,
+            // the new map replaces the old one ("Update map" stays as a manual rebuild)
+            if (State == MapState.UpdateAvailable) Build();
         });
     }
 
