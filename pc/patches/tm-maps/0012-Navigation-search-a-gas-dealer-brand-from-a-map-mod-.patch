@@ -1,0 +1,29 @@
+From b6be826a20227d802c70c11fa9a5dce9133dd2b2 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
+Date: Fri, 25 Sep 2026 02:29:45 +0300
+Subject: [PATCH] Navigation search: a gas/dealer brand from a map mod gets the
+ blank icon instead of stopping the server
+
+---
+ packages/apis/navigation/infra/lookups/search.ts | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/packages/apis/navigation/infra/lookups/search.ts b/packages/apis/navigation/infra/lookups/search.ts
+index ecfda77..86dca57 100644
+--- a/packages/apis/navigation/infra/lookups/search.ts
++++ b/packages/apis/navigation/infra/lookups/search.ts
+@@ -397,9 +397,8 @@ function toServiceAreaSprite(serviceArea: ServiceArea): string {
+       case 'Renault':
+         return 'blank';
+       default:
+-        throw new Error(
+-          'unknown service area description: ' + serviceArea.description,
+-        );
++        // a brand added by a map mod: no icon of its own
++        return 'blank';
+     }
+   }
+ 
+-- 
+2.55.0.windows.5
+
