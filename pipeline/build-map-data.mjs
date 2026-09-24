@@ -165,7 +165,20 @@ for (const g of todo) {
   }
 }
 
-const withPois = games.filter(g => fs.existsSync(path.join(PARSER_OUT, `${g.map}-pois.json`)));
+// A game that is not rebuilt still puts its icons on the shared sprite sheet, from the POIs and
+// cities kept from its last build. Where those are gone (older Rig Buddy, cleaned up), parse it again.
+const SPRITE_INPUTS = ['pois', 'cities'];
+const hasSpriteInputs = g => SPRITE_INPUTS.every(k => fs.existsSync(path.join(PARSER_OUT, `${g.map}-${k}.json`)));
+for (const g of games) {
+  if (todo.includes(g) || hasSpriteInputs(g)) continue;
+  try {
+    console.log(`${g.name}: parsing again for the sprite sheet`);
+    await tm('parser', ['-i', g.dir, '-o', PARSER_OUT, ...(g.mods.length ? ['--mod', ...[...g.mods].reverse()] : [])]);
+  } catch (e) {
+    console.log(`${g.name}: could not prepare its icons: ${e.message}`);
+  }
+}
+const withPois = games.filter(hasSpriteInputs);
 try {
   await step('sprites', null, async () => {
     if (!withPois.length) throw new Error('no game data');
@@ -186,7 +199,7 @@ for (const e of fs.readdirSync(WORK, { withFileTypes: true })) {
   if (e.isFile()) fs.rmSync(path.join(WORK, e.name));
 }
 for (const e of fs.readdirSync(PARSER_OUT, { withFileTypes: true })) {
-  if (e.isFile() && !e.name.endsWith('-pois.json')) fs.rmSync(path.join(PARSER_OUT, e.name));
+  if (e.isFile() && !SPRITE_INPUTS.some(k => e.name.endsWith(`-${k}.json`))) fs.rmSync(path.join(PARSER_OUT, e.name));
 }
 }
 

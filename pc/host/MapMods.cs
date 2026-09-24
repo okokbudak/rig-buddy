@@ -1,13 +1,13 @@
-// ETS2 map-mod archives (HKCU\Software\Rig Buddy\MapMods, "|"-separated .scs paths,
-// highest priority first, like the game's mod manager). They are read after the
+// ETS2 map-mod archives, one .scs path per line in %LOCALAPPDATA%\Rig Buddy\mapmods.txt,
+// highest priority first, like the game's mod manager. They are read after the
 // game's own files when the map is built, so a map mod such as RoExtended shows
-// up on the head unit's map.
-
-using Microsoft.Win32;
+// up on the head unit's map. (A file rather than the registry: it is easy to
+// look at, edit and copy along with the rest of the user data.)
 
 static class MapMods
 {
-    const string Key = @"Software\Rig Buddy";
+    static string File_ => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Rig Buddy", "mapmods.txt");
 
     /** Where ETS2 keeps the mods it loads. */
     public static string ModFolder => Path.Combine(
@@ -18,15 +18,19 @@ static class MapMods
     {
         get
         {
-            using var key = Registry.CurrentUser.OpenSubKey(Key);
-            string raw = key?.GetValue("MapMods") as string ?? "";
-            return raw.Split('|', StringSplitOptions.RemoveEmptyEntries).Where(File.Exists).ToArray();
+            try
+            {
+                return System.IO.File.Exists(File_)
+                    ? System.IO.File.ReadAllLines(File_).Select(l => l.Trim()).Where(l => l.Length > 0 && System.IO.File.Exists(l)).ToArray()
+                    : [];
+            }
+            catch (IOException) { return []; }
         }
         set
         {
-            using var key = Registry.CurrentUser.CreateSubKey(Key);
-            if (value.Length == 0) key.DeleteValue("MapMods", throwOnMissingValue: false);
-            else key.SetValue("MapMods", string.Join('|', value));
+            Directory.CreateDirectory(Path.GetDirectoryName(File_)!);
+            if (value.Length == 0) System.IO.File.Delete(File_);
+            else System.IO.File.WriteAllLines(File_, value);
         }
     }
 }
