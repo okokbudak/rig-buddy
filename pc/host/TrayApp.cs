@@ -86,6 +86,20 @@ sealed class TrayApp : ApplicationContext
         map.Click += (_, _) => { _maps.Build(force: _maps.State == MapState.UpToDate); ShowWindow(); };
         var game = Choices(L.T("tray.game"), [("ets2", "Euro Truck Simulator 2"), ("ats", "American Truck Simulator")],
             () => GameChoice.Setting ?? "", v => { if (_maps.State != MapState.Building) _maps.SelectGame(v); });
+        var modsMenu = new ToolStripMenuItem(L.T("tray.mods"));
+        var modsCount = new ToolStripMenuItem { Enabled = false };
+        var modsPick = new ToolStripMenuItem(L.T("tray.mods_pick"));
+        modsPick.Click += (_, _) => PickMapMods();
+        var modsClear = new ToolStripMenuItem(L.T("tray.mods_clear"));
+        modsClear.Click += (_, _) => { MapMods.Paths = []; _maps.Check(); };
+        modsMenu.DropDownItems.AddRange([modsCount, modsPick, modsClear]);
+        modsMenu.DropDownOpening += (_, _) =>
+        {
+            int n = MapMods.Paths.Length;
+            modsCount.Text = L.T("tray.mods_count", n);
+            modsClear.Enabled = n > 0;
+            modsMenu.Enabled = _maps.State is not MapState.Building;
+        };
         var logs = new ToolStripMenuItem(L.T("tray.logs"));
         logs.Click += (_, _) => ShowLogs();
         var theme = Choices(L.T("tray.theme"), Theme.Choices.Select(c => (c.Value, L.T(c.Label))),
@@ -96,7 +110,7 @@ sealed class TrayApp : ApplicationContext
         _autostart.Click += (_, _) => SetAutostart(_autostart.Checked);
         var exit = new ToolStripMenuItem(L.T("tray.exit"));
         exit.Click += (_, _) => Exit();
-        _menu.Items.AddRange([restart, map, game, logs, theme, language, _autostart, new ToolStripSeparator(), exit]);
+        _menu.Items.AddRange([restart, map, game, modsMenu, logs, theme, language, _autostart, new ToolStripSeparator(), exit]);
         _menu.Opening += (_, _) =>
         {
             _autostart.Checked = AutostartEnabled(); // the window may have changed it
@@ -105,6 +119,23 @@ sealed class TrayApp : ApplicationContext
             game.Enabled = _maps.State is not MapState.Building;
         };
         _tray.ContextMenuStrip = _menu;
+    }
+
+    /** Map-mod archives (ETS2): pick them in the game's mod folder; the map is rebuilt with them. */
+    void PickMapMods()
+    {
+        if (_maps.State == MapState.Building) return;
+        using var dlg = new OpenFileDialog
+        {
+            Title = L.T("tray.mods_pick"),
+            Filter = "ETS2 mods (*.scs)|*.scs",
+            Multiselect = true,
+            InitialDirectory = Directory.Exists(MapMods.ModFolder) ? MapMods.ModFolder : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+        };
+        if (dlg.ShowDialog() != DialogResult.OK) return;
+        // the mod manager's rule: the first one in the list wins; file-name order matches how such packs are numbered
+        MapMods.Paths = dlg.FileNames.OrderBy(p => Path.GetFileName(p), StringComparer.OrdinalIgnoreCase).ToArray();
+        _maps.Check();
     }
 
     /** Language changed: rebuild menu and windows, keeping which windows were open. */

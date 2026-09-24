@@ -6,6 +6,7 @@
 //
 // usage: node build-map-data.mjs --tm <tm-maps> --data <data dir> --work <work dir>
 //                                [--ets2 <game dir>] [--ats <game dir>] [--first ets2|ats]
+//                                [--ets2-mods <a.scs;b.scs;...>]  (map-mod archives, highest priority first)
 //                                [--force] [--check]
 //
 // --check only reports, per game, whether a (re)build is needed ("@@needs <game> yes|no").
@@ -37,9 +38,12 @@ const HEAP = `--max-old-space-size=${os.totalmem() >= 24 * 1024 ** 3 ? 16384 : o
 const BUNDLED = fs.existsSync(path.join(HERE, '../parser/index.mjs'));
 const RESOURCES = BUNDLED ? path.join(HERE, '../resources') : path.join(TM, 'packages/clis/generator/resources');
 
+// map-mod archives (ETS2 only), as the mod manager lists them: first = wins
+const ets2Mods = (opt('--ets2-mods') ?? '').split(';').filter(p => p && fs.existsSync(p));
+
 const games = [
-  { game: 'ets2', map: 'europe', name: 'ETS2', dir: opt('--ets2') },
-  { game: 'ats', map: 'usa', name: 'ATS', dir: opt('--ats') },
+  { game: 'ets2', map: 'europe', name: 'ETS2', dir: opt('--ets2'), mods: ets2Mods },
+  { game: 'ats', map: 'usa', name: 'ATS', dir: opt('--ats'), mods: [] },
 ].filter(g => g.dir && fs.existsSync(path.join(g.dir, 'base.scs')));
 if (!games.length) fail('no game folder given (--ets2 / --ats) or base.scs not found');
 
@@ -51,7 +55,7 @@ const PARSER_JSON = ['countries', 'companyDefs', 'roadLooks', 'prefabDescription
 const GAME_JSON = ['cities', 'companies', 'companyDefs', 'cargoes', 'countries']; // for pc/agent
 
 /** Fingerprint of an installation: every .scs archive (base, DLCs, map packs) by name, size and date. */
-function fingerprint(dir) {
+function fingerprint(dir, mods = []) {
   const h = crypto.createHash('sha1');
   const walk = d => {
     for (const e of fs.readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
@@ -64,6 +68,10 @@ function fingerprint(dir) {
     }
   };
   walk(dir);
+  for (const p of mods) {
+    const st = fs.statSync(p);
+    h.update(`mod:${path.basename(p)}:${st.size}:${Math.floor(st.mtimeMs)}\n`);
+  }
   return h.digest('hex');
 }
 
@@ -71,12 +79,12 @@ function fingerprint(dir) {
 // the stamp then no longer matches and Rig Buddy offers to rebuild the map.
 const FORMAT = 6;
 const stampFile = g => path.join(DATA, `${g.game}.stamp`);
-const stamp = g => `${fingerprint(g.dir)} v${FORMAT}`;
+const stamp = g => `${fingerprint(g.dir, g.mods)} v${FORMAT}`;
 /** A map built by a NEWER format is kept: an older Rig Buddy must never overwrite it. */
 function staleStamp(g) {
   const have = fs.existsSync(stampFile(g)) ? fs.readFileSync(stampFile(g), 'utf8').trim() : '';
   const m = /^(\S+) v(\d+)$/.exec(have);
-  if (m && m[1] === fingerprint(g.dir) && Number(m[2]) > FORMAT) return false;
+  if (m && m[1] === fingerprint(g.dir, g.mods) && Number(m[2]) > FORMAT) return false;
   return have !== stamp(g);
 }
 const needsBuild = g =>
@@ -190,7 +198,9 @@ async function buildGame(g) {
   // parser output is per game (europe-* / usa-*); stale files of this game go first
   for (const f of fs.readdirSync(PARSER_OUT)) if (f.startsWith(`${g.map}-`)) fs.rmSync(path.join(PARSER_OUT, f));
 
-  await step('parse', g, () => tm('parser', ['-i', g.dir, '-o', PARSER_OUT]));
+  // the parser loads mods after the game's files, last one wins: reverse the priority order
+  const modArgs = g.mods.length ? ['--mod', ...[...g.mods].reverse()] : [];
+  await step('parse', g, () => tm('parser', ['-i', g.dir, '-o', PARSER_OUT, ...modArgs]));
 
   const labels = path.join(WORK, 'extra-labels.geojson');
   await step('labels', g, async () => {

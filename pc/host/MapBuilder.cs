@@ -158,6 +158,11 @@ sealed partial class MapBuilder
             psi.ArgumentList.Add(value);
         }
         if (Games.Ets2 != null) { psi.ArgumentList.Add("--ets2"); psi.ArgumentList.Add(Games.Ets2); }
+        if (Games.Ets2 != null && MapMods.Paths is { Length: > 0 } mods)
+        {
+            psi.ArgumentList.Add("--ets2-mods");
+            psi.ArgumentList.Add(string.Join(';', mods));
+        }
         if (Games.Ats != null) { psi.ArgumentList.Add("--ats"); psi.ArgumentList.Add(Games.Ats); }
         // the game being played gets its map first
         string? playing = Process.GetProcessesByName("amtrucks").Length > 0 ? "ats"

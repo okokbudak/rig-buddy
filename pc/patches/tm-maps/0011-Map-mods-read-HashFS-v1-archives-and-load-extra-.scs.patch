@@ -1,0 +1,516 @@
+From bb845eb2589fd537a30ac4b917747db08b4fd4fe Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
+Date: Fri, 25 Sep 2026 00:46:22 +0300
+Subject: [PATCH] Map mods: read HashFS v1 archives and load extra .scs
+ (--mod), tolerate what mods do differently
+
+Reads version-1 archives (how mods are packed), adds parser --mod (loaded after
+the game's files, last wins), accepts plain-text names, mixed-case unit names and
+prefabs whose dummy points are not last, skips broken mod sectors with a warning,
+and lets dealer labels, ferries and service areas from mods be unusual instead
+of failing the whole map build.
+---
+ packages/clis/generator/graph/graph.ts        | 67 +++++++++++------
+ .../parser/game-files/convert-sii-to-json.ts  | 18 ++++-
+ packages/clis/parser/game-files/def-parser.ts |  9 ++-
+ .../parser/game-files/map-files-parser.ts     | 45 ++++++++++--
+ .../parser/game-files/prefab-ppd-parser.ts    | 10 ++-
+ .../clis/parser/game-files/scs-archive.ts     | 72 ++++++++++++++++++-
+ .../clis/parser/game-files/sii-schemas.ts     |  7 +-
+ packages/clis/parser/index.ts                 | 10 ++-
+ packages/libs/map/labels.ts                   | 12 ++--
+ 9 files changed, 212 insertions(+), 38 deletions(-)
+
+diff --git a/packages/clis/generator/graph/graph.ts b/packages/clis/generator/graph/graph.ts
+index 90b2f82..7c9af98 100644
+--- a/packages/clis/generator/graph/graph.ts
++++ b/packages/clis/generator/graph/graph.ts
+@@ -538,12 +538,19 @@ export function generateGraph(
+   const knownGraphNodes = new Set(graph.keys());
+   for (const prefab of prefabsWithFacilities) {
+     assert(!islandFacilityPrefabs.has(prefab));
+-    const { key, value } = getPrefabFacilitiesEntry(prefab, {
++    const entry = getPrefabFacilitiesEntry(prefab, {
+       prefabDescriptions,
+       nodes,
+       knownGraphNodes,
+     });
+-    assert(!facilityNodes.has(key));
++    if (!entry) {
++      continue; // a map mod's service area that isn't connected to the roads
++    }
++    const { key, value } = entry;
++    if (facilityNodes.has(key)) {
++      logger.warn('two facility prefabs share a node, keeping the first', key.toString(16));
++      continue;
++    }
+     facilityNodes.set(key, value);
+   }
+ 
+@@ -607,17 +614,27 @@ export function generateGraph(
+     }
+     containingPrefabs.add(containingPrefab);
+ 
+-    const { key, value } = getPrefabFacilitiesEntry(containingPrefab, {
++    const containingEntry = getPrefabFacilitiesEntry(containingPrefab, {
+       prefabDescriptions,
+       nodes,
+       knownGraphNodes,
+     });
++    if (!containingEntry) {
++      continue;
++    }
++    const { key, value } = containingEntry;
+ 
+     if (facilityNodes.has(key)) {
+       const existing = facilityNodes.get(key)!;
+-      assert(existing.itemUid === value.itemUid);
+-      assert(areSetsEqual(existing.facilities, value.facilities));
+-      logger.warn('encountered a benign duplicate key', key.toString(16));
++      if (
++        existing.itemUid !== value.itemUid ||
++        !areSetsEqual(existing.facilities, value.facilities)
++      ) {
++        // map mods can put two different facility prefabs on the same road node
++        logger.warn('facility key shared by different prefabs, keeping the first', key.toString(16));
++      } else {
++        logger.warn('encountered a benign duplicate key', key.toString(16));
++      }
+       continue;
+     }
+ 
+@@ -987,18 +1004,19 @@ function updateGraphWithFerries(
+ 
+   const ferryExitFallbacks = [];
+   for (const ferry of ferries.values()) {
+-    const ferryNode = assertExists(nodes.get(ferry.nodeUid));
++    // a map mod can define ferries whose port isn't in the map it ships (e.g. a
++    // free edition without that region): skip those instead of failing
++    const ferryNode = nodes.get(ferry.nodeUid);
++    const ferryPrefab =
++      ferry.prefabUid != null ? prefabs.get(ferry.prefabUid) : undefined;
++    const prefabNodesInGraph =
++      ferryPrefab?.nodeUids.filter(nid => graph.has(nid)) ?? [];
++    if (!ferryNode || !ferryPrefab || prefabNodesInGraph.length < 1) {
++      logger.warn('skipping ferry without a usable port:', ferry.token);
++      continue;
++    }
+     let ferryEntrance: Node;
+     let ferryExit: Node;
+-    assert(ferry.prefabUid != null, 'ferry must have prefab');
+-    const ferryPrefab = assertExists(
+-      prefabs.get(ferry.prefabUid),
+-      `no prefab for ferry:\nn${JSON.stringify(ferry, null, 2)}`,
+-    );
+-    const prefabNodesInGraph = ferryPrefab.nodeUids.filter(nid =>
+-      graph.has(nid),
+-    );
+-    assert(prefabNodesInGraph.length >= 1);
+ 
+     if (context.map === 'usa') {
+       assert(prefabNodesInGraph.length === 1);
+@@ -1468,16 +1486,21 @@ function getPrefabFacilitiesEntry(
+     nodes: ReadonlyMap<bigint, Node>;
+     knownGraphNodes: ReadonlySet<bigint>;
+   },
+-): {
+-  key: bigint;
+-  value: ServiceArea;
+-} {
++):
++  | {
++      key: bigint;
++      value: ServiceArea;
++    }
++  | undefined {
+   const { prefabDescriptions, nodes } = context;
+   const pfns = prefab.nodeUids
+     .filter(id => context.knownGraphNodes.has(id))
+     .map(id => assertExists(nodes.get(id)));
+-  assert(pfns.length > 0);
+-  const prefabDesc = assertExists(prefabDescriptions.get(prefab.token));
++  const prefabDesc = prefabDescriptions.get(prefab.token);
++  if (pfns.length === 0 || !prefabDesc) {
++    logger.warn('facility prefab is not on the road graph:', prefab.token);
++    return undefined;
++  }
+   const tx = ({ x, y }: { x: number; y: number }) =>
+     toMapPosition([x, y], prefab, prefabDesc, nodes);
+   const { facilityPoints, facilities } = getFacilitiesAndPoints(prefabDesc, tx);
+diff --git a/packages/clis/parser/game-files/convert-sii-to-json.ts b/packages/clis/parser/game-files/convert-sii-to-json.ts
+index ece847d..81ae511 100644
+--- a/packages/clis/parser/game-files/convert-sii-to-json.ts
++++ b/packages/clis/parser/game-files/convert-sii-to-json.ts
+@@ -6,6 +6,22 @@ import { parseSii } from './sii-parser';
+ import { ajv } from './sii-schemas';
+ import { jsonConverter } from './sii-visitors';
+ 
++/**
++ * Unit names ("model.Ays_Locker") are case-insensitive tokens; map mods write
++ * them in mixed case, which the token-shaped schemas and lookups don't expect.
++ */
++function lowercaseUnitNames<J>(json: J): J {
++  const obj = json as Record<string, unknown>;
++  for (const [cls, units] of Object.entries(obj)) {
++    if (units && typeof units === 'object' && !Array.isArray(units)) {
++      obj[cls] = Object.fromEntries(
++        Object.entries(units).map(([name, unit]) => [name.toLowerCase(), unit]),
++      );
++    }
++  }
++  return json;
++}
++
+ export function convertSiiToJson<T>(
+   siiPath: string,
+   entries: Entries,
+@@ -61,7 +77,7 @@ export function convertSiiToJson<T>(
+     throw new Error();
+   }
+ 
+-  const json = jsonConverter.convert(res.cst);
++  const json = lowercaseUnitNames(jsonConverter.convert(res.cst));
+   const validate = ajv.compile(schema);
+   if (validate(json)) {
+     return json;
+diff --git a/packages/clis/parser/game-files/def-parser.ts b/packages/clis/parser/game-files/def-parser.ts
+index 6f2e8ee..71736fc 100644
+--- a/packages/clis/parser/game-files/def-parser.ts
++++ b/packages/clis/parser/game-files/def-parser.ts
+@@ -369,8 +369,13 @@ function processCityJson(obj: CitySii) {
+   const [token, rawCity] = entries[0];
+   return {
+     token: token.split('.')[1],
+-    name: rawCity.cityName,
+-    nameLocalized: rawCity.cityNameLocalized,
++    // a plain-text cityNameLocalized (map mods) is the name itself, not a locale key
++    name: rawCity.cityNameLocalized.startsWith('@@')
++      ? rawCity.cityName
++      : rawCity.cityNameLocalized,
++    nameLocalized: rawCity.cityNameLocalized.startsWith('@@')
++      ? rawCity.cityNameLocalized
++      : undefined,
+     countryToken: rawCity.country,
+     population: rawCity.population ?? 0,
+   };
+diff --git a/packages/clis/parser/game-files/map-files-parser.ts b/packages/clis/parser/game-files/map-files-parser.ts
+index 3b63fec..51a717c 100644
+--- a/packages/clis/parser/game-files/map-files-parser.ts
++++ b/packages/clis/parser/game-files/map-files-parser.ts
+@@ -54,7 +54,16 @@ import {
+ 
+ export function parseMapFiles(
+   scsFilePaths: string[],
+-  { includeDlc, mode }: { includeDlc: boolean; mode: 'defs' | 'icons' | 'all' },
++  {
++    includeDlc,
++    mode,
++    mods = [],
++  }: {
++    includeDlc: boolean;
++    mode: 'defs' | 'icons' | 'all';
++    /** Map-mod archives (.scs), loaded after the game's own so they win. */
++    mods?: string[];
++  },
+ ):
+   | {
+       data: 'all';
+@@ -94,6 +103,14 @@ export function parseMapFiles(
+       logger.log('adding', scsSource);
+       return new ScsArchive(p, scsSource);
+     });
++  // map icons come from the game's own archives only: mods pack their textures
++  // as separate .tobj/.dds files, which the icon reader doesn't handle
++  const gameEntries = new CombinedEntries([...archives]);
++  for (const p of mods) {
++    const scsSource = path.basename(p);
++    logger.log('adding mod', scsSource);
++    archives.push(new ScsArchive(p, scsSource));
++  }
+   const entries = new CombinedEntries(archives);
+   try {
+     const version = parseVersionSii(entries);
+@@ -104,7 +121,7 @@ export function parseMapFiles(
+     } as const;
+ 
+     if (mode === 'icons') {
+-      const icons = parseIconMatFiles(map, entries);
++      const icons = parseIconMatFiles(map, gameEntries);
+       return {
+         ...baseResult,
+         data: 'icons',
+@@ -129,7 +146,7 @@ export function parseMapFiles(
+       ...postProcess(
+         defData,
+         sectorData,
+-        parseIconMatFiles(map, entries),
++        parseIconMatFiles(map, gameEntries),
+         l10n,
+       ),
+     };
+@@ -195,7 +212,21 @@ function parseSectorFiles(entries: Entries): {
+     }
+     const sector = putIfAbsent(sectorKey, { items: [], nodes: [] }, sectors);
+     const baseFile = assertExists(entries.files.get(`map/${map}/${f}`));
+-    const parsedSector = parseSector(baseFile.read(), seenNodeUids);
++    let parsedSector: ReturnType<typeof parseSector>;
++    try {
++      parsedSector = parseSector(baseFile.read(), seenNodeUids);
++    } catch (e) {
++      // the game's own files must parse; a map mod's may use things we don't know
++      if (baseFile.scsSource in Ets2ScsSourceToDlcGuard || baseFile.scsSource in AtsScsSourceToDlcGuard) {
++        throw e;
++      }
++      logger.warn(
++        `skipping ${f} from ${baseFile.scsSource}:`,
++        e instanceof Error ? e.message : e,
++      );
++      brokenModSectors.push(`${f} (${baseFile.scsSource})`);
++      continue;
++    }
+     sector.items = sector.items.concat(
+       parsedSector.items.map(item =>
+         withDlcGuard(item, map, baseFile.scsSource),
+@@ -211,6 +242,11 @@ function parseSectorFiles(entries: Entries): {
+     bar.increment({ filename: f });
+   }
+ 
++  if (brokenModSectors.length) {
++    logger.warn(
++      `${brokenModSectors.length} sector files from mods could not be parsed and were skipped`,
++    );
++  }
+   if (unknownScsSources.size) {
+     logger.warn('encountered unknown .scs files containing map data', [
+       ...unknownScsSources,
+@@ -233,6 +269,7 @@ function parseSectorFiles(entries: Entries): {
+ type ParsedSectorItem = ReturnType<typeof parseSector>['items'][0];
+ 
+ const unknownScsSources = new Set<string>();
++const brokenModSectors: string[] = [];
+ 
+ function withDlcGuard(
+   item: ParsedSectorItem,
+diff --git a/packages/clis/parser/game-files/prefab-ppd-parser.ts b/packages/clis/parser/game-files/prefab-ppd-parser.ts
+index 10fdc04..f731671 100644
+--- a/packages/clis/parser/game-files/prefab-ppd-parser.ts
++++ b/packages/clis/parser/game-files/prefab-ppd-parser.ts
+@@ -306,6 +306,14 @@ export function parsePrefabPpd(buffer: Buffer): PrefabDescription {
+   // make sure that dummy road points are all at the end of the array, so
+   // we can trim them out without affecting map point indices.
+   let seenDummy = false;
++  // Map mods have prefabs whose dummy points are not all at the end; trimming
++  // those would shift the indices of the points after them, so keep them all.
++  const isDummyPoint = (rp: (typeof rawPrefab.mapPoints)[number]) =>
++    (rp.visualFlags.sizeAndOffset & 0x0f) !== 13 && rp.navFlags.control.isBase;
++  const firstDummy = rawPrefab.mapPoints.findIndex(isDummyPoint);
++  const trimDummies =
++    skipBaseRoads &&
++    (firstDummy < 0 || rawPrefab.mapPoints.slice(firstDummy).every(isDummyPoint));
+   return {
+     nodes: rawPrefab.nodes.map(n => {
+       const [rX, , rZ] = n.rot;
+@@ -358,7 +366,7 @@ export function parsePrefabPpd(buffer: Buffer): PrefabDescription {
+             color,
+             roadOver: !!paint.roadOver,
+           };
+-        } else if (skipBaseRoads && rp.navFlags.control.isBase) {
++        } else if (trimDummies && rp.navFlags.control.isBase) {
+           seenDummy = true;
+           return undefined;
+         } else {
+diff --git a/packages/clis/parser/game-files/scs-archive.ts b/packages/clis/parser/game-files/scs-archive.ts
+index f6fa495..f5c0610 100644
+--- a/packages/clis/parser/game-files/scs-archive.ts
++++ b/packages/clis/parser/game-files/scs-archive.ts
+@@ -43,6 +43,17 @@ const EntryHeader = new r.Struct({
+   someByte: r.uint8,
+ });
+ 
++// HashFS version 1 (what mods are usually packed with): a flat 32-byte entry
++// table right after the 32-byte header; no metadata table.
++const EntryV1 = new r.Struct({
++  hash: uint64le,
++  offset: uint64le,
++  flags: r.uint32le, // 1 = directory, 2 = zlib, 4 = verify, 8 = encrypted
++  crc: r.uint32le,
++  size: r.uint32le,
++  compressedSize: r.uint32le,
++});
++
+ export const enum MetadataType {
+   IMG = 1,
+   SAMPLE = 2,
+@@ -183,7 +194,7 @@ export class ScsArchive {
+     return (
+       this.header.magic === 'SCS#' &&
+       this.header.hashMethod === 'CITY' &&
+-      this.header.version === 2
++      (this.header.version === 1 || this.header.version === 2)
+     );
+   }
+ 
+@@ -192,6 +203,9 @@ export class ScsArchive {
+     if (this.entries) {
+       return this.entries;
+     }
++    if (this.header.version === 1) {
++      return (this.entries = this.parseEntriesV1());
++    }
+ 
+     const entryHeaders = new r.Array(
+       EntryHeader,
+@@ -222,6 +236,40 @@ export class ScsArchive {
+     return this.entries;
+   }
+ 
++  private parseEntriesV1(): Entries {
++    // the v1 header shares its first 16 bytes with v2's: entry count at 12, and
++    // where v2 keeps the entry table's compressed size, v1 has the table's offset
++    const table = Buffer.alloc(EntryV1.size() * this.header.entryTableCount);
++    fs.readSync(this.fd, table, {
++      length: table.length,
++      position: this.header.entryTableCompressedSize,
++    });
++    const directories: DirectoryEntry[] = [];
++    const files: FileEntry[] = [];
++    for (const e of new r.Array(
++      EntryV1,
++      this.header.entryTableCount,
++    ).fromBuffer(table)) {
++      assert((e.flags & 8) === 0, 'encrypted archive entries are not supported');
++      const metadata: EntryMetadata = {
++        hash: e.hash,
++        offset: e.offset,
++        compressedSize: e.compressedSize,
++        uncompressedSize: e.size,
++        compression: e.flags & 2 ? Compression.ZLIB : Compression.NONE,
++        isDirectory: (e.flags & 1) !== 0,
++      };
++      if (metadata.isDirectory) {
++        directories.push(
++          new ScsArchiveDirectoryV1(this.fd, metadata, this.scsSource),
++        );
++      } else {
++        files.push(new ScsArchiveFile(this.fd, metadata, this.scsSource));
++      }
++    }
++    return { directories: createStore(directories), files: createStore(files) };
++  }
++
+   private createMetadataMap(
+     entryHeaders: BaseOf<typeof EntryHeader>[],
+   ): Map<number, MetadataEntry> {
+@@ -651,3 +699,25 @@ class ScsArchiveDirectory extends ScsArchiveEntry implements DirectoryEntry {
+     this.files = files;
+   }
+ }
++
++/** Version 1 directory listing: one name per line, sub-directories prefixed with "*". */
++class ScsArchiveDirectoryV1 extends ScsArchiveEntry implements DirectoryEntry {
++  readonly type = 'directory';
++  readonly subdirectories: readonly string[];
++  readonly files: readonly string[];
++
++  constructor(fd: number, metadata: EntryMetadata, scsSource: string) {
++    super(fd, metadata, scsSource);
++
++    const subdirectories: string[] = [];
++    const files: string[] = [];
++    for (const raw of this.read().toString().split('\n')) {
++      const line = raw.trim();
++      if (!line) continue;
++      if (line.startsWith('*')) subdirectories.push(line.substring(1));
++      else files.push(line);
++    }
++    this.subdirectories = subdirectories;
++    this.files = files;
++  }
++}
+diff --git a/packages/clis/parser/game-files/sii-schemas.ts b/packages/clis/parser/game-files/sii-schemas.ts
+index b8accdc..686865f 100644
+--- a/packages/clis/parser/game-files/sii-schemas.ts
++++ b/packages/clis/parser/game-files/sii-schemas.ts
+@@ -114,7 +114,9 @@ const numberTuple = fixedLengthArray(number, 2);
+ const numberTriple = fixedLengthArray(number, 3);
+ const numberQuadruple = fixedLengthArray(number, 4);
+ const stringArray = arrayOf(string);
+-const localeToken = stringPattern(/^@@.+@@$/);
++// map mods give some names as plain text instead of an @@key@@; accept both (the
++// localized-name lookup falls back to the plain name when there is no such key)
++const localeToken = string;
+ const token = {
+   ...stringPattern(/^[0-9a-z_]{1,12}$/),
+   // ETS2 has some country and city names (e.g. Hungary, Odense) as capitalized
+@@ -571,7 +573,8 @@ export const CitySiiSchema: JSONSchemaType<CitySii> = object(
+         /^city\.[0-9a-z_]{1,12}$/,
+         {
+           cityName: string,
+-          cityNameLocalized: localeToken,
++          // map mods often give the display name as plain text, not an @@key@@
++          cityNameLocalized: string,
+           country: token,
+           population: nullable(integer),
+         },
+diff --git a/packages/clis/parser/index.ts b/packages/clis/parser/index.ts
+index 8a13c01..a819733 100755
+--- a/packages/clis/parser/index.ts
++++ b/packages/clis/parser/index.ts
+@@ -46,6 +46,14 @@ function main() {
+       choices: ['defs', 'icons', 'all'] as const,
+       default: 'all' as 'defs' | 'icons' | 'all',
+     })
++    .option('mod', {
++      describe:
++        'Path to a mod .scs archive to load after the game files (repeatable; later ones win)',
++      type: 'string',
++      array: true,
++      coerce: (paths: string[]) => paths.map(untildify),
++      default: [] as string[],
++    })
+     .option('dryRun', {
+       describe: "Don't write out any files",
+       type: 'boolean',
+@@ -58,7 +66,7 @@ function main() {
+     .filter(e => e.isFile() && e.name.endsWith('.scs'))
+     .map(e => path.join(args.inputDir, e.name));
+ 
+-  const { map, ...result } = parseMapFiles(scsFilePaths, args);
++  const { map, ...result } = parseMapFiles(scsFilePaths, { ...args, mods: args.mod });
+   if (args.dryRun) {
+     logger.success('dry run complete.');
+     return;
+diff --git a/packages/libs/map/labels.ts b/packages/libs/map/labels.ts
+index d673fef..8b279fe 100644
+--- a/packages/libs/map/labels.ts
++++ b/packages/libs/map/labels.ts
+@@ -2,10 +2,13 @@ import { assertExists } from '@truckermudgeon/base/assert';
+ import { Preconditions } from '@truckermudgeon/base/precon';
+ 
+ export function toDealerLabel(prefabPath: string): string {
+-  Preconditions.checkArgument(prefabPath.includes('/truck_dealer/'));
+   const dealerRegex = /\/truck_dealer\/(?:truck_dealer_([^.]+).ppd$|([^/]+)\/)/;
+-  const matches = assertExists(dealerRegex.exec(prefabPath));
+-  const dealer = assertExists(matches[1] ?? matches[2]);
++  const matches = dealerRegex.exec(prefabPath);
++  const dealer = matches?.[1] ?? matches?.[2];
++  if (!dealer) {
++    // a dealer from a map mod that doesn't follow the game's folder layout
++    return 'Dealer';
++  }
+ 
+   switch (dealer) {
+     case 'mb':
+@@ -26,7 +29,8 @@ export function toDealerLabel(prefabPath: string): string {
+     case 'volvo':
+       return dealer.charAt(0).toUpperCase() + dealer.slice(1);
+     default:
+-      throw new Error('unknown dealer: ' + dealer);
++      // dealers added by map mods: show the folder name, capitalized
++      return dealer.charAt(0).toUpperCase() + dealer.slice(1);
+   }
+ }
+ 
+-- 
+2.55.0.windows.5
+

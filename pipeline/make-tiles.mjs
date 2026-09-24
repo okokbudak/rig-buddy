@@ -47,6 +47,60 @@ db.exec(`
 `);
 const insert = db.prepare('INSERT INTO tiles VALUES (?, ?, ?, ?)');
 
+/**
+ * Reads a GeoJSON FeatureCollection without ever holding it as one string: V8
+ * cannot make a string over ~512 MB, and the road surfaces (with map mods) are
+ * bigger than that. Scans the bytes for the "features" array and parses one
+ * feature at a time; small files take the plain JSON.parse route.
+ */
+function readFeatureCollection(file) {
+  if (fs.statSync(file).size < 300 * 1024 * 1024) return JSON.parse(fs.readFileSync(file, 'utf8'));
+  const fd = fs.openSync(file, 'r');
+  const buf = Buffer.allocUnsafe(32 * 1024 * 1024);
+  const features = [];
+  const KEY = '"features"';
+  let phase = 0; // 0 looking for the key, 1 waiting for "[", 2 between features, 3 inside a feature, 4 done
+  let head = '';
+  let depth = 0, inStr = false, esc = false, start = 0;
+  let pieces = [];
+  try {
+    for (let n; phase < 4 && (n = fs.readSync(fd, buf, 0, buf.length, null)) > 0; ) {
+      if (phase === 3) start = 0;
+      for (let i = 0; i < n && phase < 4; i++) {
+        const c = buf[i];
+        if (phase === 0) {
+          head = (head + String.fromCharCode(c)).slice(-KEY.length);
+          if (head === KEY) phase = 1;
+        } else if (phase === 1) {
+          if (c === 91) phase = 2; // [
+        } else if (phase === 2) {
+          if (c === 123) { // {
+            phase = 3;
+            depth = 1;
+            inStr = esc = false;
+            start = i;
+          } else if (c === 93) phase = 4; // ]
+        } else if (inStr) {
+          if (esc) esc = false;
+          else if (c === 92) esc = true; // backslash
+          else if (c === 34) inStr = false;
+        } else if (c === 34) inStr = true;
+        else if (c === 123) depth++;
+        else if (c === 125 && --depth === 0) {
+          pieces.push(Buffer.from(buf.subarray(start, i + 1)));
+          features.push(JSON.parse(Buffer.concat(pieces).toString('utf8')));
+          pieces = [];
+          phase = 2;
+        }
+      }
+      if (phase === 3) pieces.push(Buffer.from(buf.subarray(start, n)));
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+  return { type: 'FeatureCollection', features };
+}
+
 const fields = {};
 let bounds = [180, 90, -180, -90];
 const stats = {};
@@ -54,7 +108,7 @@ const started = Date.now();
 
 // One index per input; they are walked together below.
 for (const pass of passes) {
-  const gj = JSON.parse(fs.readFileSync(pass.file, 'utf8'));
+  const gj = readFeatureCollection(pass.file);
   for (const f of gj.features) {
     const p = {};
     for (const k of ATTRS) {
