@@ -103,6 +103,8 @@
     <string name="home_no_route">No route</string>
     <string name="home_no_route_hint">Map · long-press to pick a destination</string>
     <string name="home_game_off">Game not connected</string>
+    <string name="home_go">Go</string>
+    <string name="home_np_empty">Nothing is playing</string>
     <string name="home_game_off_hint">Start Rig Buddy and the game on the PC</string>
     <string name="home_fuel_none">Fuel –</string>
     <string name="home_fuel">Fuel %1$d%%</string>

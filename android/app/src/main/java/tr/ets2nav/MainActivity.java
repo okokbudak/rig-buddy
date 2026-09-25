@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Outline;
 import android.graphics.Paint;
 import android.graphics.PointF;
 import android.graphics.RectF;
@@ -17,6 +19,7 @@ import android.view.Choreographer;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -287,17 +290,13 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
       @Override
       public void onLibrary(JSONObject library) {
         mediaScreen.onLibrary(library);
+        home.setLibrary(library);
       }
 
       @Override
       public void onMedia(JSONObject media) {
         mediaScreen.onMedia(media);
-        home.setNowPlaying(media, () -> {
-          try {
-            agent.mediaCommand(new JSONObject().put("cmd", "toggle"));
-          } catch (org.json.JSONException ignored) {
-          }
-        });
+        home.setNowPlaying(media);
       }
 
       @Override
@@ -313,7 +312,33 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     });
 
     screenHost = findViewById(R.id.screenHost);
-    home = new HomeScreen(this, this::showScreen);
+    home = new HomeScreen(this, new HomeScreen.Actions() {
+      @Override
+      public void open(String name) {
+        if ("search".equals(name)) {
+          showScreen("map");
+          hideDestCard();
+          searchPanel.show(pose.valid ? pose.lon : 0, pose.valid ? pose.lat : 0);
+        } else {
+          showScreen(name);
+        }
+      }
+
+      @Override
+      public void transport(boolean library, String cmd) {
+        try {
+          JSONObject c = new JSONObject().put("cmd", cmd);
+          if (library) agent.libraryCommand(c);
+          else agent.mediaCommand(c);
+        } catch (org.json.JSONException ignored) {
+        }
+      }
+
+      @Override
+      public void loadArt(String path, HomeScreen.ArtCallback cb) {
+        agent.loadArtPath(path, cb::onBitmap);
+      }
+    });
     vehicle = new VehicleScreen(this);
     jobs = new JobsScreen(this, agent, this::routeJob);
     profile = new ProfileScreen(this, agent, (p, err) -> home.setProfile(p, err));
@@ -401,10 +426,72 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     return iv;
   }
 
+  private boolean mapCardMode;
+  private final View.OnLayoutChangeListener mapSlotListener =
+      (v, l, t, r, b, ol, ot, or, ob) -> layoutMapCard();
+  /** Map buttons and panels that only make sense on the full map, hidden in the home card. */
+  private static final int[] MAP_ONLY_OVERLAYS = {
+      R.id.settings, R.id.searchButton, R.id.recenter, R.id.cancelRoute, R.id.destCard,
+      R.id.searchPanel, R.id.status, R.id.message};
+
+  /**
+   * The home screen is transparent over its map card: the real map view is resized
+   * to that card (rounded, no buttons) and keeps following the truck.
+   */
+  private void setMapCardMode(boolean card) {
+    if (card == mapCardMode) {
+      if (card) layoutMapCard();
+      return;
+    }
+    mapCardMode = card;
+    View mapRoot = findViewById(R.id.root);
+    View slot = home.mapSlot();
+    screenHost.setBackgroundColor(card ? Color.TRANSPARENT : Ui.BG);
+    for (int id : MAP_ONLY_OVERLAYS) findViewById(id).setAlpha(card ? 0f : 1f);
+    if (card) {
+      final float radius = Ui.dp(this, 22);
+      mapRoot.setOutlineProvider(new ViewOutlineProvider() {
+        @Override
+        public void getOutline(View v, Outline o) {
+          o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), radius);
+        }
+      });
+      mapRoot.setClipToOutline(true);
+      slot.addOnLayoutChangeListener(mapSlotListener);
+      layoutMapCard();
+    } else {
+      slot.removeOnLayoutChangeListener(mapSlotListener);
+      mapRoot.setClipToOutline(false);
+      mapRoot.setOutlineProvider(ViewOutlineProvider.BACKGROUND);
+      mapRoot.setLayoutParams(new FrameLayout.LayoutParams(
+          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+  }
+
+  private void layoutMapCard() {
+    if (!mapCardMode) return;
+    View slot = home.mapSlot();
+    if (slot.getWidth() == 0 || slot.getHeight() == 0) return;
+    int[] a = new int[2], b = new int[2];
+    slot.getLocationInWindow(a);
+    findViewById(R.id.screens).getLocationInWindow(b);
+    FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(slot.getWidth(), slot.getHeight());
+    lp.leftMargin = a[0] - b[0];
+    lp.topMargin = a[1] - b[1];
+    View mapRoot = findViewById(R.id.root);
+    ViewGroup.LayoutParams old = mapRoot.getLayoutParams();
+    if (old instanceof FrameLayout.LayoutParams) {
+      FrameLayout.LayoutParams o = (FrameLayout.LayoutParams) old;
+      if (o.width == lp.width && o.height == lp.height && o.leftMargin == lp.leftMargin && o.topMargin == lp.topMargin) return;
+    }
+    mapRoot.setLayoutParams(lp);
+  }
+
   /** Map stays underneath (its GL surface survives); other screens cover it. */
   private void showScreen(String name) {
     screen = name;
     boolean isMap = "map".equals(name);
+    setMapCardMode("home".equals(name));
     screenHost.setVisibility(isMap ? View.GONE : View.VISIBLE);
     for (Map.Entry<String, View> e : screenViews.entrySet()) {
       if (!"map".equals(e.getKey())) e.getValue().setVisibility(e.getKey().equals(name) ? View.VISIBLE : View.GONE);
@@ -910,6 +997,10 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     if (!frameLoopRunning) return;
     Choreographer.getInstance().postFrameCallback(this);
     long now = SystemClock.uptimeMillis();
+    if ("home".equals(screen) && now - lastMediaTickMs > 250) {
+      lastMediaTickMs = now;
+      home.tickPlayback();
+    }
     if ("media".equals(screen) && now - lastMediaTickMs > 250) {
       lastMediaTickMs = now; // progress bar runs even without game telemetry
       mediaScreen.tick();
@@ -920,7 +1011,8 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     tracker.poseAt(now, pose);
     if (!pose.valid) return;
 
-    boolean mapShown = "map".equals(screen);
+    // the home screen shows the live map in a card, following the truck
+    boolean mapShown = "map".equals(screen) || "home".equals(screen);
     if (mapShown) updateSnap(now);
     double shownLon = snapValid ? snapLon : pose.lon;
     double shownLat = snapValid ? snapLat : pose.lat;
