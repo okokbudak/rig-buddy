@@ -101,6 +101,8 @@
     <string name="home_no_route">Rota yok</string>
     <string name="home_no_route_hint">Harita · uzun bas: hedef seç</string>
     <string name="home_game_off">Oyun bağlı değil</string>
+    <string name="home_go">Git</string>
+    <string name="home_np_empty">Çalan bir şey yok</string>
     <string name="home_game_off_hint">PC\'de Rig Buddy\'yi ve oyunu başlatın</string>
     <string name="home_fuel_none">Yakıt –</string>
     <string name="home_fuel">Yakıt %%%1$d</string>
