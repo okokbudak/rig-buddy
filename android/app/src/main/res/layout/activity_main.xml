@@ -25,19 +25,42 @@
             android:paddingBottom="12dp" />
     </ScrollView>
 
-    <FrameLayout
-        android:id="@+id/screens"
+    <!-- 5 mm of air above the screens, and a row of page dots (one per screen) under them -->
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="match_parent"
-        android:layout_weight="1">
-
-        <include layout="@layout/screen_map" />
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:paddingTop="5mm">
 
         <FrameLayout
-            android:id="@+id/screenHost"
+            android:id="@+id/screens"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="#121518"
-            android:visibility="gone" />
-    </FrameLayout>
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <include layout="@layout/screen_map" />
+
+            <FrameLayout
+                android:id="@+id/screenHost"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#121518"
+                android:visibility="gone" />
+
+            <!-- fades over the screens while one replaces another, so the change is soft -->
+            <View
+                android:id="@+id/veil"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:alpha="0" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:id="@+id/pageDots"
+            android:layout_width="match_parent"
+            android:layout_height="5mm"
+            android:gravity="center"
+            android:orientation="horizontal" />
+    </LinearLayout>
 </LinearLayout>

@@ -16,6 +16,8 @@ import android.os.SystemClock;
 import android.text.InputType;
 import android.util.Log;
 import android.view.Choreographer;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -351,22 +353,41 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     screenViews.put("map", findViewById(R.id.root));
 
     LinearLayout rail = findViewById(R.id.rail);
+    rail.addView(Ui.spacer(this), Ui.hweight(1)); // the tiles sit in the middle of the rail
     addRailButton(rail, "home", R.drawable.ic_home, Ui.s(R.string.rail_home));
     addRailButton(rail, "map", R.drawable.ic_map, Ui.s(R.string.rail_map));
-    addRailButton(rail, "media", R.drawable.ic_music, Ui.s(R.string.rail_media));
     addRailButton(rail, "vehicle", R.drawable.ic_truck, Ui.s(R.string.rail_vehicle));
     addRailButton(rail, "jobs", R.drawable.ic_work, Ui.s(R.string.rail_jobs));
     addRailButton(rail, "profile", R.drawable.ic_person, Ui.s(R.string.rail_profile));
-    addRailAction(rail, R.drawable.ic_settings, Ui.s(R.string.rail_settings), this::showSettings);
     rail.addView(Ui.spacer(this), Ui.hweight(1));
+    // no settings button: the clock and the NAV / PC lights at the bottom open the settings
+    LinearLayout footer = Ui.column(this);
+    footer.setGravity(Gravity.CENTER_HORIZONTAL);
+    int fp = Ui.dp(this, 8);
+    footer.setPadding(fp, fp, fp, fp);
+    android.graphics.drawable.StateListDrawable footerBg = new android.graphics.drawable.StateListDrawable();
+    footerBg.addState(new int[] {android.R.attr.state_pressed}, Ui.rounded(Ui.CARD_PRESSED, Ui.dp(this, 16)));
+    footerBg.addState(new int[] {}, Ui.rounded(Ui.CARD, Ui.dp(this, 16)));
+    footer.setBackground(footerBg);
+    footer.setClickable(true);
+    footer.setContentDescription(Ui.s(R.string.rail_settings));
+    footer.setOnClickListener(v -> showSettings());
     railClock = Ui.text(this, compactRail() ? 16 : 22, Ui.TEXT, true);
     railClock.setGravity(Gravity.CENTER);
-    rail.addView(railClock, Ui.matchWrap());
+    footer.addView(railClock, Ui.matchWrap());
     LinearLayout dots = Ui.row(this);
     dots.setGravity(Gravity.CENTER);
     railNavDot = dot(dots, "NAV");
     railAgentDot = dot(dots, "PC");
-    rail.addView(dots, Ui.margins(Ui.matchWrap(), this, 0, 10, 0, 0));
+    footer.addView(dots, Ui.margins(Ui.matchWrap(), this, 0, 8, 0, 0));
+    rail.addView(footer, Ui.margins(Ui.matchWrap(), this, 6, 0, 6, 4));
+    buildPageDots();
+    swipeDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+      @Override
+      public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
+        return e1 != null && onScreenSwipe(e1, e2, vx);
+      }
+    });
     tickClock();
     showScreen("home");
   }
@@ -437,6 +458,52 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     return iv;
   }
 
+  // --- swiping between the screens, with one dot per screen under them -------------
+  private static final String[] SCREEN_ORDER = {"home", "map", "media", "vehicle", "jobs", "profile"};
+  private GestureDetector swipeDetector;
+  private LinearLayout pageDots;
+
+  private void buildPageDots() {
+    pageDots = findViewById(R.id.pageDots);
+    for (int i = 0; i < SCREEN_ORDER.length; i++) {
+      pageDots.addView(new View(this), Ui.margins(new LinearLayout.LayoutParams(Ui.dp(this, 8), Ui.dp(this, 8)), this, 5, 0, 5, 0));
+    }
+  }
+
+  private void updatePageDots(String name) {
+    if (pageDots == null) return;
+    int at = java.util.Arrays.asList(SCREEN_ORDER).indexOf(name);
+    for (int i = 0; i < pageDots.getChildCount(); i++) {
+      pageDots.getChildAt(i).setBackground(Ui.rounded(i == at ? Ui.ACCENT : Ui.TRACK, Ui.dp(this, 4)));
+    }
+  }
+
+  /** A quick horizontal fling over the screens goes to the next or previous one. */
+  private boolean onScreenSwipe(MotionEvent from, MotionEvent to, float vx) {
+    float dx = to.getX() - from.getX(), dy = to.getY() - from.getY();
+    if (Math.abs(dx) < Ui.dp(this, 120) || Math.abs(dx) < 2 * Math.abs(dy) || Math.abs(vx) < 900) return false;
+    View screens = findViewById(R.id.screens);
+    int[] at = new int[2];
+    screens.getLocationOnScreen(at);
+    float x = from.getRawX() - at[0];
+    if (x < 0 || x > screens.getWidth()) return false; // started on the rail
+    // the map (panning) and the media screen (sliders) only swipe from their edges
+    if ("map".equals(screen) || "media".equals(screen)) {
+      float edge = Ui.dp(this, 56);
+      if (x > edge && x < screens.getWidth() - edge) return false;
+    }
+    int i = java.util.Arrays.asList(SCREEN_ORDER).indexOf(screen) + (dx < 0 ? 1 : -1);
+    if (i < 0 || i >= SCREEN_ORDER.length) return false;
+    showScreen(SCREEN_ORDER[i]);
+    return true;
+  }
+
+  @Override
+  public boolean dispatchTouchEvent(MotionEvent ev) {
+    if (swipeDetector != null) swipeDetector.onTouchEvent(ev);
+    return super.dispatchTouchEvent(ev);
+  }
+
   private boolean mapCardMode;
   private final View.OnLayoutChangeListener mapSlotListener =
       (v, l, t, r, b, ol, ot, or, ob) -> layoutMapCard();
@@ -499,10 +566,34 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   }
 
   /** Map stays underneath (its GL surface survives); other screens cover it. */
+  private View veil;
+  private boolean switching;
+  private String pendingScreen;
+
+  /** Changes screen with a soft dip through the background colour instead of a hard cut. */
   private void showScreen(String name) {
+    if (veil == null) veil = findViewById(R.id.veil);
+    if (veil == null || name.equals(screen)) {
+      applyScreen(name);
+      return;
+    }
+    screen = name; // the logical screen changes now; the views follow behind the veil
+    pendingScreen = name;
+    if (switching) return; // the running change picks up the latest choice
+    switching = true;
+    veil.setBackgroundColor(Ui.BG);
+    veil.animate().cancel();
+    veil.animate().alpha(1f).setDuration(110).withEndAction(() -> {
+      applyScreen(pendingScreen);
+      veil.animate().alpha(0f).setDuration(240).withEndAction(() -> switching = false).start();
+    }).start();
+  }
+
+  private void applyScreen(String name) {
     screen = name;
     boolean isMap = "map".equals(name);
     setMapCardMode("home".equals(name));
+    updatePageDots(name);
     screenHost.setVisibility(isMap ? View.GONE : View.VISIBLE);
     for (Map.Entry<String, View> e : screenViews.entrySet()) {
       if (!"map".equals(e.getKey())) e.getValue().setVisibility(e.getKey().equals(name) ? View.VISIBLE : View.GONE);
