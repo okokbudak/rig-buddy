@@ -406,22 +406,33 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     return getResources().getConfiguration().screenHeightDp < 560;
   }
 
+  /**
+   * CarPlay-style dock: big rounded-square tiles, icon only (the name is the
+   * content description). The size follows the screen height so the seven
+   * entries and the clock still fit a 720 px head unit; phones scroll.
+   */
+  private int railTileDp() {
+    int h = getResources().getConfiguration().screenHeightDp;
+    return Math.max(44, Math.min(68, (h - 130) / 7 - 8));
+  }
+
+  private float railRadius() {
+    return Ui.dp(this, railTileDp() * 0.3f);
+  }
+
   private ImageView addRailAction(LinearLayout rail, int icon, String label, Runnable action) {
+    int tile = railTileDp();
     LinearLayout b = Ui.column(this);
     b.setGravity(Gravity.CENTER);
-    // 7 entries must fit a 720 px tall head unit with the clock: keep them compact
-    boolean compact = compactRail();
-    int p = Ui.dp(this, compact ? 3 : 5);
-    b.setPadding(0, p, 0, p);
     ImageView iv = new ImageView(this);
     iv.setImageResource(icon);
-    int ip = Ui.dp(this, 7);
-    iv.setPadding(Ui.dp(this, 18), ip, Ui.dp(this, 18), ip);
+    int ip = Ui.dp(this, tile * 0.27f);
+    iv.setPadding(ip, ip, ip, ip);
     iv.setContentDescription(label);
-    b.addView(iv, new LinearLayout.LayoutParams(Ui.dp(this, 72), Ui.dp(this, compact ? 40 : 42)));
-    if (!compact) b.addView(Ui.text(this, label, 13, Ui.TEXT2, false), Ui.margins(Ui.wrap(), this, 0, 3, 0, 0));
+    iv.setBackground(Ui.rounded(Ui.CARD, railRadius()));
+    b.addView(iv, new LinearLayout.LayoutParams(Ui.dp(this, tile), Ui.dp(this, tile)));
     b.setOnClickListener(v -> action.run());
-    rail.addView(b, Ui.margins(Ui.matchWrap(), this, 0, 2, 0, 2));
+    rail.addView(b, Ui.margins(Ui.matchWrap(), this, 0, 4, 0, 4));
     iv.setColorFilter(Ui.TEXT2);
     return iv;
   }
@@ -499,7 +510,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     for (Map.Entry<String, ImageView> e : railIcons.entrySet()) {
       boolean on = e.getKey().equals(name);
       e.getValue().setColorFilter(on ? Ui.ON_ACCENT : Ui.TEXT2);
-      e.getValue().setBackground(on ? Ui.rounded(Ui.ACCENT, Ui.dp(this, 23)) : null);
+      e.getValue().setBackground(Ui.rounded(on ? Ui.ACCENT : Ui.CARD, railRadius()));
     }
     if ("vehicle".equals(name)) vehicle.onTelemetry(lastTelemetry);
     if ("jobs".equals(name)) {
