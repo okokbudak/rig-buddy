@@ -42,6 +42,16 @@ sealed class TrayApp : ApplicationContext
         L.Changed += () => Post(RebuildUi);
         _timer.Tick += (_, _) => Refresh();
         _timer.Start();
+        // a game update or verify can delete the telemetry plugin: say so at start, even with the window hidden
+        var startupCheck = new System.Windows.Forms.Timer { Interval = 6000 };
+        startupCheck.Tick += (_, _) =>
+        {
+            startupCheck.Stop();
+            var missing = PluginCheck.Find();
+            if (missing.Count > 0)
+                Balloon(L.T("plugin.missing", string.Join(", ", missing.Select(m => m.Game))), ToolTipIcon.Warning);
+        };
+        startupCheck.Start();
         Refresh();
 
         // started with Windows: stay in the tray unless something needs attention

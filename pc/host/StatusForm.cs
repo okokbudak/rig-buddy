@@ -18,6 +18,12 @@ sealed class StatusForm : Form
     readonly Button[] _buttons;
     readonly List<(Control Control, Func<Palette, Color> Fore)> _labels = new();
     readonly System.Windows.Forms.Timer _timer = new() { Interval = 100 };
+    readonly RoundedPanel _fixPanel;
+    readonly Label _fixText;
+    readonly Button _fixButton;
+    DateTime _nextPluginCheck;
+    bool _restartGame, _fixShown;
+    string? _fixFailed;
     double _shown;
     DateTime _copiedUntil;
     bool _exiting;
@@ -111,6 +117,25 @@ sealed class StatusForm : Form
         logs.Click += (_, _) => showLogs();
         _buttons = [restart, logs];
         Controls.AddRange(_buttons);
+
+        // at the very bottom, only while a game has lost the telemetry plugin
+        _fixPanel = new RoundedPanel { Location = new Point(16, 640), Size = new Size(328, 52), Visible = false };
+        _fixText = Lbl("", 12, 6, 8.5F, p => p.Red);
+        _fixText.AutoSize = false;
+        _fixText.Size = new Size(206, 40);
+        _fixButton = Btn(L.T("plugin.fix"), 224, 10, 92);
+        _fixButton.Click += async (_, _) =>
+        {
+            _fixButton.Enabled = false;
+            bool ok = await Task.Run(PluginCheck.Fix);
+            _fixButton.Enabled = true;
+            _restartGame = ok && PluginCheck.GameRunning();
+            _fixFailed = ok ? null : L.T("plugin.failed");
+            _nextPluginCheck = DateTime.MinValue;
+            CheckPlugin();
+        };
+        _fixPanel.Controls.AddRange([_fixText, _fixButton]);
+        Controls.Add(_fixPanel);
         ResumeLayout(false);
 
         ApplyTheme();
@@ -200,6 +225,7 @@ sealed class StatusForm : Form
         _autostart.ForeColor = p.Text1;
         _autostart.BackColor = p.Bg;
         foreach (var b in _buttons) StyleButton(b);
+        StyleButton(_fixButton);
         _themeLink.Text = $"◐ {Theme.Label(Theme.Setting)} ▾";
         _langLink.Text = $"🌐 {(L.Setting == "system" ? L.T("lang.auto") : L.LanguageName(L.Setting))} ▾";
         if (IsHandleCreated) Theme.ApplyTitleBar(Handle);
@@ -218,8 +244,41 @@ sealed class StatusForm : Form
         return menu;
     }
 
+    /** Once every few seconds: is the telemetry plugin still in each game? Shows the Fix now bar if not. */
+    void CheckPlugin()
+    {
+        if (DateTime.UtcNow < _nextPluginCheck) return;
+        _nextPluginCheck = DateTime.UtcNow.AddSeconds(3);
+        var problems = PluginCheck.Find();
+        var p = Theme.Current;
+        bool show = true;
+        if (problems.Count > 0)
+        {
+            Set(_fixText, _fixFailed ?? L.T("plugin.missing", string.Join(", ", problems.Select(x => x.Game))), p.Red);
+            _fixButton.Visible = true;
+        }
+        else if (_restartGame && PluginCheck.GameRunning())
+        {
+            Set(_fixText, L.T("plugin.restart"), p.Orange); // the game only loads plugins as it starts
+            _fixButton.Visible = false;
+        }
+        else
+        {
+            _restartGame = false;
+            _fixFailed = null;
+            show = false;
+        }
+        _fixPanel.Visible = show;
+        if (show != _fixShown)
+        {
+            _fixShown = show;
+            ClientSize = new Size(ClientSize.Width, LogicalToDeviceUnits(show ? 704 : 640));
+        }
+    }
+
     void Refresh2()
     {
+        CheckPlugin();
         var p = Theme.Current;
         var st = _sup.Stage;
         var server = _sup.Find("server")!;
