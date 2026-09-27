@@ -16,6 +16,8 @@ sealed partial class MapBuilder
 {
     readonly AppPaths _paths;
     readonly Action _onBuilt;
+    readonly System.Windows.Forms.Timer _gameWatch;
+    bool _wasGameRunning;
     Process? _process;
     StreamWriter? _log;
 
@@ -44,6 +46,16 @@ sealed partial class MapBuilder
     {
         _paths = paths;
         _onBuilt = onBuilt;
+        // the user thinks of "restart" as restarting the *game*, not the Rig Buddy tray app (which
+        // can run for days): re-check every time the game starts, not only when Rig Buddy itself does
+        _gameWatch = new System.Windows.Forms.Timer { Interval = 5000 };
+        _gameWatch.Tick += (_, _) =>
+        {
+            bool running = Process.GetProcessesByName("eurotrucks2").Length > 0 || Process.GetProcessesByName("amtrucks").Length > 0;
+            if (running && !_wasGameRunning && State is MapState.UpToDate or MapState.NoGame or MapState.Failed) Check();
+            _wasGameRunning = running;
+        };
+        _gameWatch.Start();
     }
 
     bool HasAnyData() =>
