@@ -80,6 +80,11 @@
     <string name="set_repair">Yeniden eşleş</string>
     <string name="set_theme">Tema: %1$s</string>
     <string name="set_language">Dil: %1$s</string>
+    <string name="set_route_strategy">Rota: %1$s</string>
+    <string name="set_route_strategy_title">Rota (oyundaki Route Advisor ile aynı yapın)</string>
+    <string name="route_fastest">En iyi</string>
+    <string name="route_shortest">En kısa</string>
+    <string name="route_small_roads">Tali yollar</string>
     <string name="theme_title">Tema</string>
     <string name="theme_system">Sistem</string>
     <string name="theme_system_long">Sistem (cihazın temasını izler)</string>

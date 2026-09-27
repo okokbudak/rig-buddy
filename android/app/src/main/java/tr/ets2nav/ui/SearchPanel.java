@@ -76,6 +76,8 @@ public final class SearchPanel {
 
   /** World meters -> distance as the game's UI shows it (map scale, e.g. 19 for ETS2). */
   public static double distanceScale = 19;
+  /** "fastest" | "shortest" | "smallRoads", kept in step with Settings (MainActivity). */
+  public static String routeStrategy = "fastest";
 
   private static String translate(String label) {
     switch (label) {
@@ -237,7 +239,7 @@ public final class SearchPanel {
       if (seq != querySeq) return;
       JSONArray routes = NavClient.asArray(data);
       if (error == null && routes.length() > 0) {
-        r.setRouteMeters(tr.ets2nav.nav.Route.parse(routes.optJSONObject(0)).distanceMeters * distanceScale);
+        r.setRouteMeters(tr.ets2nav.nav.Route.parse(tr.ets2nav.nav.Route.pick(routes, routeStrategy)).distanceMeters * distanceScale);
         adapter.notifyDataSetChanged();
       }
       fetchRouteDistances(seq, i + 1);
