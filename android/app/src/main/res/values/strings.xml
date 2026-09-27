@@ -82,6 +82,11 @@
     <string name="set_repair">Pair again</string>
     <string name="set_theme">Theme: %1$s</string>
     <string name="set_language">Language: %1$s</string>
+    <string name="set_route_strategy">Route: %1$s</string>
+    <string name="set_route_strategy_title">Route (match the game\'s Route Advisor)</string>
+    <string name="route_fastest">Best</string>
+    <string name="route_shortest">Shortest</string>
+    <string name="route_small_roads">Secondary roads</string>
     <string name="theme_title">Theme</string>
     <string name="theme_system">System</string>
     <string name="theme_system_long">System (follows the device)</string>

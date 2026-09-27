@@ -35,17 +35,36 @@ public final class Route {
   }
 
   public final String id;
+  /** "fastest" | "shortest" | "smallRoads" — matches ETS2's own route advisor: Best / Shortest / secondary roads. */
+  public final String strategy;
   public final List<Step> steps = new ArrayList<>();
   public final double distanceMeters, duration;
 
-  private Route(String id, double distanceMeters, double duration) {
+  private Route(String id, String strategy, double distanceMeters, double duration) {
     this.id = id;
+    this.strategy = strategy;
     this.distanceMeters = distanceMeters;
     this.duration = duration;
   }
 
+  /** The candidate route matching `want` ("fastest"/"shortest"/"smallRoads"), or the server's first pick if none matches. */
+  public static JSONObject pick(JSONArray routes, String want) {
+    for (int i = 0; i < routes.length(); i++) {
+      JSONObject r = routes.optJSONObject(i);
+      if (want.equals(strategyOf(r))) return r;
+    }
+    return routes.optJSONObject(0);
+  }
+
+  /** The strategy the server picked this route with (its first segment's — a route never mixes strategies). */
+  public static String strategyOf(JSONObject json) {
+    JSONArray segments = json.optJSONArray("segments");
+    JSONObject first = segments != null ? segments.optJSONObject(0) : null;
+    return first != null ? first.optString("strategy", "fastest") : "fastest";
+  }
+
   public static Route parse(JSONObject json) {
-    Route r = new Route(json.optString("id"), json.optDouble("distanceMeters"), json.optDouble("duration"));
+    Route r = new Route(json.optString("id"), strategyOf(json), json.optDouble("distanceMeters"), json.optDouble("duration"));
     JSONArray segments = json.optJSONArray("segments");
     if (segments == null) return r;
     for (int si = 0; si < segments.length(); si++) {

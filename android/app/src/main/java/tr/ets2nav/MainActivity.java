@@ -931,6 +931,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
         if (!g.equals(game)) {
           game = g;
           SearchPanel.distanceScale = distanceScale();
+          SearchPanel.routeStrategy = routeStrategyPref();
           setRoute(null);
           loadStyle();
           syncTiles();
@@ -957,6 +958,13 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   }
 
   /** Picks the server's first suggested route to a node and makes it active. */
+  /** Same route strategies ETS2's own route advisor offers: fastest ("Best"), shortest, smallRoads. */
+  private static final String[] ROUTE_STRATEGIES = {"fastest", "shortest", "smallRoads"};
+
+  private String routeStrategyPref() {
+    return prefs.getString("routeStrategy", ROUTE_STRATEGIES[0]);
+  }
+
   private void routeTo(String nodeUid) {
     if (pickingRoute) return;
     pickingRoute = true;
@@ -976,7 +984,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
         flashMessage(Ui.s(R.string.route_not_found) + (error != null ? "\n" + error : ""));
         return;
       }
-      JSONObject best = routes.optJSONObject(0);
+      JSONObject best = Route.pick(routes, routeStrategyPref());
       JSONArray keys = new JSONArray();
       JSONArray segments = best.optJSONArray("segments");
       for (int i = 0; segments != null && i < segments.length(); i++) {
@@ -1039,7 +1047,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     nav.query("app.previewRoutes", input, (data, error) -> {
       JSONArray routes = NavClient.asArray(data);
       if (error != null || routes.length() == 0 || pendingDest != r) return;
-      r.setRouteMeters(Route.parse(routes.optJSONObject(0)).distanceMeters * distanceScale());
+      r.setRouteMeters(Route.parse(Route.pick(routes, routeStrategyPref())).distanceMeters * distanceScale());
       destSubtitle.setText(r.subtitle);
     });
   }
@@ -1363,6 +1371,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
         Ui.s(R.string.set_repair),
         Ui.s(R.string.set_theme, themeLabel(Ui.themeSetting(prefs))),
         Ui.s(R.string.set_language, langLabel(Lang.setting(prefs))),
+        Ui.s(R.string.set_route_strategy, routeStrategyLabel(prefs.getString("routeStrategy", ROUTE_STRATEGIES[0]))),
     };
     new AlertDialog.Builder(this)
         .setTitle(Ui.s(R.string.set_title))
@@ -1372,7 +1381,8 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
             prefs.edit().remove("viewerId").apply();
             restartClients();
           } else if (which == 2) showThemeDialog();
-          else showLanguageDialog();
+          else if (which == 3) showLanguageDialog();
+          else showRouteStrategyDialog();
         })
         .setNegativeButton(Ui.s(R.string.btn_close), null)
         .show();
@@ -1406,6 +1416,34 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private String langLabel(String code) {
     for (int i = 1; i < Lang.CODES.length; i++) if (Lang.CODES[i].equals(code)) return Lang.NAMES[i];
     return Ui.s(R.string.lang_system);
+  }
+
+  private String routeStrategyLabel(String s) {
+    switch (s) {
+      case "shortest": return Ui.s(R.string.route_shortest);
+      case "smallRoads": return Ui.s(R.string.route_small_roads);
+      default: return Ui.s(R.string.route_fastest);
+    }
+  }
+
+  /** Matches ETS2's own "Route: Best / Shortest / Secondary roads" game setting, so both draw the same route. */
+  private void showRouteStrategyDialog() {
+    String current = prefs.getString("routeStrategy", ROUTE_STRATEGIES[0]);
+    String[] labels = new String[ROUTE_STRATEGIES.length];
+    int checked = 0;
+    for (int i = 0; i < ROUTE_STRATEGIES.length; i++) {
+      labels[i] = routeStrategyLabel(ROUTE_STRATEGIES[i]);
+      if (ROUTE_STRATEGIES[i].equals(current)) checked = i;
+    }
+    new AlertDialog.Builder(this)
+        .setTitle(Ui.s(R.string.set_route_strategy_title))
+        .setSingleChoiceItems(labels, checked, (d, which) -> {
+          d.dismiss();
+          prefs.edit().putString("routeStrategy", ROUTE_STRATEGIES[which]).apply();
+          SearchPanel.routeStrategy = ROUTE_STRATEGIES[which];
+        })
+        .setNegativeButton(Ui.s(R.string.btn_cancel), null)
+        .show();
   }
 
   private void showLanguageDialog() {
