@@ -73,8 +73,8 @@ import tr.ets2nav.nav.TruckTracker;
 import tr.ets2nav.ui.HomeScreen;
 import tr.ets2nav.ui.JobsScreen;
 import tr.ets2nav.ui.ManeuverIconView;
-import tr.ets2nav.ui.MediaScreen;
 import tr.ets2nav.ui.ProfileScreen;
+import tr.ets2nav.ui.RadioScreen;
 import tr.ets2nav.ui.SearchPanel;
 import tr.ets2nav.ui.TruckArrowView;
 import tr.ets2nav.ui.Ui;
@@ -113,7 +113,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private boolean darkMode;
   private boolean following = true;
   private boolean frameLoopRunning;
-  private long lastFrameMs, lastGuidanceMs, lastTruckSourceMs, lastHudMs, lastDebugLogMs, lastMediaTickMs;
+  private long lastFrameMs, lastGuidanceMs, lastTruckSourceMs, lastHudMs, lastDebugLogMs;
   private double smoothedZoom = 13.2;
 
   // head-unit shell
@@ -122,7 +122,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private VehicleScreen vehicle;
   private JobsScreen jobs;
   private ProfileScreen profile;
-  private MediaScreen mediaScreen;
+  private RadioScreen radioScreen;
   private FrameLayout screenHost;
   private String screen = "home";
   private final Map<String, View> screenViews = new HashMap<>();
@@ -290,15 +290,9 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
       }
 
       @Override
-      public void onLibrary(JSONObject library) {
-        mediaScreen.onLibrary(library);
-        home.setLibrary(library);
-      }
-
-      @Override
-      public void onMedia(JSONObject media) {
-        mediaScreen.onMedia(media);
-        home.setNowPlaying(media);
+      public void onRadio(JSONObject radio) {
+        radioScreen.onRadio(radio, agent.isConnected());
+        home.setRadio(radio, agent.isConnected());
       }
 
       @Override
@@ -325,28 +319,13 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
           showScreen(name);
         }
       }
-
-      @Override
-      public void transport(boolean library, String cmd) {
-        try {
-          JSONObject c = new JSONObject().put("cmd", cmd);
-          if (library) agent.libraryCommand(c);
-          else agent.mediaCommand(c);
-        } catch (org.json.JSONException ignored) {
-        }
-      }
-
-      @Override
-      public void loadArt(String path, HomeScreen.ArtCallback cb) {
-        agent.loadArtPath(path, cb::onBitmap);
-      }
     });
     vehicle = new VehicleScreen(this);
     jobs = new JobsScreen(this, agent, this::routeJob);
     profile = new ProfileScreen(this, agent, (p, err) -> home.setProfile(p, err));
-    mediaScreen = new MediaScreen(this, agent);
+    radioScreen = new RadioScreen(this);
     addScreen("home", home.view());
-    addScreen("media", mediaScreen.view());
+    addScreen("radio", radioScreen.view());
     addScreen("vehicle", vehicle.view());
     addScreen("jobs", jobs.view());
     addScreen("profile", profile.view());
@@ -459,7 +438,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   }
 
   // --- swiping between the screens, with one dot per screen under them -------------
-  private static final String[] SCREEN_ORDER = {"home", "map", "media", "vehicle", "jobs", "profile"};
+  private static final String[] SCREEN_ORDER = {"home", "map", "radio", "vehicle", "jobs", "profile"};
   private GestureDetector swipeDetector;
   private LinearLayout pageDots;
 
@@ -487,8 +466,8 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     screens.getLocationOnScreen(at);
     float x = from.getRawX() - at[0];
     if (x < 0 || x > screens.getWidth()) return false; // started on the rail
-    // the map (panning) and the media screen (sliders) only swipe from their edges
-    if ("map".equals(screen) || "media".equals(screen)) {
+    // the map pans on touch, so it only swipes from its edges
+    if ("map".equals(screen)) {
       float edge = Ui.dp(this, 56);
       if (x > edge && x < screens.getWidth() - edge) return false;
     }
@@ -1107,14 +1086,6 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     if (!frameLoopRunning) return;
     Choreographer.getInstance().postFrameCallback(this);
     long now = SystemClock.uptimeMillis();
-    if ("home".equals(screen) && now - lastMediaTickMs > 250) {
-      lastMediaTickMs = now;
-      home.tickPlayback();
-    }
-    if ("media".equals(screen) && now - lastMediaTickMs > 250) {
-      lastMediaTickMs = now; // progress bar runs even without game telemetry
-      mediaScreen.tick();
-    }
     if (now - lastFrameMs < FRAME_INTERVAL_MS - 4 || map == null || !tracker.hasData()) return;
     lastFrameMs = now;
 

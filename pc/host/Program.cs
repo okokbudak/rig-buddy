@@ -45,11 +45,6 @@ static class Program
         try { bridge.Start(); }
         catch (Exception e) { Console.WriteLine($"bridge: disabled ({e.Message}); is another Rig Buddy running?"); }
         Discovery.Start();
-        _ = Task.Run(async () =>
-        {
-            try { await new MediaService().RunAsync(); }
-            catch (Exception e) { Console.WriteLine($"media: disabled ({e.GetType().Name}: {e.Message})"); }
-        });
 
         var sup = new Supervisor(paths);
         // new map data: the server reloads it (or starts, on the first build)

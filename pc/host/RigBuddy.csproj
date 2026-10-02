@@ -1,11 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- Rig Buddy PC app: one tray program that runs everything the head unit
-       needs (telemetry bridge, media sessions, and the Node services). -->
+       needs (telemetry bridge and the Node services). -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <!-- Windows TFM for the WinRT media-session API (Windows.Media.Control). -->
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -19,10 +18,5 @@
     <SelfContained>false</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
   </PropertyGroup>
-
-  <ItemGroup>
-    <!-- Per-app audio session volume (Core Audio / WASAPI). -->
-    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
-  </ItemGroup>
 
 </Project>

@@ -3,8 +3,8 @@
 #   - make-demo-save.mjs: your newest save with the personal parts replaced
 #   - demo-telemetry.mjs: telemetry frames, played into the game plugin's
 #     shared memory (Local\SCSTelemetry), which RigBuddy.exe reads as usual
-#   - media.json: shown as "now playing" instead of this PC's media, and a
-#     sample LAN address in the PC window (the app itself still connects)
+#   - radio.json: shown as the in-game radio station, and a sample LAN address
+#     in the PC window (the app itself still connects)
 # Runs until -Minutes are over; the game must not be running.
 #
 #   powershell -ExecutionPolicy Bypass -File dev\demo\run-demo.ps1 [-Minutes 20] [-Start 0.55]
@@ -26,7 +26,7 @@ if (Get-Process RigBuddy -ErrorAction SilentlyContinue) {
   Get-Process RigBuddy -ErrorAction SilentlyContinue | Wait-Process -Timeout 15 -ErrorAction SilentlyContinue
 }
 $env:STEAM_PATH = "$demo\steam"
-$env:RIGBUDDY_DEMO_MEDIA = "$PSScriptRoot\media.json" # not what this PC is playing
+$env:RIGBUDDY_DEMO_RADIO = "$PSScriptRoot\radio.json" # a made-up station: the game isn't running
 $env:RIGBUDDY_DEMO_ADDRESS = '192.168.1.50'           # shown instead of this PC's address
 Start-Process "$root\bin\RigBuddy.exe"
 
