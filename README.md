@@ -21,7 +21,6 @@
   <img src="docs/screenshots/app-vehicle.png" width="49%" alt="Trip computer">
   <img src="docs/screenshots/app-jobs.png" width="49%" alt="Job offers">
   <img src="docs/screenshots/app-profile.png" width="49%" alt="Profile">
-  <img src="docs/screenshots/app-media.png" width="49%" alt="Media">
 </p>
 <p align="center">
   <img src="docs/screenshots/pc-light.png" width="24%" alt="PC app, light theme">
@@ -51,9 +50,7 @@ truck.
 - **Jobs:** The freight market with cargo, pay, distance and deadline. Tap an
   offer and the route is planned for you.
 - **Profile:** Your money, level, company, garages, trucks and drivers.
-- **Media:** Whatever is playing on your PC (Spotify, YouTube or music in the
-  browser: title, cover art, play/pause, skip and volume) and the station and
-  song of the in-game radio.
+- **Radio:** The station and song of the in-game radio.
 - **Any Android device:** Phone, tablet or car head unit (Android 5.0 or
   later). Light and dark theme, following your device's theme automatically.
 
@@ -68,7 +65,7 @@ truck.
  ┌─────────────────────────────┐   Wi-Fi     ┌──────────────────────────────┐
  │ ETS2 / ATS                  │ ──────────► │ Rig Buddy app                │
  │   └ telemetry plugin        │             │   map, vehicle, jobs,        │
- │ Rig Buddy (in the tray)     │ ◄────────── │   profile, media             │
+ │ Rig Buddy (in the tray)     │ ◄────────── │   profile, radio             │
  └─────────────────────────────┘             └──────────────────────────────┘
 ```
 
@@ -131,10 +128,10 @@ the Jobs screen and its route is planned for you.
   time with **Rebuild map** in the icon's menu.
 - Several devices can be connected at the same time.
 - **Your network:** Rig Buddy trusts the devices on your private network. Any
-  device on the same Wi-Fi can see the game data and what is playing on the
-  PC, and control the PC's media. Use it on your home network; the firewall
-  rules it adds only apply to networks Windows marks as "Private". Web pages
-  can't reach Rig Buddy: requests coming from a browser are refused.
+  device on the same Wi-Fi can see the game data and the radio station you are
+  listening to. Use it on your home network; the firewall rules it adds only
+  apply to networks Windows marks as "Private". Web pages can't reach Rig
+  Buddy: requests coming from a browser are refused.
 
 ## Troubleshooting
 
@@ -166,8 +163,8 @@ translations is a big help too; see "Translations" below.
 | Folder | Contents |
 |---|---|
 | `android/` | Android app (Java, MapLibre Native, OkHttp) |
-| `pc/host/` | PC app `RigBuddy.exe` (C#/.NET 8; tray icon and window): telemetry bridge, media, PC discovery, map builder and supervision of the Node services |
-| `pc/agent/` | Node service: full telemetry, save file (jobs, profile), media, radio, and map downloads for the devices |
+| `pc/host/` | PC app `RigBuddy.exe` (C#/.NET 8; tray icon and window): telemetry bridge, PC discovery, map builder and supervision of the Node services |
+| `pc/agent/` | Node service: full telemetry, save file (jobs, profile), radio, and map downloads for the devices |
 | `pc/patches/` | Patches applied on top of [truckermudgeon/maps](https://github.com/truckermudgeon/maps), and `scsSDKTelemetry.js`, which stands in for the telemetry addon |
 | `pc/native/` | Script that builds the parser's two native addons (cityhash, gdeflate) for Windows with MinGW |
 | `pipeline/` | Builds map, route and icon data from the game files (`build-map-data.mjs`, `make-tiles.mjs`) |
@@ -226,7 +223,7 @@ keytool -genkeypair -v -keystore rigbuddy.jks -alias rigbuddy -keyalg RSA -keysi
 - Build the PC app: `dotnet publish pc\host\RigBuddy.csproj -c Release -o bin`
 - Build the app, install it on a device and take a screenshot: `dev/dev-deploy.sh` (settings in `dev/dev.env`)
 - Test without the game: `dev\dev-run-sim.ps1 berlin hamburg 90`, then `dev\dev-play-recording.ps1`
-- Demo mode for screenshots (made-up profile, a truck on the A24, sample media): `dev\demo\run-demo.ps1`
+- Demo mode for screenshots (made-up profile, a truck on the A24, a sample radio station): `dev\demo\run-demo.ps1`
 - Control the program from scripts: `RigBuddy.exe --status`, `--restart [server|agent|telemetry]`, `--quit`
 - Changing tm-maps: commit to the `ets2nav-local` branch in `vendor\tm-maps` and regenerate the patches with
   `git -C vendor\tm-maps format-patch d56d0e3..ets2nav-local -o ..\..\pc\patches\tm-maps`.
@@ -297,9 +294,7 @@ araç ekranı gerçek bir kamyonun multimedya sistemi gibi davranır.
   Bir ilana dokunmanız yeterli, rota kendiliğinden çizilir.
 - **Profil:** Paranız, seviyeniz, şirketiniz, garajlarınız, kamyonlarınız ve
   şoförleriniz.
-- **Medya:** PC'de çalan Spotify, YouTube ya da tarayıcıdaki müzik (şarkı
-  adı, albüm kapağı, oynatma, geçiş ve ses) ile oyun içi radyonun istasyon ve
-  şarkı bilgisi.
+- **Radyo:** Oyun içi radyonun istasyon ve şarkı bilgisi.
 - **Her Android cihazda:** Telefon, tablet ya da araç multimedya ekranı
   (Android 5.0 ve üzeri). Açık ve koyu tema, cihazınızın temasına kendiliğinden uyar.
 
@@ -316,7 +311,7 @@ Sayfanın başındaki ekran görüntüleri demo verilerle hazırlanmıştır.
  ┌─────────────────────────────┐   Wi-Fi     ┌──────────────────────────────┐
  │ ETS2 / ATS                  │ ──────────► │ Rig Buddy uygulaması         │
  │   └ telemetri eklentisi     │             │   harita, araç, işler,       │
- │ Rig Buddy (arka planda)     │ ◄────────── │   profil, medya              │
+ │ Rig Buddy (arka planda)     │ ◄────────── │   profil, radyo              │
  └─────────────────────────────┘             └──────────────────────────────┘
 ```
 
@@ -384,10 +379,9 @@ ekranında bir ilanı seçtiğinizde rotası kendiliğinden çizilir.
   **Haritayı yeniden oluştur** ile de başlatabilirsiniz.
 - Aynı anda birden fazla cihaz bağlanabilir.
 - **Ağınız:** Rig Buddy, özel ağınızdaki cihazlara güvenir. Aynı Wi-Fi
-  ağındaki her cihaz oyun verilerini ve PC'de çalan medyayı görebilir, PC'deki
-  medyayı kontrol edebilir. Rig Buddy'yi ev ağınızda kullanın; eklediği
-  güvenlik duvarı izinleri yalnızca Windows'un "Özel" olarak işaretlediği
-  ağlarda geçerlidir. Web siteleri Rig Buddy'ye erişemez: tarayıcıdan gelen
+  ağındaki her cihaz oyun verilerini ve dinlediğiniz radyo istasyonunu
+  görebilir. Rig Buddy'yi ev ağınızda kullanın; eklediği güvenlik duvarı
+  izinleri yalnızca Windows'un "Özel" olarak işaretlediği ağlarda geçerlidir. Web siteleri Rig Buddy'ye erişemez: tarayıcıdan gelen
   istekler reddedilir.
 
 ### Sorun giderme
@@ -422,8 +416,8 @@ ayrıntılar için aşağıdaki "Çeviriler" bölümüne bakabilirsiniz.
 | Klasör | İçerik |
 |---|---|
 | `android/` | Android uygulaması (Java, MapLibre Native, OkHttp) |
-| `pc/host/` | PC uygulaması `RigBuddy.exe` (C#/.NET 8; tepsi simgesi ve pencere): telemetri köprüsü, medya, PC keşfi, harita üretimi ve Node servislerinin yönetimi |
-| `pc/agent/` | Node servisi: tam telemetri, kayıt dosyası (işler, profil), medya, radyo ve haritanın cihazlara aktarılması |
+| `pc/host/` | PC uygulaması `RigBuddy.exe` (C#/.NET 8; tepsi simgesi ve pencere): telemetri köprüsü, PC keşfi, harita üretimi ve Node servislerinin yönetimi |
+| `pc/agent/` | Node servisi: tam telemetri, kayıt dosyası (işler, profil), radyo ve haritanın cihazlara aktarılması |
 | `pc/patches/` | [truckermudgeon/maps](https://github.com/truckermudgeon/maps) üzerine uygulanan yamalar ve telemetri eklentisinin yerini alan `scsSDKTelemetry.js` |
 | `pc/native/` | Ayrıştırıcının iki yerel eklentisini (cityhash, gdeflate) Windows için MinGW ile derleyen betik |
 | `pipeline/` | Oyun dosyalarından harita, rota ve ikon verisini üreten betikler (`build-map-data.mjs`, `make-tiles.mjs`) |
@@ -484,7 +478,7 @@ keytool -genkeypair -v -keystore rigbuddy.jks -alias rigbuddy -keyalg RSA -keysi
 - PC uygulamasını derlemek: `dotnet publish pc\host\RigBuddy.csproj -c Release -o bin`
 - Uygulamayı derleyip cihaza kurmak ve ekran görüntüsü almak: `dev/dev-deploy.sh` (ayarlar `dev/dev.env` dosyasında)
 - Oyun olmadan test etmek: `dev\dev-run-sim.ps1 berlin hamburg 90`, ardından `dev\dev-play-recording.ps1`
-- Ekran görüntüleri için demo modu (uydurma profil, A24'te bir kamyon, örnek medya): `dev\demo\run-demo.ps1`
+- Ekran görüntüleri için demo modu (uydurma profil, A24'te bir kamyon, örnek bir radyo istasyonu): `dev\demo\run-demo.ps1`
 - Programı betikten yönetmek: `RigBuddy.exe --status`, `--restart [server|agent|telemetry]`, `--quit`
 - tm-maps üzerinde değişiklik yapmak: `vendor\tm-maps` içindeki `ets2nav-local` dalına
   commit atıp yamaları `git -C vendor\tm-maps format-patch d56d0e3..ets2nav-local -o ..\..\pc\patches\tm-maps` ile yeniden üretin.

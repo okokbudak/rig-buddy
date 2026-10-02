@@ -13,7 +13,7 @@ sealed class StatusForm : Form
     readonly Label _status, _stage, _percent, _ip, _pair, _themeLink, _langLink;
     readonly Action _onThemeChanged;
     readonly ProgressLine _bar;
-    readonly FeatureRow _nav, _vehicle, _jobs, _media, _devices;
+    readonly FeatureRow _nav, _vehicle, _jobs, _radio, _devices;
     readonly CheckBox _autostart;
     readonly Button[] _buttons;
     readonly List<(Control Control, Func<Palette, Color> Fore)> _labels = new();
@@ -103,7 +103,7 @@ sealed class StatusForm : Form
         _nav = Row(features, 0, L.T("f.nav"));
         _vehicle = Row(features, 1, L.T("f.vehicle"));
         _jobs = Row(features, 2, L.T("f.jobs"));
-        _media = Row(features, 3, L.T("f.media"));
+        _radio = Row(features, 3, L.T("f.radio"));
         _devices = Row(features, 4, L.T("f.devices"));
         Controls.Add(features);
 
@@ -354,8 +354,7 @@ sealed class StatusForm : Form
             L.T(!agentUp ? "fs.starting" : _bridge.GameConnected ? "fs.game_data" : "fs.game_wait"));
         _jobs.Set(!agentUp ? p.Orange : _sup.SaveLoaded ? p.Green : p.Gray,
             L.T(!agentUp ? "fs.starting" : _sup.SaveLoaded ? "fs.save_ok" : "fs.save_wait"));
-        _media.Set(agentUp && MediaService.Running ? p.Green : p.Orange,
-            L.T(agentUp && MediaService.Running ? "fs.ready" : "fs.starting"));
+        _radio.Set(agentUp ? p.Green : p.Orange, L.T(agentUp ? "fs.ready" : "fs.starting"));
         _devices.Set(_sup.Clients > 0 ? p.Green : p.Gray,
             _sup.Clients > 0 ? L.T("fs.devices", _sup.Clients) : L.T("fs.devices_wait"));
     }

@@ -1,6 +1,7 @@
 // Rig Buddy agent: runs on the gaming PC next to the navigation server and
 // serves the head-unit app everything the navigation server doesn't:
-//   ws://PC:62843/ws      -> {"type":"telemetry","data":{...}} at 5 Hz, {"type":"save",...} on new autosave
+//   ws://PC:62843/ws      -> {"type":"telemetry","data":{...}} at 5 Hz, {"type":"save",...} on new autosave,
+//                            {"type":"radio","data":{name,genre,country,song}|null} when the in-game radio changes
 //   GET  /profile         -> profile/economy summary from the latest save
 //   GET  /jobs            -> freight-market offers, nearest pickup first
 //   GET  /tiles           -> {"ets2": {size, version}}: map files the app can download
@@ -15,8 +16,6 @@ import os from 'node:os';
 import path from 'node:path';
 import tst from 'trucksim-telemetry';
 import { WebSocketServer } from 'ws';
-import { createLibrary } from './library.mjs';
-import { createMedia } from './media.mjs';
 import { createRadio } from './radio.mjs';
 import { findLatestSave, loadSave } from './save.mjs';
 
@@ -172,36 +171,14 @@ function jobsForApp(limit) {
     .map(({ source: { x, y, ...src }, ...rest }) => ({ ...rest, source: src }));
 }
 
-// --- media (PC players via the bridge) + in-game radio ------------------------------------
+// --- in-game radio ---------------------------------------------------------------------------
 
-// dev/demo/run-demo.ps1 (screenshots): made-up media instead of what this PC is playing
-const DEMO_MEDIA = process.env.RIGBUDDY_DEMO_MEDIA ? JSON.parse(fs.readFileSync(process.env.RIGBUDDY_DEMO_MEDIA, 'utf8')) : null;
-const mediaPayload = () => DEMO_MEDIA ?? { ...(media.state() ?? { sessions: [] }), radio: radio.state() };
-const media = createMedia(() => broadcast({ type: 'media', data: mediaPayload() }));
-const radio = createRadio(() => broadcast({ type: 'media', data: mediaPayload() }));
-const library = createLibrary(() => broadcast({ type: 'library', data: library.state() }));
+// dev/demo/run-demo.ps1 (screenshots): a made-up station instead of what the game is playing
+const DEMO_RADIO = process.env.RIGBUDDY_DEMO_RADIO ? JSON.parse(fs.readFileSync(process.env.RIGBUDDY_DEMO_RADIO, 'utf8')) : null;
+const radioPayload = () => DEMO_RADIO ?? radio.state();
+const radio = createRadio(() => broadcast({ type: 'radio', data: radioPayload() }));
 
-const MAX_BODY = 16 * 1024; // media commands are a few dozen bytes
-
-function readBody(req) {
-  return new Promise(resolve => {
-    let body = '';
-    req.on('data', d => {
-      body += d;
-      if (body.length > MAX_BODY) {
-        req.destroy();
-        resolve(null);
-      }
-    });
-    req.on('end', () => {
-      try {
-        resolve(JSON.parse(body || '{}'));
-      } catch {
-        resolve(null);
-      }
-    });
-  });
-}
+const MAX_BODY = 16 * 1024; // the app sends nothing over the WebSocket; keep what a client may send small
 
 // --- map tiles for the app -----------------------------------------------------------------
 // Phones and tablets can't `adb push` the map: the app downloads data/<game>.mbtiles
@@ -262,8 +239,8 @@ function sendTiles(req, res, g) {
 /**
  * True for requests made by a web page. Browsers send Origin with cross-site
  * fetches, every POST and every WebSocket; without this check (and with CORS
- * open) any site open on this PC or on the LAN could read what is playing,
- * the profile and the telemetry, and control the PC's media. The Host check
+ * open) any site open on this PC or on the LAN could read
+ * the profile, the telemetry and the radio. The Host check
  * stops DNS rebinding: a page whose own domain resolves to this PC is
  * same-origin, but its Host header carries that domain, not an address.
  */
@@ -307,61 +284,13 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': SPRITES[sprite[1]], 'Content-Length': fs.statSync(file).size });
     return fs.createReadStream(file).pipe(res);
   }
-  if (url.pathname === '/media') return send(200, mediaPayload());
-  if (url.pathname.startsWith('/media/art/')) {
-    const a = media.art(url.pathname.slice('/media/art/'.length));
-    if (!a) return send(404, { error: 'no art' });
-    res.writeHead(200, { 'Content-Type': a.mime, 'Cache-Control': 'max-age=86400' });
-    return res.end(a.data);
-  }
-  if (url.pathname === '/media/cmd' && req.method === 'POST') {
-    readBody(req).then(cmd => {
-      const allowed = ['toggle', 'play', 'pause', 'next', 'prev', 'seek', 'volume', 'select'];
-      if (!cmd || !allowed.includes(cmd.cmd)) return send(400, { error: 'bad command' });
-      send(media.command(cmd) ? 200 : 503, { ok: true });
-    });
-    return;
-  }
-
-  // --- foobar2000 library (Beefweb), see library.mjs ---
-  if (url.pathname === '/library') return send(200, library.state());
-  if (url.pathname === '/library/playlists') {
-    library.playlists().then(p => send(200, { playlists: p })).catch(e => send(502, { error: e.message }));
-    return;
-  }
-  const items = /^\/library\/playlists\/([^/]+)\/items$/.exec(url.pathname);
-  if (items) {
-    const offset = Math.max(0, Number(url.searchParams.get('offset') || 0));
-    const count = Math.min(500, Number(url.searchParams.get('count') || 100));
-    library.items(decodeURIComponent(items[1]), offset, count)
-      .then(r => send(200, r)).catch(e => send(502, { error: e.message }));
-    return;
-  }
-  const art = /^\/library\/art\/([^/]+)\/(\d+)$/.exec(url.pathname);
-  if (art) {
-    library.art(decodeURIComponent(art[1]), Number(art[2])).then(a => {
-      if (!a) return send(404, { error: 'no art' });
-      res.writeHead(200, { 'Content-Type': a.mime, 'Cache-Control': 'max-age=86400' });
-      res.end(a.data);
-    }).catch(() => send(502, { error: 'art failed' }));
-    return;
-  }
-  if (url.pathname === '/library/cmd' && req.method === 'POST') {
-    readBody(req).then(cmd => {
-      const allowed = ['play', 'toggle', 'pause', 'resume', 'stop', 'next', 'prev', 'seek'];
-      if (!cmd || !allowed.includes(cmd.cmd)) return send(400, { error: 'bad command' });
-      library.command(cmd).then(() => send(200, { ok: true })).catch(e => send(502, { error: e.message }));
-    });
-    return;
-  }
   send(404, { error: 'not found' });
 });
 
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: MAX_BODY, verifyClient: ({ req }) => !fromWebPage(req) });
 wss.on('connection', ws => {
   if (latest) ws.send(JSON.stringify({ type: 'telemetry', data: latest }));
-  ws.send(JSON.stringify({ type: 'media', data: mediaPayload() }));
-  ws.send(JSON.stringify({ type: 'library', data: library.state() }));
+  ws.send(JSON.stringify({ type: 'radio', data: radioPayload() }));
 });
 function broadcast(msg) {
   const s = JSON.stringify(msg);

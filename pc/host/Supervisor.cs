@@ -1,7 +1,7 @@
 // Runs the Node services with the bundled Node.js (vendor\node), hidden, and
 // keeps them alive:
 //   server     truckermudgeon navigation server (routes, search)  :62840
-//   agent      pc\agent: full telemetry, save game, media, radio   :62843
+//   agent      pc\agent: full telemetry, save game, radio          :62843
 //   telemetry  truckermudgeon telemetry client (bridge -> server), after the server is up
 // Output goes to logs\<name>.log. All children live in a kill-on-close job
 // object, so they never outlive this app, even if it crashes.
@@ -109,7 +109,7 @@ sealed class Supervisor
         if (!File.Exists(_node) || (dist == null && !File.Exists(tsx)))
             SetupProblem = "setup.missing"; // L key
         // No map data yet (first start): the server waits for MapBuilder; the
-        // agent runs anyway (media, radio, jobs and profile need no map).
+        // agent runs anyway (radio, jobs and profile need no map).
 
         var server = new NodeService
         {
@@ -134,7 +134,7 @@ sealed class Supervisor
             Title = "svc.agent",
             WorkDir = Cwd("agent", Path.Combine(paths.Root, @"pc\agent")),
             Args = dist != null ? [Path.Combine(dist, @"agent\index.mjs")] : [Path.Combine(paths.Root, @"pc\agent\index.mjs")],
-            Env = new() { ["ETS2NAV_DATA"] = data, ["RIGBUDDY_MEDIA_TOKEN"] = MediaService.Token },
+            Env = new() { ["ETS2NAV_DATA"] = data },
             HealthUrl = "http://127.0.0.1:62843/health",
             BeforeStart = dist != null ? null
                 : () => CopyShim(shim, Path.Combine(paths.Root, @"pc\agent\node_modules\trucksim-telemetry\build\Release")),

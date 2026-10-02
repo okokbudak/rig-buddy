@@ -10,7 +10,6 @@
     <string name="cancel_route">Cancelar ruta</string>
     <string name="rail_home">Inicio</string>
     <string name="rail_map">Mapa</string>
-    <string name="rail_media">Multimedia</string>
     <string name="rail_vehicle">Vehículo</string>
     <string name="rail_jobs">Trabajos</string>
     <string name="rail_profile">Perfil</string>
@@ -133,10 +132,6 @@
     <string name="jobs_fragile">Frágil</string>
     <string name="jobs_urgent_lower">urgente</string>
     <string name="jobs_row_distance">a %1$s km  ·  %2$s km de viaje</string>
-    <string name="media_music_pc">MÚSICA (PC)</string>
-    <string name="media_nothing">No suena nada en el PC.\nPon música en Spotify, Apple Music o el navegador.</string>
-    <string name="media_pc_volume">Volumen del PC</string>
-    <string name="media_app_volume">Volumen de %1$s</string>
     <string name="media_radio">RADIO DEL JUEGO</string>
     <string name="media_pc_unreachable">No se pudo conectar con Rig Buddy en el PC.</string>
     <string name="media_radio_off">Radio apagada</string>
