@@ -127,6 +127,9 @@
     <string name="jobs_refresh">↻ Refresh</string>
     <string name="jobs_route_full">Pick up and deliver: plan the route</string>
     <string name="jobs_route_pickup">Go to the pickup only</string>
+    <string name="jobs_route_delivery">Route to the delivery only</string>
+    <string name="route_to_job">Route to the delivery point</string>
+    <string name="route_no_job">No active job to route to</string>
     <string name="jobs_active">Active job:  %1$s</string>
     <string name="loading">Loading…</string>
     <string name="jobs_status">%1$d offers  ·  last save %2$s  ·  the game autosaves every ~3 min</string>

@@ -125,6 +125,9 @@
     <string name="jobs_refresh">↻ Yenile</string>
     <string name="jobs_route_full">Yükle ve teslim et: rotayı çiz</string>
     <string name="jobs_route_pickup">Sadece yükleme noktasına git</string>
+    <string name="jobs_route_delivery">Sadece teslimat noktasına git</string>
+    <string name="route_to_job">Teslimat noktasına rota</string>
+    <string name="route_no_job">Rota çizilecek aktif iş yok</string>
     <string name="jobs_active">Aktif iş:  %1$s</string>
     <string name="loading">Yükleniyor…</string>
     <string name="jobs_status">%1$d ilan  ·  son kayıt %2$s  ·  oyun her ~3 dk otomatik kaydeder</string>

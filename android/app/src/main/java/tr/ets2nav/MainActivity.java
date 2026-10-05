@@ -130,11 +130,14 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private TextView railClock;
   private View railAgentDot, railNavDot;
   private JSONObject lastTelemetry;
+  private boolean staleBinding;
 
   private Route route;
   private int routeStep = -1;       // step currently being driven (flat index)
   private int serverStepHint = 0;   // from routeProgress events
   private String requestedDestNode;
+  /** Delivery node of the job taken in the game; the map's route button drives there. */
+  private String jobDestNode;
   private boolean pickingRoute;
 
   /** Short side, in dp, the screens are designed for (head units: 720). */
@@ -206,6 +209,16 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     findViewById(R.id.searchButton).setOnClickListener(v -> {
       hideDestCard();
       searchPanel.show(pose.valid ? pose.lon : 0, pose.valid ? pose.lat : 0);
+    });
+    findViewById(R.id.jobRouteButton).setOnClickListener(v -> {
+      hideDestCard();
+      if (jobDestNode == null) {
+        flashMessage(Ui.s(R.string.route_no_job));
+        return;
+      }
+      pickingRoute = false; // a stuck earlier attempt must not swallow this tap
+      routeTo(jobDestNode);
+      setFollowing(true);
     });
     findViewById(R.id.cancelRoute).setOnClickListener(v -> cancelRoute());
     findViewById(R.id.destGo).setOnClickListener(v -> {
@@ -488,7 +501,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
       (v, l, t, r, b, ol, ot, or, ob) -> layoutMapCard();
   /** Map buttons and panels that only make sense on the full map, hidden in the home card. */
   private static final int[] MAP_ONLY_OVERLAYS = {
-      R.id.settings, R.id.searchButton, R.id.recenter, R.id.cancelRoute, R.id.destCard,
+      R.id.settings, R.id.searchButton, R.id.jobRouteButton, R.id.recenter, R.id.cancelRoute, R.id.destCard,
       R.id.searchPanel, R.id.status, R.id.message};
 
   /**
@@ -868,9 +881,11 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     switch (type) {
       case "positionUpdate":
         if (data instanceof JSONObject) {
-          boolean first = !tracker.hasData();
+          boolean first = !tracker.hasData() || staleBinding;
           if (first) Log.i(TAG, "first positionUpdate: " + data);
           tracker.onPositionUpdate((JSONObject) data);
+          // The server only says "stale" once; a position coming in again means the game is back.
+          staleBinding = false;
           if (first) {
             onStateChanged(NavClient.State.CONNECTED, null);
             placeTruckArrow();
@@ -891,8 +906,10 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
       case "jobUpdate":
         if (data instanceof JSONObject) {
           String node = ((JSONObject) data).optString("toNodeUid", null);
+          jobDestNode = node;
           if (node != null && !node.equals(requestedDestNode)) routeTo(node);
         } else {
+          jobDestNode = null;
           requestedDestNode = null;
         }
         break;
@@ -928,6 +945,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
         if (isFinal) arrived();
         break;
       case "staleBinding":
+        staleBinding = true;
         statusView.setText(Ui.s(R.string.no_game_data));
         statusView.setTextColor(0xffe37400);
         break;

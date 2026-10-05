@@ -119,6 +119,9 @@
     <string name="jobs_refresh">↻ Atualizar</string>
     <string name="jobs_route_full">Carregar e entregar: traçar a rota</string>
     <string name="jobs_route_pickup">Ir só até o carregamento</string>
+    <string name="jobs_route_delivery">Ir só até a entrega</string>
+    <string name="route_to_job">Rota até a entrega</string>
+    <string name="route_no_job">Nenhum trabalho ativo para a rota</string>
     <string name="jobs_active">Frete ativo:  %1$s</string>
     <string name="loading">Carregando…</string>
     <string name="jobs_status">%1$d fretes  ·  último save %2$s  ·  o jogo salva a cada ~3 min</string>

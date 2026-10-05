@@ -110,6 +110,13 @@ public final class JobsScreen {
       actions.routeJob(s.optString("nodeUid"), null, s.optString("company") + ", " + s.optString("city"));
     });
     detail.addView(pickup, Ui.margins(Ui.matchWrap(), c, 0, 10, 0, 0));
+    TextView delivery = button(Ui.s(R.string.jobs_route_delivery), Ui.TRACK, Ui.TEXT);
+    delivery.setOnClickListener(v -> {
+      if (selected == null) return;
+      JSONObject d = selected.optJSONObject("destination");
+      actions.routeJob(d.optString("nodeUid"), null, d.optString("company") + ", " + d.optString("city"));
+    });
+    detail.addView(delivery, Ui.margins(Ui.matchWrap(), c, 0, 10, 0, 0));
     detail.setVisibility(View.GONE);
     body.addView(detail, Ui.margins(Ui.weight(1), c, 14, 0, 0, 0));
     root.addView(body, Ui.hweight(1));

@@ -119,6 +119,9 @@
     <string name="jobs_refresh">↻ Aktualisieren</string>
     <string name="jobs_route_full">Laden und liefern: Route planen</string>
     <string name="jobs_route_pickup">Nur zum Ladeort</string>
+    <string name="jobs_route_delivery">Nur zum Lieferort</string>
+    <string name="route_to_job">Route zum Lieferort</string>
+    <string name="route_no_job">Kein aktiver Auftrag für die Route</string>
     <string name="jobs_active">Aktiver Auftrag:  %1$s</string>
     <string name="loading">Lädt…</string>
     <string name="jobs_status">%1$d Angebote  ·  letzter Spielstand %2$s  ·  das Spiel speichert alle ~3 min</string>

@@ -213,6 +213,17 @@
         android:contentDescription="@string/search"
         android:src="@drawable/ic_search" />
 
+    <ImageButton
+        android:id="@+id/jobRouteButton"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="206dp"
+        android:layout_marginEnd="10dp"
+        android:background="@drawable/bg_round_button"
+        android:contentDescription="@string/route_to_job"
+        android:src="@drawable/ic_route" />
+
     <!-- "Go here" card for a long-pressed point or a search result -->
     <LinearLayout
         android:id="@+id/destCard"
