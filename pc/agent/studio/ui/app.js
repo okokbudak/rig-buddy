@@ -422,7 +422,7 @@ function paintNextion() {
     msg.style.color = 'var(--bad)';
     msg.textContent = st.state === 'error' && d.enabled ? st.msg : '';
     card.querySelector('[data-role=touch]').textContent = st.touch || '–';
-    card.querySelector('[data-role=line]').textContent = `commands sent: ${st.sent}`;
+    card.querySelector('[data-role=line]').textContent = `commands sent: ${st.sent}   display restarts seen: ${st.resets}`;
     card.querySelectorAll('tr[data-b]').forEach(tr => {
       const b = st.bindings[Number(tr.dataset.b)];
       if (!b) return;

@@ -1,8 +1,9 @@
 // Nextion displays (the Scania cluster on COM13): what SimHub's Nextion plugin did.
 //
 // A device has pages and bindings. A binding is `page1.tgear.txt` = formula; only the
-// bindings of the page on screen are sent, and only when their value changed (plus a
-// full refresh every few seconds, in case the display missed something). Commands
+// bindings of the page on screen are sent, and only when their value changed (writing a
+// component redraws it, so re-sending unchanged values makes the display flicker). The
+// display announces a restart with 0x88, then everything is sent again. Commands
 // are plain Nextion instructions ending in FF FF FF:
 //   .txt          page.name.txt="text"
 //   .vis          vis name,0|1           (yes/no formula)
@@ -16,7 +17,6 @@ import { read } from './props.mjs';
 
 const FF3 = Buffer.from([0xff, 0xff, 0xff]);
 const BAUDS = [9600, 19200, 38400, 57600, 115200, 230400, 250000, 512000, 921600];
-const REFRESH_MS = 3000; // resend everything this often
 const PAGE_SETTLE_MS = 150; // a display needs a moment to load a page before it takes commands
 const TOUCH_DEBOUNCE_MS = 350;
 const NAME = /^[A-Za-z][A-Za-z0-9_]{0,23}$/;
@@ -102,7 +102,7 @@ export function createNextion(cfg, { hub, hubId }) {
 
   const st = {
     state: 'off', msg: '', page: '', userPage: 0, sent: 0, touch: '', asleep: null,
-    cache: new Map(), lastFull: 0, holdUntil: 0, lastTouchAt: 0, rx: Buffer.alloc(0),
+    cache: new Map(), resets: 0, holdUntil: 0, lastTouchAt: 0, rx: Buffer.alloc(0),
   };
 
   const send = cmds => {
@@ -198,7 +198,14 @@ export function createNextion(cfg, { hub, hubId }) {
         if (end < 0) break;
         const frame = st.rx.subarray(0, end);
         st.rx = st.rx.subarray(end + 3);
-        if (frame.length === 6 && frame[0] === 0x67 && frame[5] === 1) hotspot((frame[1] << 8) | frame[2], (frame[3] << 8) | frame[4], now);
+        if (frame.length === 1 && frame[0] === 0x88) {
+          // the display (re)started (power-up, its own watchdog, an upload): it forgot page and values
+          st.resets++;
+          st.page = '';
+          st.cache.clear();
+          st.asleep = null;
+          send(['bkcmd=0', 'sendxy=1']);
+        } else if (frame.length === 6 && frame[0] === 0x67 && frame[5] === 1) hotspot((frame[1] << 8) | frame[2], (frame[3] << 8) | frame[4], now);
       }
     },
     /** Next/previous page, as a touch hotspot would. */
@@ -229,10 +236,6 @@ export function createNextion(cfg, { hub, hubId }) {
       const wanted = chosenPage(raw);
       if (wanted) showPage(wanted, now);
       if (now < st.holdUntil || !st.page) return;
-      if (now - st.lastFull > REFRESH_MS) {
-        st.cache.clear();
-        st.lastFull = now;
-      }
       const out = [];
       for (const b of bindings) {
         if (!b.fn || b.t.page !== st.page) continue;
@@ -255,7 +258,7 @@ export function createNextion(cfg, { hub, hubId }) {
     },
     status() {
       return {
-        id: cfg.id, state: st.state, msg: st.msg, page: st.page, sent: st.sent, touch: st.touch, asleep: st.asleep === true,
+        id: cfg.id, state: st.state, msg: st.msg, page: st.page, sent: st.sent, resets: st.resets, touch: st.touch, asleep: st.asleep === true,
         bindings: bindings.map(b => ({ value: b.value, error: b.error })),
         pages: pages.map(p => p.name),
       };

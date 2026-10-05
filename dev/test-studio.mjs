@@ -196,6 +196,22 @@ assert.equal(again.config.serial[1].port, 'COM15');
   live.truck.electric.enabled = true;
   nx2.tick(live, 200);
   assert.ok(cmds().includes('page page1'));
+  {
+    const nx3 = createNextion({ ...cfg, powerOffWhenIdle: false }, { hub: nxHub, hubId: 'nx:t3' });
+    nx3.state('open'); cmds();
+    nx3.tick(live, 1000); nx3.tick(live, 1400); cmds();
+  // ...also minutes later: no periodic re-write (it makes the display flicker)
+  for (let t = 40; t < 600000; t += 40) nx3.tick(live, 1400 + t);
+  assert.deepEqual(cmds(), []);
+  // the display announces a restart (88 FF FF FF): page and values are sent again
+  nx3.rx(Buffer.from([0x88, 0xff, 0xff, 0xff]), 700000);
+  assert.deepEqual(cmds(), ['bkcmd=0', 'sendxy=1']);
+  nx3.tick(live, 700040);
+  assert.deepEqual(cmds(), ['sleep=0', 'page page1']);
+  nx3.tick(live, 700400);
+  assert.ok(cmds().includes('tgear.txt="R"'), 'values resent after the restart');
+  assert.equal(nx3.status().resets, 1);
+  }
   // every seed binding compiles and evaluates on real-shaped data, with and without a game
   const st = nx.status();
   assert.equal(st.bindings.filter(b => b.error).length, 0, JSON.stringify(st.bindings.filter(b => b.error)));
