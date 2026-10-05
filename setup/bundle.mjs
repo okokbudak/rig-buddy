@@ -4,7 +4,7 @@
 //   dist/server/index.mjs        navigation server (tm-maps apis/navigation)
 //   dist/workers/*.js            its tinypool workers (paths as the server expects)
 //   dist/navigator/index.mjs     telemetry client (tm-maps clis/navigator)
-//   dist/agent/index.mjs         pc/agent
+//   dist/agent/index.mjs         pc/agent (+ agent/ui: the Studio page)
 //   dist/parser/index.mjs        game file parser (+ cityhash.node, gdeflate.node)
 //   dist/generator/index.mjs     map/graph/search generator
 //   dist/resources/              generator resources (overrides, labels, places)
@@ -122,6 +122,7 @@ console.log(`dist/workers  ${Object.keys(workers).length} workers`);
 
 await bundle('navigator', path.join(TM, 'packages/clis/navigator/index.ts'));
 await bundle('agent', path.join(ROOT, 'pc/agent/index.mjs'));
+fs.cpSync(path.join(ROOT, 'pc/agent/studio/ui'), path.join(DIST, 'agent/ui'), { recursive: true }); // Rig Buddy Studio's page
 await bundle('parser', path.join(TM, 'packages/clis/parser/index.ts'), { plugins: [bindingsNextToBundle] });
 for (const f of ['cityhash.node', 'gdeflate.node']) {
   fs.copyFileSync(path.join(ROOT, 'pc/native/win-x64', f), path.join(DIST, 'parser', f));

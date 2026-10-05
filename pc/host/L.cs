@@ -65,6 +65,7 @@ static class L
         ["tray.restart_hint"] = ["Tıkla: yeniden başlat", "Click: restart", "Klicken: neu starten", "Нажмите: перезапустить", "Clique: reiniciar", "Clic: reiniciar", "Clic : redémarrer"],
         ["tray.copy_hint"] = ["Tıkla: kopyala", "Click: copy", "Klicken: kopieren", "Нажмите: копировать", "Clique: copiar", "Clic: copiar", "Clic : copier"],
         ["tray.logs"] = ["Logları göster", "Show logs", "Protokolle anzeigen", "Показать журналы", "Mostrar logs", "Mostrar registros", "Afficher les journaux"],
+        ["tray.studio"] = ["Studio (gösterge paneli ayarları)", "Studio (dashboards & gauges)", "Studio (Dashboards & Anzeigen)", "Студия (панели и приборы)", "Studio (painéis e medidores)", "Studio (paneles e indicadores)", "Studio (tableaux de bord et jauges)"],
         ["tray.game"] = ["Oyun (tek harita)", "Game (one map)", "Spiel (eine Karte)", "Игра (одна карта)", "Jogo (um mapa)", "Juego (un mapa)", "Jeu (une carte)"],
         ["tray.mods"] = ["Harita modları (ETS2)", "Map mods (ETS2)", "Karten-Mods (ETS2)", "Моды карты (ETS2)", "Mods de mapa (ETS2)", "Mods de mapa (ETS2)", "Mods de carte (ETS2)"],
         ["tray.mods_pick"] = ["Mod dosyalarını seç…", "Choose mod files…", "Mod-Dateien wählen…", "Выбрать файлы модов…", "Escolher arquivos de mod…", "Elegir archivos de mod…", "Choisir les fichiers de mod…"],

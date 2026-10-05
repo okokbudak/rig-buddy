@@ -8,6 +8,7 @@
 //   GET  /tiles/ets2.mbtiles -> the map file itself
 //   GET  /tiles/sprites.json|png -> the map's POI icons ("sprites" in /tiles)
 //   POST /key {"action"}  -> (reserved) key emulation via RigBuddy.exe
+//   Rig Buddy Studio (formulas -> serial gauges): studio/, page on http://127.0.0.1:62850/
 // Clients are the app and RigBuddy.exe, never a browser: see fromWebPage().
 import fs from 'node:fs';
 import http from 'node:http';
@@ -18,6 +19,9 @@ import tst from 'trucksim-telemetry';
 import { WebSocketServer } from 'ws';
 import { createRadio } from './radio.mjs';
 import { findLatestSave, loadSave } from './save.mjs';
+import { createEngine } from './studio/engine.mjs';
+import { createHub } from './studio/serialhub.mjs';
+import { startStudio } from './studio/server.mjs';
 
 const PORT = Number(process.env.AGENT_PORT || 62843);
 const TELEMETRY_HZ = 5;
@@ -298,6 +302,21 @@ function broadcast(msg) {
 }
 
 server.listen(PORT, () => console.log(`Rig Buddy agent listening on port ${PORT}`));
+
+// --- Studio: formulas -> serial gauge clusters, configured at http://127.0.0.1:62850/ ------------------
+
+/** Full parsed telemetry (every property the plugin has), or null while no game runs. */
+function readRaw() {
+  try {
+    const t = tst.getData();
+    return t && !(t.truck.position.X === 0 && t.truck.position.Z === 0) ? t : null;
+  } catch {
+    return null;
+  }
+}
+const hub = createHub();
+const studio = createEngine({ hub, getRaw: readRaw, dataDir: DATA_DIR });
+startStudio({ engine: studio, hub });
 setInterval(pollTelemetry, 1000 / TELEMETRY_HZ);
 setInterval(pollSave, SAVE_POLL_MS);
 pollSave();
