@@ -100,3 +100,7 @@ table.ch .err { color: var(--bad); font-size: 12px; }
   .prop { grid-template-columns: 1fr; }
   .prop .val { text-align: left; }
 }
+
+h3 { margin: 22px 0 2px; font-size: 16px; }
+.device p.muted { margin: 0 0 8px; }
+.fields label.switch { display: inline-flex; }

@@ -52,6 +52,11 @@ export function startStudio({ engine, hub, port = Number(process.env.RIGBUDDY_ST
           case 'GET /api/ports': return send(200, await hub.ports());
           case 'PUT /api/config': return send(200, engine.apply(JSON.parse(await readBody(req))));
           case 'POST /api/eval': return send(200, engine.evaluate(JSON.parse(await readBody(req)).expr));
+          case 'POST /api/nextion/nav': {
+            const b = JSON.parse(await readBody(req));
+            engine.nextionNav(String(b.id), String(b.action));
+            return send(200, { ok: true });
+          }
           case 'POST /api/probe': {
             const b = JSON.parse(await readBody(req));
             if (!/^COM\d{1,3}$/i.test(String(b.port))) return send(400, { error: 'bad port' });

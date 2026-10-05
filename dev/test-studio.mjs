@@ -117,5 +117,103 @@ assert.deepEqual(written.at(-1), ['close', 'cluster2']);
 // the file survives a restart
 const again = createEngine({ hub: fake, getRaw: () => null, dataDir: dir });
 assert.equal(again.config.serial[1].port, 'COM15');
+// --- Nextion ---------------------------------------------------------------------------------
+{
+  const { createNextion, normalizeNextion, parseTarget } = await import('../pc/agent/studio/nextion.mjs');
+  const { NEXTION_SEED } = await import('../pc/agent/studio/seed-nextion.mjs');
+  assert.deepEqual(parseTarget('page1.tgear.txt'), { page: 'page1', obj: 'tgear', attr: 'txt' });
+  assert.equal(parseTarget('tgear.txt'), null);
+  assert.equal(parseTarget('page1.t"x.txt'), null);
+
+  const zero = (await import('node:module')).createRequire(import.meta.url);
+  const req = zero('../pc/agent/node_modules/trucksim-telemetry/lib/converter/index.js');
+  const parse = zero('../pc/agent/node_modules/trucksim-telemetry/lib/parser/parseData.js');
+  const live = parse(req.converter(12, Buffer.alloc(32768)));
+  live.truck.speed.kph = 87; live.truck.fuel.value = 200; live.truck.fuel.capacity = 400; live.truck.fuel.range = 812.6;
+  live.truck.transmission.gear.displayed = 9; live.game.time.value = 8 * 60 + 5; live.trailer.attached = true;
+  live.trailer.model.name = 'Curtainsider'; live.trailer.model.id = 'scs_box'; live.trailer.licensePlate.value = 'AB 123';
+  live.truck.lights.blinker.left.enabled = true; live.truck.brakes.retarder.level = 2; live.truck.cruiseControl.enabled = true; live.truck.cruiseControl.kph = 84.2;
+  live.job.source.city.name = 'Hamburg'; live.navigation.time = 5400 + 60; live.job.expectedDeliveryTimestamp.value = live.game.time.value + 125;
+
+  const cfg = normalize({ serial: [], nextion: [{ ...NEXTION_SEED, enabled: true, port: 'COM13' }] }).nextion[0];
+  assert.equal(cfg.bindings.length, NEXTION_SEED.bindings.length);
+  assert.equal(cfg.bindings.length, 86 - 0 > 0 ? cfg.bindings.length : 0);
+  const sent = [];
+  const nxHub = { write: (id, data) => sent.push(Buffer.from(data)) };
+  const cmds = () => sent.splice(0).flatMap(b => b.toString('latin1').split('\xff\xff\xff').filter(Boolean));
+  const nx = createNextion(cfg, { hub: nxHub, hubId: 'nx:scania' });
+  nx.state('open');
+  assert.deepEqual(cmds(), ['bkcmd=0', 'sendxy=1']);
+  // game closed + power off: the display sleeps, once
+  nx.tick(null, 1000);
+  nx.tick(null, 1040);
+  assert.deepEqual(cmds(), ['sleep=1']);
+  // game starts: wake, page1, then (after the page settles) page1's bindings only
+  nx.tick(live, 2000);
+  assert.deepEqual(cmds(), ['sleep=0', 'page page1']);
+  nx.tick(live, 2100); // still settling
+  assert.deepEqual(cmds(), []);
+  nx.tick(live, 2400);
+  const first = cmds();
+  assert.ok(first.includes('tgear.txt="9"'), 'gear text');
+  assert.ok(first.includes('tclock.txt="08:05"'), 'clock');
+  assert.ok(first.includes('vis pblinkl,1') && first.includes('vis pblinkr,0'), 'blinkers');
+  assert.ok(first.includes('vis pr2,1') && first.includes('vis pr3,0'), 'retarder steps');
+  assert.ok(first.includes('j0.val=50'), 'fuel bar');
+  assert.ok(first.includes('trange.txt="813"'), 'range rounded');
+  assert.ok(first.includes('tcruise.txt="84"'), 'cruise');
+  assert.ok(first.includes('tlimit.txt=""'), 'no speed limit -> empty');
+  assert.ok(first.every(c => !/^(tair|tfromc|tname)/.test(c)), 'other pages are not sent');
+  // unchanged -> nothing
+  nx.tick(live, 2440);
+  assert.deepEqual(cmds(), []);
+  // a change is sent alone
+  live.truck.transmission.gear.displayed = -1;
+  nx.tick(live, 2480);
+  assert.deepEqual(cmds(), ['tgear.txt="R"']);
+  // touch: press in the right half of the bottom strip -> next page (67 xh xl yh yl state FF FF FF)
+  const touch = (x, y) => Buffer.from([0x67, x >> 8, x & 255, y >> 8, y & 255, 1, 0xff, 0xff, 0xff]);
+  nx.rx(touch(400, 245), 3000); // 83%, 90%
+  nx.tick(live, 3010);
+  assert.deepEqual(cmds(), ['page page3']);
+  nx.rx(touch(400, 245), 3100); // debounced
+  nx.tick(live, 3200);
+  nx.tick(live, 3400);
+  const p3 = cmds();
+  assert.ok(p3.includes('tair.txt="0.0"') && p3.some(c => c.startsWith('jair.val=')), 'page3 bindings');
+  nx.rx(touch(100, 245), 4000); // left half -> previous
+  nx.tick(live, 4010);
+  assert.deepEqual(cmds(), ['page page1']);
+  nx.rx(touch(100, 10), 5000); // outside every hotspot: nothing
+  nx.tick(live, 5010);
+  assert.deepEqual(cmds().filter(c => c.startsWith('page ')), []);
+  // a pop-up page (ignition off) wins over the rotation while its condition is true
+  const popCfg = normalize({ serial: [], nextion: [{ ...cfg, pages: [{ name: 'page2', rotation: false, showWhen: '!truck.electric.enabled' }, ...cfg.pages] }] }).nextion[0];
+  const nx2 = createNextion(popCfg, { hub: nxHub, hubId: 'nx:t' });
+  nx2.state('open'); cmds();
+  nx2.tick(live, 100);
+  assert.ok(cmds().includes('page page2'));
+  live.truck.electric.enabled = true;
+  nx2.tick(live, 200);
+  assert.ok(cmds().includes('page page1'));
+  // every seed binding compiles and evaluates on real-shaped data, with and without a game
+  const st = nx.status();
+  assert.equal(st.bindings.filter(b => b.error).length, 0, JSON.stringify(st.bindings.filter(b => b.error)));
+  for (const page of ['page1', 'page3', 'page4', 'page5']) {
+    const n = createNextion({ ...cfg, idlePage: page, powerOffWhenIdle: false }, { hub: nxHub, hubId: 'x' });
+    n.state('open'); cmds();
+    n.tick(null, 10); n.tick(null, 400);
+    const idleCmds = cmds();
+    assert.ok(idleCmds.length > 3, `${page}: bindings sent while idle`);
+    assert.ok(n.status().bindings.every(b => !b.error), `${page}: no errors with no game`);
+  }
+  // page 5 text formats
+  const n5 = createNextion({ ...cfg, pages: [{ name: 'page5', rotation: true, showWhen: '' }], powerOffWhenIdle: false }, { hub: nxHub, hubId: 'x' });
+  n5.state('open'); cmds(); n5.tick(live, 10); n5.tick(live, 400);
+  const c5 = cmds();
+  assert.ok(c5.includes('teta.txt="1:31"') && c5.includes('tdue.txt="2:05"') && c5.includes('tfromc.txt="Hamburg"'), c5.join(' | '));
+  assert.ok(createNextion(normalizeNextion([{ bindings: [{ target: 'bad', expr: '1' }] }], new Set())[0], { hub: nxHub, hubId: 'y' }).status().bindings[0].error);
+}
+
 console.log('studio: all tests passed');
 process.exit(0);

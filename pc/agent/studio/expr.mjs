@@ -39,6 +39,8 @@ const FUNCS = {
   },
   if: (c, a, b) => (c ? a : b),
   int: x => Math.trunc(num(x)),
+  /** blink(periodMs, cond): true in every other period while cond is true (turn signals, warnings). */
+  blink: (p, c) => !!c && Math.floor(Date.now() / Math.max(50, num(p))) % 2 === 0,
   /** format(x, decimals): fixed-point text, for Nextion text fields. */
   format: (x, d = 0) => num(x).toFixed(num(d)),
   pad: (x, n, ch = '0') => String(x).padStart(num(n), String(ch)),

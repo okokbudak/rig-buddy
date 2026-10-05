@@ -3,11 +3,11 @@
 // need a native addon), this module just says what to open and what to send.
 // Protocol: one JSON object per line, both directions.
 //   -> {op:"ports"}                         <- {ev:"ports", ports:[{name, desc}]}
-//   -> {op:"open", id, port, baud}          <- {ev:"state", id, state:"open"|"closed"|"error", msg}
+//   -> {op:"open", id, port, baud, binary}  <-{ev:"state", id, state:"open"|"closed"|"error", msg}
 //   -> {op:"write", id, b64}                (bytes to send)
 //   -> {op:"close", id}
 //   -> {op:"probe", reqId, port, baud}      <- {ev:"probe", reqId, ok, reply, msg}
-//   <- {ev:"rx", id, text}                  (one line the device sent)
+//   <- {ev:"rx", id, text}                  (one line the device sent; binary devices: {ev:"rx", id, b64})
 import net from 'node:net';
 import { EventEmitter } from 'node:events';
 
@@ -93,7 +93,7 @@ export function createHub() {
   return {
     events,
     get connected() { return connected; },
-    open: (id, port, baud) => send({ op: 'open', id, port, baud }),
+    open: (id, port, baud, binary = false) => send({ op: 'open', id, port, baud, binary }),
     close: id => send({ op: 'close', id }),
     write: (id, data) => send({ op: 'write', id, b64: Buffer.from(data).toString('base64') }),
     ports: () => request({ op: 'ports' }),

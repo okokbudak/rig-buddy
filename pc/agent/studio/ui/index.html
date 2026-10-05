@@ -13,6 +13,7 @@
     <div class="brand">Rig Buddy<span>Studio</span></div>
     <button class="tab" data-tab="live">Live data</button>
     <button class="tab" data-tab="serial">Serial gauges</button>
+    <button class="tab" data-tab="nextion">Nextion displays</button>
     <div class="spacer"></div>
     <div class="chips">
       <div class="chip" id="chipGame"><i></i><span>Game</span></div>
@@ -42,9 +43,18 @@
       <details class="help">
         <summary>Formula help</summary>
         <p>Use property names from <em>Live data</em> and the usual operators: <code>+ - * / % **</code>, <code>&lt; &gt; == !=</code>, <code>&amp;&amp; || !</code>, <code>a ? b : c</code>.</p>
-        <p>Functions: <code>round(x, d)</code> <code>floor</code> <code>ceil</code> <code>abs</code> <code>min(a, b…)</code> <code>max(a, b…)</code> <code>clamp(x, lo, hi)</code> <code>map(x, inLo, inHi, outLo, outHi)</code> <code>sqrt</code> <code>pow</code> <code>int</code> <code>if(c, a, b)</code> <code>format(x, d)</code> <code>pad(x, n)</code>.</p>
-        <p>Yes/no values count as 1/0. A missing property counts as 0. Examples: <code>truck.speed.kph * 10</code>, <code>x.fuelPercent * 10</code>, <code>x.airBar * 100</code>.</p>
+        <p>Functions: <code>round(x, d)</code> <code>floor</code> <code>ceil</code> <code>abs</code> <code>min(a, b…)</code> <code>max(a, b…)</code> <code>clamp(x, lo, hi)</code> <code>map(x, inLo, inHi, outLo, outHi)</code> <code>sqrt</code> <code>pow</code> <code>int</code> <code>if(c, a, b)</code> <code>format(x, d)</code> <code>pad(x, n)</code> <code>blink(ms, cond)</code> (true in every other period while cond is true).</p>
+        <p>Yes/no values count as 1/0. A missing property counts as 0. Examples: <code>truck.speed.kph * 10</code>, <code>x.fuelPercent * 10</code>, <code>x.airBar * 100</code>. The <code>x.</code> values are computed extras (fuel/AdBlue %, air in bar, game clock, gear text…); see Live data.</p>
       </details>
+    </section>
+
+    <section id="page-nextion" hidden>
+      <header>
+        <h1>Nextion displays</h1>
+        <p>A Nextion touch display on a COM port, driven like SimHub's Nextion plugin: each binding sets one component of the page that is on screen from a formula. Close SimHub's Nextion display for the same port first.</p>
+      </header>
+      <div id="nextions"></div>
+      <button class="btn primary" id="addNextion">Add display</button>
     </section>
   </main>
 </div>

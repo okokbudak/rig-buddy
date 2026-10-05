@@ -15,6 +15,15 @@ const EXTRAS = {
   adBluePercent: raw => (raw?.truck?.adBlue?.capacity > 0 ? (raw.truck.adBlue.value / raw.truck.adBlue.capacity) * 100 : 0),
   rpmPercent: raw => (raw?.truck?.engine?.rpm?.max > 0 ? (raw.truck.engine.rpm.value / raw.truck.engine.rpm.max) * 100 : 0),
   airBar: raw => (raw?.truck?.brakes?.airPressure?.value ?? 0) * 0.0689476,
+  gameClock: raw => {
+    const m = Math.floor(raw?.game?.time?.value ?? 0);
+    return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  },
+  gearText: raw => {
+    const g = raw?.truck?.transmission?.gear?.displayed ?? 0;
+    return g > 0 ? String(g) : g < 0 ? 'R' : 'N';
+  },
+  deliveryMinutes: raw => Math.max(0, (raw?.job?.expectedDeliveryTimestamp?.value ?? 0) - (raw?.game?.time?.value ?? 0)),
 };
 const EXTRA_INFO = {
   gameRunning: 'true while the game (with the telemetry plugin) is running',
@@ -24,6 +33,9 @@ const EXTRA_INFO = {
   adBluePercent: 'AdBlue tank level, 0-100',
   rpmPercent: 'engine rpm as % of the rev limit',
   airBar: 'brake air pressure in bar',
+  gameClock: 'in-game time of day, HH:MM',
+  gearText: 'displayed gear as text: 1-12, R or N',
+  deliveryMinutes: 'game minutes left to deliver the job (0 when none or late)',
 };
 
 /** Value of a path (or undefined): the raw telemetry, then x.* extras. */
@@ -66,7 +78,7 @@ export function catalog() {
   const list = flattenTelemetry(zero).map(([path, v]) => ({ path, kind: typeof v === 'boolean' ? 'bool' : typeof v === 'number' ? 'number' : 'text' }));
   for (const name of Object.keys(EXTRAS)) {
     const v = EXTRAS[name](null);
-    list.push({ path: `x.${name}`, kind: typeof v === 'boolean' ? 'bool' : 'number', info: EXTRA_INFO[name] });
+    list.push({ path: `x.${name}`, kind: typeof v === 'boolean' ? 'bool' : typeof v === 'string' ? 'text' : 'number', info: EXTRA_INFO[name] });
   }
   return (catalogCache = list);
 }

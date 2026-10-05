@@ -3,11 +3,11 @@
 // One TCP client at a time per connection, loopback only (127.0.0.1:62847),
 // one JSON object per line in both directions:
 //   -> {op:"ports", reqId}                       <- {ev:"ports", reqId, ports:[{name, desc}]}
-//   -> {op:"open", id, port, baud}               <- {ev:"state", id, state:"open"|"closed"|"error", msg}
+//   -> {op:"open", id, port, baud, binary?}      <-{ev:"state", id, state:"open"|"closed"|"error", msg}
 //   -> {op:"write", id, b64}
 //   -> {op:"close", id}
 //   -> {op:"probe", reqId, port, baud}           <- {ev:"probe", reqId, ok, reply, msg}
-//   <- {ev:"rx", id, text}                       a line the device sent
+//   <- {ev:"rx", id, text}                       a line the device sent (binary devices: {ev:"rx", id, b64}, the raw bytes)
 // An opened device is kept open: when it is unplugged or the port is taken by
 // another program (SimHub), it is retried every 2 s until closed.
 
@@ -130,11 +130,12 @@ sealed partial class SerialHub
                     string id = m.GetProperty("id").GetString()!;
                     string port = m.GetProperty("port").GetString()!;
                     int baud = m.GetProperty("baud").GetInt32();
+                    bool binary = m.TryGetProperty("binary", out var bin) && bin.ValueKind == JsonValueKind.True;
                     if (!ComName().IsMatch(port) || baud < 300 || baud > 2_000_000) { Send(new { ev = "state", id, state = "error", msg = "bad port or baud rate" }); break; }
                     lock (_devices)
                     {
                         if (_devices.Remove(id, out var old)) old.Stop();
-                        _devices[id] = new Device(id, port, baud, this);
+                        _devices[id] = new Device(id, port, baud, binary, this);
                     }
                     break;
                 }
@@ -199,15 +200,16 @@ sealed partial class SerialHub
     {
         readonly string _id;
         readonly int _baud;
+        readonly bool _binary;
         readonly Session _session;
         readonly CancellationTokenSource _cts = new();
         volatile SerialPort? _sp;
         volatile bool _broken;
         public string Port { get; }
 
-        public Device(string id, string port, int baud, Session session)
+        public Device(string id, string port, int baud, bool binary, Session session)
         {
-            _id = id; Port = port; _baud = baud; _session = session;
+            _id = id; Port = port; _baud = baud; _binary = binary; _session = session;
             _ = Task.Run(Loop);
         }
 
@@ -230,7 +232,13 @@ sealed partial class SerialHub
                     while (!_cts.IsCancellationRequested && !_broken)
                     {
                         if (!SerialPort.GetPortNames().Contains(Port, StringComparer.OrdinalIgnoreCase)) throw new IOException("device unplugged");
-                        while (sp.BytesToRead > 0)
+                        if (_binary && sp.BytesToRead > 0)
+                        {
+                            var buf = new byte[sp.BytesToRead];
+                            int n = sp.Read(buf, 0, buf.Length);
+                            _session.Send(new { ev = "rx", id = _id, b64 = Convert.ToBase64String(buf, 0, n) });
+                        }
+                        while (!_binary && sp.BytesToRead > 0)
                         {
                             char c = (char)sp.ReadByte();
                             if (c == '\n') { _session.Send(new { ev = "rx", id = _id, text = rx.ToString().Trim() }); rx.Clear(); }

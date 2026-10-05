@@ -5,6 +5,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { compile, FormulaError } from './expr.mjs';
+import { createNextion, normalizeNextion } from './nextion.mjs';
+import { NEXTION_SEED } from './seed-nextion.mjs';
 import { read } from './props.mjs';
 
 const TICK_MS = 40; // 25 Hz, what the gauge firmware parses at most
@@ -38,12 +40,14 @@ const SEED = {
   ],
 };
 
+SEED.nextion = [NEXTION_SEED];
+
 const str = (v, max, fallback = '') => (typeof v === 'string' ? v.slice(0, max) : fallback);
 const numOrNull = v => (v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v));
 
 /** Cleans a config coming from the editor (or an old file): unknown keys dropped, limits applied. */
 export function normalize(cfg) {
-  const out = { version: 1, serial: [] };
+  const out = { version: 1, serial: [], nextion: [] };
   const ids = new Set();
   for (const d of Array.isArray(cfg?.serial) ? cfg.serial.slice(0, 16) : []) {
     let id = str(d.id, 32).toLowerCase().replace(/[^a-z0-9_-]/g, '') || `dev${out.serial.length + 1}`;
@@ -68,6 +72,7 @@ export function normalize(cfg) {
       })),
     });
   }
+  out.nextion = normalizeNextion(cfg?.nextion, ids);
   return out;
 }
 
@@ -76,12 +81,16 @@ export function createEngine({ hub, getRaw, dataDir }) {
   let config = load();
   let compiled = new Map(); // device id -> [{fn, error}]
   const runtime = new Map(); // device id -> {state, msg, line, values, lastLine, lastSent, sent}
-  let desired = new Map(); // device id -> "port@baud" currently asked of the hub
+  let desired = new Map(); // hub id -> "port@baud" currently asked of the hub
+  let nextions = new Map(); // nextion id -> runtime from nextion.mjs
+  const nxId = id => `nx:${id}`; // hub ids of Nextion displays (config ids never contain a colon)
   let lastRaw = null;
 
   function load() {
     try {
-      return normalize(JSON.parse(fs.readFileSync(file, 'utf8')));
+      const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (!('nextion' in saved)) saved.nextion = SEED.nextion; // a file from before the Nextion part
+      return normalize(saved);
     } catch (e) {
       if (e.code !== 'ENOENT') console.warn('studio.json unreadable, starting from the defaults:', e.message);
       return normalize(SEED);
@@ -118,28 +127,44 @@ export function createEngine({ hub, getRaw, dataDir }) {
   function syncPorts() {
     const want = new Map();
     for (const d of config.serial) if (d.enabled && d.port) want.set(d.id, `${d.port}@${d.baud}`);
+    for (const d of config.nextion) if (d.enabled && d.port) want.set(nxId(d.id), `${d.port}@${d.baud}@bin`);
     for (const [id, key] of desired) {
       if (want.get(id) !== key) {
         hub.close(id);
-        const r = rt(id);
-        r.state = 'off';
-        r.msg = '';
-        r.lastLine = null;
+        if (id.startsWith('nx:')) nextions.get(id.slice(3))?.state('off', '');
+        else {
+          const r = rt(id);
+          r.state = 'off';
+          r.msg = '';
+          r.lastLine = null;
+        }
       }
     }
     for (const [id, key] of want) {
       if (desired.get(id) !== key) {
-        const [port, baud] = key.split('@');
-        hub.open(id, port, Number(baud));
-        rt(id).state = 'connecting';
+        const [port, baud, bin] = key.split('@');
+        hub.open(id, port, Number(baud), bin === 'bin');
+        if (id.startsWith('nx:')) nextions.get(id.slice(3))?.state('connecting', '');
+        else rt(id).state = 'connecting';
       }
     }
     desired = want;
   }
 
+  function buildNextions() {
+    const old = nextions;
+    nextions = new Map();
+    for (const d of config.nextion) {
+      const prev = old.get(d.id);
+      if (prev && JSON.stringify(prev.cfg) === JSON.stringify(d)) nextions.set(d.id, prev);
+      else nextions.set(d.id, createNextion(d, { hub, hubId: nxId(d.id) }));
+    }
+  }
+
   function apply(next) {
     config = normalize(next);
     compileAll();
+    buildNextions();
     syncPorts();
     for (const id of [...runtime.keys()]) if (!config.serial.some(d => d.id === id)) runtime.delete(id);
     save();
@@ -152,19 +177,24 @@ export function createEngine({ hub, getRaw, dataDir }) {
   });
   hub.events.on('disconnected', () => {
     for (const [id] of desired) {
-      const r = rt(id);
-      r.state = 'error';
-      r.msg = 'serial hub lost';
+      if (id.startsWith('nx:')) nextions.get(id.slice(3))?.state('error', 'serial hub lost');
+      else {
+        const r = rt(id);
+        r.state = 'error';
+        r.msg = 'serial hub lost';
+      }
     }
     desired = new Map();
   });
   hub.events.on('state', m => {
+    if (m.id.startsWith('nx:')) return void nextions.get(m.id.slice(3))?.state(m.state, m.msg);
     const r = rt(m.id);
     r.state = m.state;
     r.msg = m.msg || '';
     if (m.state !== 'open') r.lastLine = null; // resend as soon as it is back
   });
   hub.events.on('rx', m => {
+    if (m.id.startsWith('nx:')) return void (m.b64 && nextions.get(m.id.slice(3))?.rx(Buffer.from(m.b64, 'base64')));
     const r = rt(m.id);
     r.rx = String(m.text).slice(0, 200);
   });
@@ -199,10 +229,11 @@ export function createEngine({ hub, getRaw, dataDir }) {
 
   function tick() {
     // nothing to drive and nobody looking at the Studio page: don't parse the telemetry 25x a second
-    if (!engine.viewers && !config.serial.some(d => d.enabled)) return;
+    if (!engine.viewers && !config.serial.some(d => d.enabled) && !config.nextion.some(d => d.enabled)) return;
     const raw = getRaw();
     lastRaw = raw;
     const now = Date.now();
+    for (const n of nextions.values()) n.tick(raw, now);
     for (const d of config.serial) {
       const r = rt(d.id);
       let values;
@@ -224,6 +255,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
   }
 
   compileAll();
+  buildNextions();
   syncPorts();
   setInterval(tick, TICK_MS).unref();
 
@@ -237,11 +269,16 @@ export function createEngine({ hub, getRaw, dataDir }) {
       return {
         hub: hub.connected,
         game: lastRaw != null,
+        nextion: [...nextions.values()].map(n => n.status()),
         devices: config.serial.map(d => {
           const r = rt(d.id);
           return { id: d.id, state: r.state, msg: r.msg, line: r.line, values: r.values, errors: r.errors, sent: r.sent, rx: r.rx ?? '' };
         }),
       };
+    },
+    /** Next/previous page of a Nextion display (the editor's test buttons). */
+    nextionNav(id, action) {
+      nextions.get(id)?.nav(action);
     },
     /** One-off evaluation for the editor's "try it". */
     evaluate(expr) {
