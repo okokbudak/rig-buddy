@@ -215,5 +215,32 @@ assert.equal(again.config.serial[1].port, 'COM15');
   assert.ok(createNextion(normalizeNextion([{ bindings: [{ target: 'bad', expr: '1' }] }], new Set())[0], { hub: nxHub, hubId: 'y' }).status().bindings[0].error);
 }
 
+// an edit of a Nextion display (its port stays open) re-initialises the display
+{
+  const w = [];
+  const ev = new EventEmitter();
+  const h = {
+    events: ev, connected: true,
+    open: (id) => { queueMicrotask(() => ev.emit('state', { id, state: 'open' })); return true; },
+    close: () => {}, write: (id, data) => w.push([id, Buffer.from(data).toString('latin1')]),
+    ports: async () => ({ ports: [] }), probe: async () => ({}),
+  };
+  const eng = createEngine({ hub: h, getRaw: () => null, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'studio-')) });
+  const c = structuredClone(eng.config);
+  c.nextion[0].enabled = true; c.nextion[0].port = 'COM13'; c.nextion[0].powerOffWhenIdle = true;
+  eng.apply(c);
+  await new Promise(r => setTimeout(r, 120));
+  assert.ok(w.some(x => x[0] === 'nx:scania' && x[1].includes('bkcmd=0')), 'initialised on open');
+  assert.equal(eng.status().nextion[0].state, 'open');
+  w.length = 0;
+  const c2 = structuredClone(eng.config);
+  c2.nextion[0].powerOffWhenIdle = false; // edit: the runtime is rebuilt, the port is not reopened
+  eng.apply(c2);
+  await new Promise(r => setTimeout(r, 160));
+  assert.equal(eng.status().nextion[0].state, 'open', 'still open after an edit');
+  assert.ok(w.some(x => x[1].includes('bkcmd=0')), 're-initialised after an edit');
+  assert.ok(w.some(x => x[1].includes('page page1')), 'idle page shown');
+}
+
 console.log('studio: all tests passed');
 process.exit(0);

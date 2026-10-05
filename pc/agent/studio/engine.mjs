@@ -83,6 +83,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
   const runtime = new Map(); // device id -> {state, msg, line, values, lastLine, lastSent, sent}
   let desired = new Map(); // hub id -> "port@baud" currently asked of the hub
   let nextions = new Map(); // nextion id -> runtime from nextion.mjs
+  const nxState = new Map(); // nextion id -> last {state, msg} the hub reported (a rebuilt runtime starts from it)
   const nxId = id => `nx:${id}`; // hub ids of Nextion displays (config ids never contain a colon)
   let lastRaw = null;
 
@@ -131,8 +132,10 @@ export function createEngine({ hub, getRaw, dataDir }) {
     for (const [id, key] of desired) {
       if (want.get(id) !== key) {
         hub.close(id);
-        if (id.startsWith('nx:')) nextions.get(id.slice(3))?.state('off', '');
-        else {
+        if (id.startsWith('nx:')) {
+          nxState.delete(id.slice(3));
+          nextions.get(id.slice(3))?.state('off', '');
+        } else {
           const r = rt(id);
           r.state = 'off';
           r.msg = '';
@@ -144,7 +147,10 @@ export function createEngine({ hub, getRaw, dataDir }) {
       if (desired.get(id) !== key) {
         const [port, baud, bin] = key.split('@');
         hub.open(id, port, Number(baud), bin === 'bin');
-        if (id.startsWith('nx:')) nextions.get(id.slice(3))?.state('connecting', '');
+        if (id.startsWith('nx:')) {
+          nxState.set(id.slice(3), { state: 'connecting', msg: '' });
+          nextions.get(id.slice(3))?.state('connecting', '');
+        }
         else rt(id).state = 'connecting';
       }
     }
@@ -157,7 +163,12 @@ export function createEngine({ hub, getRaw, dataDir }) {
     for (const d of config.nextion) {
       const prev = old.get(d.id);
       if (prev && JSON.stringify(prev.cfg) === JSON.stringify(d)) nextions.set(d.id, prev);
-      else nextions.set(d.id, createNextion(d, { hub, hubId: nxId(d.id) }));
+      else {
+        const n = createNextion(d, { hub, hubId: nxId(d.id) });
+        const last = nxState.get(d.id);
+        if (last) n.state(last.state, last.msg); // the port stays open across an edit: say so, so it is initialised again
+        nextions.set(d.id, n);
+      }
     }
   }
 
@@ -177,7 +188,10 @@ export function createEngine({ hub, getRaw, dataDir }) {
   });
   hub.events.on('disconnected', () => {
     for (const [id] of desired) {
-      if (id.startsWith('nx:')) nextions.get(id.slice(3))?.state('error', 'serial hub lost');
+      if (id.startsWith('nx:')) {
+        nxState.set(id.slice(3), { state: 'error', msg: 'serial hub lost' });
+        nextions.get(id.slice(3))?.state('error', 'serial hub lost');
+      }
       else {
         const r = rt(id);
         r.state = 'error';
@@ -187,7 +201,11 @@ export function createEngine({ hub, getRaw, dataDir }) {
     desired = new Map();
   });
   hub.events.on('state', m => {
-    if (m.id.startsWith('nx:')) return void nextions.get(m.id.slice(3))?.state(m.state, m.msg);
+    if (m.id.startsWith('nx:')) {
+      nxState.set(m.id.slice(3), { state: m.state, msg: m.msg || '' });
+      nextions.get(m.id.slice(3))?.state(m.state, m.msg);
+      return;
+    }
     const r = rt(m.id);
     r.state = m.state;
     r.msg = m.msg || '';
