@@ -119,6 +119,9 @@
     <string name="jobs_refresh">↻ Actualiser</string>
     <string name="jobs_route_full">Charger et livrer : tracer l’itinéraire</string>
     <string name="jobs_route_pickup">Aller seulement au chargement</string>
+    <string name="jobs_route_delivery">Aller seulement à la livraison</string>
+    <string name="route_to_job">Itinéraire vers la livraison</string>
+    <string name="route_no_job">Aucun contrat actif pour l\'itinéraire</string>
     <string name="jobs_active">Mission en cours :  %1$s</string>
     <string name="loading">Chargement…</string>
     <string name="jobs_status">%1$d offres  ·  dernière sauvegarde %2$s  ·  le jeu sauvegarde toutes les ~3 min</string>

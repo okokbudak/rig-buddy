@@ -119,6 +119,9 @@
     <string name="jobs_refresh">↻ Actualizar</string>
     <string name="jobs_route_full">Cargar y entregar: trazar la ruta</string>
     <string name="jobs_route_pickup">Ir solo al punto de carga</string>
+    <string name="jobs_route_delivery">Ir solo al punto de entrega</string>
+    <string name="route_to_job">Ruta al punto de entrega</string>
+    <string name="route_no_job">No hay trabajo activo para la ruta</string>
     <string name="jobs_active">Trabajo activo:  %1$s</string>
     <string name="loading">Cargando…</string>
     <string name="jobs_status">%1$d ofertas  ·  último guardado %2$s  ·  el juego guarda cada ~3 min</string>

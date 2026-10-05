@@ -119,6 +119,9 @@
     <string name="jobs_refresh">↻ Обновить</string>
     <string name="jobs_route_full">Забрать и доставить: построить маршрут</string>
     <string name="jobs_route_pickup">Только до точки погрузки</string>
+    <string name="jobs_route_delivery">Только до точки доставки</string>
+    <string name="route_to_job">Маршрут до точки доставки</string>
+    <string name="route_no_job">Нет активного заказа для маршрута</string>
     <string name="jobs_active">Активный заказ:  %1$s</string>
     <string name="loading">Загрузка…</string>
     <string name="jobs_status">заказов: %1$d  ·  сохранение %2$s  ·  игра сохраняется каждые ~3 мин</string>
