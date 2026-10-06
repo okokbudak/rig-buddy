@@ -129,9 +129,16 @@ function touch() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     try {
-      await api('PUT', '/api/config', state.config);
+      const saved = await api('PUT', '/api/config', state.config);
+      state.config.rev = saved.rev;
       $('#saveState').textContent = 'All changes saved';
     } catch (e) {
+      if (e.message === 'stale') {
+        // the settings were changed somewhere else since this page loaded: never overwrite them
+        $('#saveState').textContent = 'Settings were changed in another window. Reloading, your last change was not saved…';
+        setTimeout(() => location.reload(), 2500);
+        return;
+      }
       $('#saveState').textContent = `Could not save: ${e.message}`;
     }
   }, 500);

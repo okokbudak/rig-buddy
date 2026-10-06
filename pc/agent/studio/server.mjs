@@ -46,11 +46,17 @@ export function startStudio({ engine, hub, port = Number(process.env.RIGBUDDY_ST
       if (url.pathname.startsWith('/api/')) {
         if (req.method !== 'GET' && req.headers['x-studio'] !== '1') return send(403, { error: 'forbidden' });
         switch (`${req.method} ${url.pathname}`) {
-          case 'GET /api/config': return send(200, engine.config);
+          case 'GET /api/config': return send(200, { ...engine.config, rev: engine.rev });
           case 'GET /api/catalog': return send(200, catalog());
           case 'GET /api/status': return send(200, engine.status());
           case 'GET /api/ports': return send(200, await hub.ports());
-          case 'PUT /api/config': return send(200, engine.apply(JSON.parse(await readBody(req))));
+          case 'PUT /api/config': {
+            const next = JSON.parse(await readBody(req));
+            // saved from an older revision (another tab, or a change made meanwhile): refuse, the editor reloads
+            if (next.rev !== engine.rev) return send(409, { error: 'stale', rev: engine.rev });
+            const saved = engine.apply(next);
+            return send(200, { ...saved, rev: engine.rev });
+          }
           case 'POST /api/eval': return send(200, engine.evaluate(JSON.parse(await readBody(req)).expr));
           case 'POST /api/nextion/nav': {
             const b = JSON.parse(await readBody(req));

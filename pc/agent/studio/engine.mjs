@@ -86,6 +86,10 @@ export function createEngine({ hub, getRaw, dataDir }) {
   const nxState = new Map(); // nextion id -> last {state, msg} the hub reported (a rebuilt runtime starts from it)
   const nxId = id => `nx:${id}`; // hub ids of Nextion displays (config ids never contain a colon)
   let lastRaw = null;
+  // Revision of the configuration: an editor saves the whole config, so one that loaded an
+  // older revision (a forgotten browser tab) must not overwrite newer settings.
+  const revBoot = Date.now().toString(36);
+  let revCount = 0;
 
   function load() {
     try {
@@ -193,6 +197,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
   }
 
   function apply(next) {
+    revCount++;
     config = normalize(next);
     compileAll();
     buildNextions();
@@ -309,6 +314,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
     /** Studio pages currently watching live values. */
     viewers: 0,
     get config() { return config; },
+    get rev() { return `${revBoot}.${revCount}`; },
     apply,
     get raw() { return lastRaw; },
     status() {
