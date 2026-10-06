@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { compile, FormulaError } from './expr.mjs';
-import { createNextion, normalizeNextion } from './nextion.mjs';
+import { createNextion, normalizeNextion, directFrames, tunnelLines, tunnelFrame } from './nextion.mjs';
 import { NEXTION_SEED } from './seed-nextion.mjs';
 import { read } from './props.mjs';
 
@@ -128,7 +128,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
   function syncPorts() {
     const want = new Map();
     for (const d of config.serial) if (d.enabled && d.port) want.set(d.id, `${d.port}@${d.baud}`);
-    for (const d of config.nextion) if (d.enabled && d.port) want.set(nxId(d.id), `${d.port}@${d.baud}@bin`);
+    for (const d of config.nextion) if (d.enabled && d.port && !d.via) want.set(nxId(d.id), `${d.port}@${d.baud}@bin`);
     for (const [id, key] of desired) {
       if (want.get(id) !== key) {
         hub.close(id);
@@ -140,6 +140,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
           r.state = 'off';
           r.msg = '';
           r.lastLine = null;
+          followVia(id);
         }
       }
     }
@@ -157,6 +158,22 @@ export function createEngine({ hub, getRaw, dataDir }) {
     desired = want;
   }
 
+  /** A display connected `via` a serial device is as connected as that device (and off while disabled). */
+  function viaState(d) {
+    if (!d.enabled) return { state: 'off', msg: '' };
+    if (!config.serial.some(s => s.id === d.via)) return { state: 'error', msg: 'the device it is connected through is gone' };
+    const r = rt(d.via);
+    return { state: r.state, msg: r.msg };
+  }
+
+  function followVia(serialId) {
+    for (const d of config.nextion) {
+      if (d.via !== serialId) continue;
+      const s = viaState(d);
+      nextions.get(d.id)?.state(s.state, s.msg);
+    }
+  }
+
   function buildNextions() {
     const old = nextions;
     nextions = new Map();
@@ -164,8 +181,11 @@ export function createEngine({ hub, getRaw, dataDir }) {
       const prev = old.get(d.id);
       if (prev && JSON.stringify(prev.cfg) === JSON.stringify(d)) nextions.set(d.id, prev);
       else {
-        const n = createNextion(d, { hub, hubId: nxId(d.id) });
-        const last = nxState.get(d.id);
+        const out = d.via
+          ? cmds => hub.write(d.via, tunnelLines(cmds))
+          : cmds => hub.write(nxId(d.id), directFrames(cmds));
+        const n = createNextion(d, { out });
+        const last = d.via ? viaState(d) : nxState.get(d.id);
         if (last) n.state(last.state, last.msg); // the port stays open across an edit: say so, so it is initialised again
         nextions.set(d.id, n);
       }
@@ -196,6 +216,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
         const r = rt(id);
         r.state = 'error';
         r.msg = 'serial hub lost';
+        followVia(id);
       }
     }
     desired = new Map();
@@ -210,9 +231,16 @@ export function createEngine({ hub, getRaw, dataDir }) {
     r.state = m.state;
     r.msg = m.msg || '';
     if (m.state !== 'open') r.lastLine = null; // resend as soon as it is back
+    followVia(m.id);
   });
   hub.events.on('rx', m => {
     if (m.id.startsWith('nx:')) return void (m.b64 && nextions.get(m.id.slice(3))?.rx(Buffer.from(m.b64, 'base64')));
+    const frame = tunnelFrame(m.text);
+    if (frame) {
+      // a display behind this device (Octopus pass-through) sent something
+      for (const d of config.nextion) if (d.via === m.id && d.enabled) nextions.get(d.id)?.rx(frame);
+      return;
+    }
     const r = rt(m.id);
     r.rx = String(m.text).slice(0, 200);
   });

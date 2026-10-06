@@ -12,6 +12,9 @@
 // buttons) cycle through; a page with a "show when" formula pops up while it is true
 // (ignition off -> dark page); `idlePage` is shown while no game runs, and with
 // "power off" the display sleeps then.
+// Connection: its own COM port, or `via` a serial device whose board passes the display
+// through (the Octopus gauge board: "@<command>\n" out, "@<hex of the frame>\n" back);
+// the engine picks the transport, this module only produces commands and reads frames.
 import { compile, FormulaError } from './expr.mjs';
 import { read } from './props.mjs';
 
@@ -42,6 +45,7 @@ export function normalizeNextion(list, takenIds) {
       name: str(d.name, 40, id),
       enabled: !!d.enabled,
       port: /^COM\d{1,3}$/.test(port) ? port : '',
+      via: str(d.via, 32).toLowerCase().replace(/[^a-z0-9_-]/g, ''),
       baud: BAUDS.includes(Number(d.baud)) ? Number(d.baud) : 115200,
       width: num(d.width, 64, 2000, 480),
       height: num(d.height, 64, 2000, 272),
@@ -62,6 +66,24 @@ export function normalizeNextion(list, takenIds) {
   return out;
 }
 
+/** Own COM port: each command followed by FF FF FF. */
+export function directFrames(cmds) {
+  const parts = [];
+  for (const c of cmds) parts.push(Buffer.from(c, 'latin1'), FF3);
+  return Buffer.concat(parts);
+}
+
+/** Through a pass-through board: one "@<command>" text line per command (commands never contain a newline). */
+export function tunnelLines(cmds) {
+  return Buffer.from(cmds.map(c => `@${c}\n`).join(''), 'latin1');
+}
+
+/** A "@<hex>" line from a pass-through board -> the display's frame bytes, with FF FF FF; null for anything else. */
+export function tunnelFrame(text) {
+  const m = /^@((?:[0-9A-Fa-f]{2})*)\s*$/.exec(String(text));
+  return m ? Buffer.concat([Buffer.from(m[1], 'hex'), FF3]) : null;
+}
+
 /** "page1.tgear.txt" -> {page, obj, attr}; null when it is not a valid target. */
 export function parseTarget(target) {
   const m = /^([A-Za-z][A-Za-z0-9_]*)\.([A-Za-z][A-Za-z0-9_]*)\.([a-z][a-z0-9]*)$/.exec(target);
@@ -79,7 +101,8 @@ function formatText(v, decimals) {
   return String(v).replace(/[\u0000-\u001f"\\]/g, ' ').replace(/[^\u0020-\u00ff]/g, '?');
 }
 
-export function createNextion(cfg, { hub, hubId }) {
+/** `out(commands)` delivers a batch of commands (strings without FF FF FF) to the display. */
+export function createNextion(cfg, { out }) {
   const target = new Map(); // "page.obj.attr" -> compiled binding
   const bindings = cfg.bindings.map(b => {
     const t = parseTarget(b.target);
@@ -107,9 +130,7 @@ export function createNextion(cfg, { hub, hubId }) {
 
   const send = cmds => {
     if (!cmds.length) return;
-    const parts = [];
-    for (const c of cmds) parts.push(Buffer.from(c, 'latin1'), FF3);
-    hub.write(hubId, Buffer.concat(parts));
+    out(cmds);
     st.sent += cmds.length;
   };
 

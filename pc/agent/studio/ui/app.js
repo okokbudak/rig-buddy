@@ -301,6 +301,14 @@ function nextionCard(d) {
   const portCell = el('div');
   const buildPort = () => portCell.replaceChildren(select(portOptions(d.port), d.port, v => { d.port = v; touch(); }));
   buildPort();
+  d.via ??= '';
+  const portField = el('label', {}, 'Port', el('div', { style: 'display:flex;gap:6px;align-items:center' }, portCell, el('button', { class: 'btn small', onclick: async () => { await loadPorts(); buildPort(); } }, 'Refresh')));
+  const baudField = el('label', {}, 'Baud rate', select(NX_BAUDS.map(b => [b, b]), d.baud, v => { d.baud = Number(v); touch(); }));
+  const showConn = () => { portField.hidden = !!d.via; baudField.hidden = !!d.via; };
+  const viaField = el('label', { title: 'A board like the Octopus gauge controller can pass the display through its own USB port (TFT connector), so the display needs no COM port of its own' }, 'Connected',
+    select([['', 'to its own COM port'], ...state.config.serial.map(s => [s.id, `through ${s.name}${s.port ? ` (${s.port})` : ''}`])], d.via,
+      v => { d.via = v; showConn(); touch(); }));
+  showConn();
   const num = (key, w) => el('input', { type: 'number', min: 1, value: d[key], style: `width:${w}px`, oninput: e => { d[key] = Number(e.target.value) || d[key]; touch(); } });
 
   const pagesBody = el('tbody');
@@ -370,8 +378,9 @@ function nextionCard(d) {
         touch();
       } }, 'Remove')),
     el('div', { class: 'fields' },
-      el('label', {}, 'Port', el('div', { style: 'display:flex;gap:6px;align-items:center' }, portCell, el('button', { class: 'btn small', onclick: async () => { await loadPorts(); buildPort(); } }, 'Refresh'))),
-      el('label', {}, 'Baud rate', select(NX_BAUDS.map(b => [b, b]), d.baud, v => { d.baud = Number(v); touch(); })),
+      viaField,
+      portField,
+      baudField,
       el('label', {}, 'Screen width (px)', num('width', 80)),
       el('label', {}, 'Screen height (px)', num('height', 80)),
       el('label', {}, 'Page while no game runs', el('input', { type: 'text', value: d.idlePage, placeholder: 'page1', style: 'width:110px', oninput: e => { d.idlePage = e.target.value; touch(); } })),
@@ -409,7 +418,7 @@ function paintNextion() {
     if (!card || !st) continue;
     card.classList.toggle('off', !d.enabled);
     let label = 'Off', cls = '';
-    if (d.enabled && !d.port) label = 'Choose a port';
+    if (d.enabled && !d.port && !d.via) label = 'Choose a port';
     else if (d.enabled) {
       cls = st.state;
       label = st.asleep ? 'Asleep' : { open: 'Connected', connecting: 'Connecting…', error: 'Problem', off: 'Starting…' }[st.state] ?? st.state;
