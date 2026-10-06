@@ -1,5 +1,7 @@
 'use strict';
-// Rig Buddy Studio page. No framework: a few render functions and one WebSocket for live values.
+// Rig Buddy Studio page. No framework: render functions build a page once, paint functions
+// update the live parts (needles, values, states) from the WebSocket without touching inputs.
+// Texts live in i18n.js (t(), PRESETS, LANG).
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -10,9 +12,42 @@ const el = (tag, attrs = {}, ...kids) => {
     else if (v === true) e.setAttribute(k, '');
     else if (v !== false && v != null) e.setAttribute(k, v);
   }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) e.append(kid);
+  return e;
+};
+const SVGNS = 'http://www.w3.org/2000/svg';
+const svg = (tag, attrs = {}, ...kids) => {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v != null) e.setAttribute(k, v);
   for (const kid of kids.flat()) if (kid != null) e.append(kid);
   return e;
 };
+
+const ICONS = {
+  gauge: '<circle cx="12" cy="13" r="8"/><path d="M12 13l4-4"/><path d="M8 13a4 4 0 0 1 4-4"/>',
+  display: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
+  plug: '<path d="M9 7V3M15 7V3M6 7h12v3a6 6 0 0 1-12 0z"/><path d="M12 16v5"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.5-4.5"/>',
+  truck: '<rect x="2" y="6" width="12" height="10" rx="1"/><path d="M14 9h4l3 3.5V16h-7"/><circle cx="6.5" cy="17.5" r="2"/><circle cx="17" cy="17.5" r="2"/>',
+  cpu: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/>',
+  play: '<path d="M7 4v16l13-8z"/>',
+  left: '<path d="M15 6l-6 6 6 6"/>',
+  right: '<path d="M9 6l6 6-6 6"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+  touch: '<path d="M9 12V5a1.5 1.5 0 0 1 3 0v6M12 10V9a1.5 1.5 0 0 1 3 0v3M15 11a1.5 1.5 0 0 1 3 0v3a7 7 0 0 1-7 7h-.5a6 6 0 0 1-5-2.7L3.5 15a1.5 1.5 0 0 1 2.5-1.6L9 16"/>',
+};
+function icon(name, cls = '') {
+  const s = document.createElementNS(SVGNS, 'svg');
+  s.setAttribute('viewBox', '0 0 24 24');
+  s.setAttribute('class', `ic ${cls}`);
+  s.setAttribute('aria-hidden', 'true');
+  s.innerHTML = ICONS[name] ?? ''; // static markup from the table above
+  return s;
+}
 
 async function api(method, path, body) {
   const r = await fetch(path, {
@@ -25,10 +60,45 @@ async function api(method, path, body) {
   return j;
 }
 
-const state = { catalog: [], config: { serial: [], nextion: [] }, ports: [], status: null, values: {}, tab: 'serial', visible: [] };
-const LINE_ENDS = [['\\n', 'LF (\\n)'], ['\\r\\n', 'CR+LF'], ['\\r', 'CR'], ['', 'none']];
+const TABS = [['cockpit', 'gauge'], ['display', 'display'], ['connections', 'plug'], ['data', 'search']];
 const BAUDS = [9600, 19200, 38400, 57600, 115200, 230400, 250000, 500000, 1000000];
-const IDLE = [['zeros', 'send zeros'], ['hold', 'keep the last values'], ['none', 'send nothing']];
+const NX_BAUDS = [9600, 19200, 38400, 57600, 115200, 230400, 250000, 512000, 921600];
+const LINE_ENDS = [['\\n', 'LF (\\n)'], ['\\r\\n', 'CR+LF'], ['\\r', 'CR'], ['', '—']];
+const PROPS = ['txt', 'vis', 'val', 'pic', 'pco', 'bco'];
+
+const state = {
+  catalog: [], config: { serial: [], nextion: [] }, ports: [], status: null, values: {},
+  tab: 'cockpit', visible: [], open: null, nxFilter: {}, testing: {},
+};
+
+const numOrNull = v => (v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v));
+const presetOf = c => PRESETS.find(p => p.id === c.preset) ?? null;
+const presetLabel = p => p[LANG] ?? p.en;
+const statusOf = id => state.status?.devices?.find(x => x.id === id);
+const nxStatusOf = id => state.status?.nextion?.find(x => x.id === id);
+
+// --- saving -------------------------------------------------------------------------------------
+
+let saveTimer = null;
+function touch() {
+  $('#saveState').textContent = t('save.saving');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const saved = await api('PUT', '/api/config', state.config);
+      state.config.rev = saved.rev;
+      $('#saveState').textContent = t('save.saved');
+    } catch (e) {
+      if (e.message === 'stale') {
+        // the settings changed somewhere else since this page loaded: never overwrite them
+        $('#saveState').textContent = t('save.stale');
+        setTimeout(() => location.reload(), 2500);
+        return;
+      }
+      $('#saveState').textContent = t('save.failed', { msg: e.message });
+    }
+  }, 500);
+}
 
 // --- live socket ------------------------------------------------------------------------------
 
@@ -40,407 +110,495 @@ function connectLive() {
     const m = JSON.parse(ev.data);
     state.status = m.status;
     state.values = m.values;
-    paintLive();
+    paint();
   };
   ws.onclose = () => {
     state.status = null;
-    paintChips();
+    paintPills();
     setTimeout(connectLive, 1500);
   };
 }
 function sendWatch() {
-  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ watch: state.tab === 'live' ? state.visible : [] }));
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ watch: state.tab === 'data' ? state.visible : [] }));
 }
 
-// --- tabs ---------------------------------------------------------------------------------------
+// --- frame: tabs, language, status pills --------------------------------------------------------
+
+function renderTabs() {
+  $('#tabs').replaceChildren(...TABS.map(([name, ic]) => el('button', {
+    class: `tab ${state.tab === name ? 'on' : ''}`, onclick: () => showTab(name),
+  }, icon(ic), el('span', {}, t(`tab.${name}`)))));
+}
+
+function renderLang() {
+  $('#lang').replaceChildren(...[['tr', 'Türkçe'], ['en', 'English']].map(([code, label]) => el('button', {
+    class: LANG === code ? 'on' : '', 'aria-pressed': String(LANG === code),
+    onclick: () => { setLang(code); renderAll(); },
+  }, label)));
+}
 
 function showTab(name) {
   state.tab = name;
-  for (const t of document.querySelectorAll('.tab')) t.classList.toggle('on', t.dataset.tab === name);
+  renderTabs();
   for (const s of document.querySelectorAll('main > section')) s.hidden = s.id !== `page-${name}`;
   history.replaceState(null, '', `#${name}`);
-  if (name === 'live') renderLive();
+  renderPage(name);
   sendWatch();
-}
-for (const t of document.querySelectorAll('.tab')) t.addEventListener('click', () => showTab(t.dataset.tab));
-
-// --- formatting ---------------------------------------------------------------------------------
-
-function fmt(v) {
-  if (v == null) return '–';
-  if (typeof v === 'boolean') return v ? 'true' : 'false';
-  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(Math.round(v * 1000) / 1000);
-  return String(v);
+  window.scrollTo(0, 0);
 }
 
-// --- live data page ---------------------------------------------------------------------------
-
-const toast = text => {
-  const t = el('div', { class: 'toast' }, text);
-  document.body.append(t);
-  setTimeout(() => t.remove(), 1400);
-};
-
-function renderLive() {
-  const words = $('#search').value.toLowerCase().split(/\s+/).filter(Boolean);
-  const hits = state.catalog.filter(c => words.every(w => c.path.toLowerCase().includes(w) || (c.info || '').toLowerCase().includes(w)));
-  const shown = hits.slice(0, 150);
-  state.visible = shown.map(c => c.path);
-  $('#liveCount').textContent = hits.length > shown.length ? `${shown.length} of ${hits.length} shown: type more to narrow down` : `${hits.length} properties`;
-  const list = $('#liveList');
-  list.replaceChildren(...shown.map(c => el('div', {
-    class: 'prop', 'data-path': c.path, title: 'Click to copy',
-    onclick: () => { navigator.clipboard?.writeText(c.path).then(() => toast(`Copied ${c.path}`), () => {}); },
-  },
-  el('div', {}, el('div', { class: 'name' }, c.path), c.info ? el('div', { class: 'info' }, c.info) : null),
-  el('div', { class: 'val off' }, '–'))));
-  sendWatch();
+function renderPage(name) {
+  if (name === 'cockpit') renderCockpit();
+  else if (name === 'display') renderDisplay();
+  else if (name === 'connections') renderConnections();
+  else if (name === 'data') renderData();
+  paint();
 }
-$('#search').addEventListener('input', renderLive);
 
-function paintLive() {
-  paintChips();
-  if (state.tab === 'live') {
-    for (const row of $('#liveList').children) {
-      const v = state.values[row.dataset.path];
-      const cell = row.lastChild;
-      cell.textContent = fmt(v);
-      cell.classList.toggle('off', v == null);
+function renderAll() {
+  renderTabs();
+  renderLang();
+  renderPage(state.tab);
+}
+
+function stateLabel(st, enabled, hasPort) {
+  if (!enabled) return ['off', t('state.off')];
+  if (!hasPort) return ['warn', t('state.noPort')];
+  const s = st?.state ?? 'off';
+  if (st?.asleep) return ['idle', t('state.asleep')];
+  return [{ open: 'ok', connecting: 'warn', error: 'bad' }[s] ?? 'off', t(`state.${s}`)];
+}
+
+function paintPills() {
+  const s = state.status;
+  const pills = [];
+  if (!s) pills.push(el('span', { class: 'pill bad' }, icon('info'), t('pill.agent')));
+  else {
+    pills.push(el('span', { class: `pill ${s.game ? 'ok' : 'off'}` }, icon('truck'), t(s.game ? 'pill.gameOn' : 'pill.gameOff')));
+    if (!s.hub) pills.push(el('span', { class: 'pill bad' }, icon('plug'), t('pill.hubOff')));
+    for (const d of state.config.serial.filter(x => x.enabled)) {
+      const [cls, label] = stateLabel(statusOf(d.id), true, !!d.port);
+      pills.push(el('button', { class: `pill ${cls}`, onclick: () => showTab('cockpit') }, icon('cpu'), `${d.name} · ${label}${d.port ? ` · ${d.port}` : ''}`));
+    }
+    for (const d of state.config.nextion.filter(x => x.enabled)) {
+      const st = nxStatusOf(d.id);
+      const [cls, label] = stateLabel(st, true, !!(d.port || d.via));
+      const page = st?.page && st.state === 'open' && !st.asleep ? ` · ${st.page}` : '';
+      pills.push(el('button', { class: `pill ${cls}`, onclick: () => showTab('display') }, icon('display'), `${d.name} · ${label}${page}`));
     }
   }
-  paintDevices();
-  paintNextion();
+  $('#pills').replaceChildren(...pills);
 }
 
-function paintChips() {
-  const s = state.status;
-  const game = $('#chipGame'), hub = $('#chipHub');
-  game.className = `chip ${s?.game ? 'ok' : ''}`;
-  game.lastChild.textContent = s ? (s.game ? 'Game running' : 'Game not running') : 'Agent not reachable';
-  hub.className = `chip ${s?.hub ? 'ok' : ''}`;
-  hub.lastChild.textContent = s ? (s.hub ? 'Serial ports ready' : 'Serial ports: RigBuddy.exe not reachable') : 'Serial ports';
+function paint() {
+  paintPills();
+  if (state.tab === 'cockpit') paintCockpit();
+  else if (state.tab === 'display') paintDisplay();
+  else if (state.tab === 'connections') paintConnections();
+  else if (state.tab === 'data') paintData();
 }
 
-// --- serial devices -----------------------------------------------------------------------------
-
-let saveTimer = null;
-function touch() {
-  $('#saveState').textContent = 'Saving…';
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    try {
-      const saved = await api('PUT', '/api/config', state.config);
-      state.config.rev = saved.rev;
-      $('#saveState').textContent = 'All changes saved';
-    } catch (e) {
-      if (e.message === 'stale') {
-        // the settings were changed somewhere else since this page loaded: never overwrite them
-        $('#saveState').textContent = 'Settings were changed in another window. Reloading, your last change was not saved…';
-        setTimeout(() => location.reload(), 2500);
-        return;
-      }
-      $('#saveState').textContent = `Could not save: ${e.message}`;
-    }
-  }, 500);
+function header(title, lead) {
+  return el('header', { class: 'phead' }, el('h1', {}, title), lead ? el('p', { class: 'lead' }, lead) : null);
 }
 
-function numOrNull(v) {
-  return v === '' || !Number.isFinite(Number(v)) ? null : Number(v);
-}
-
-function select(options, value, onchange) {
-  const s = el('select', { onchange: () => onchange(s.value) },
+function select(options, value, onchange, attrs = {}) {
+  const s = el('select', { ...attrs, onchange: () => onchange(s.value) },
     options.map(([v, label]) => el('option', { value: v, selected: String(v) === String(value) }, label)));
   return s;
 }
 
-function portOptions(current) {
-  const opts = [['', '— choose a port —']];
-  const seen = new Set();
-  for (const p of state.ports) {
-    seen.add(p.name);
-    opts.push([p.name, p.desc ? `${p.name}: ${p.desc}` : p.name]);
-  }
-  if (current && !seen.has(current)) opts.push([current, `${current} (not plugged in)`]);
-  return opts;
+function field(label, control, hint) {
+  return el('label', { class: 'field' }, el('span', { class: 'flabel' }, label), control, hint ? el('span', { class: 'fhint' }, hint) : null);
 }
 
-function deviceCard(d) {
-  const card = el('div', { class: 'device', 'data-dev': d.id });
-  const msg = el('div', { class: 'msg', 'data-role': 'msg' });
-  const portCell = el('div');
-  const buildPort = () => {
-    const sel = select(portOptions(d.port), d.port, v => { d.port = v; touch(); });
-    portCell.replaceChildren(sel);
-  };
-  buildPort();
+function emptyState(ic, title, lead, button) {
+  return el('div', { class: 'empty' }, icon(ic, 'big'), el('h2', {}, title), el('p', {}, lead), button);
+}
 
-  const name = el('input', { type: 'text', class: 'name', value: d.name, 'aria-label': 'Device name', oninput: () => { d.name = name.value; touch(); } });
-  const enabled = el('input', { type: 'checkbox', checked: d.enabled, onchange: () => { d.enabled = enabled.checked; touch(); } });
+// --- cockpit: the gauges ------------------------------------------------------------------------
 
-  const probeBtn = el('button', { class: 'btn small', title: 'Opens the port, asks "?" and shows the answer (the cluster sketches reply CLUSTER1 / CLUSTER2)' }, 'Identify');
-  probeBtn.addEventListener('click', async () => {
-    if (!d.port) { msg.textContent = 'Choose a port first.'; return; }
-    probeBtn.disabled = true;
-    msg.style.color = 'var(--muted)';
-    msg.textContent = `Asking ${d.port}… (about 3 s)`;
-    try {
-      const r = await api('POST', '/api/probe', { port: d.port, baud: d.baud });
-      msg.style.color = r.ok ? 'var(--ok)' : 'var(--bad)';
-      msg.textContent = r.ok ? `${d.port} answered: ${r.reply}` : (r.error || r.msg);
-    } catch (e) {
-      msg.style.color = 'var(--bad)';
-      msg.textContent = e.message;
-    }
-    probeBtn.disabled = false;
-  });
-  const refresh = el('button', { class: 'btn small', onclick: async () => { await loadPorts(); buildPort(); } }, 'Refresh');
+const DIAL = { size: 120, cx: 60, cy: 62, r: 46 };
+const rad = deg => ((deg - 90) * Math.PI) / 180;
+const polar = (r, deg) => [DIAL.cx + r * Math.cos(rad(deg)), DIAL.cy + r * Math.sin(rad(deg))];
 
-  card.append(
-    el('div', { class: 'dhead' },
-      name,
-      el('label', { class: 'switch' }, enabled, 'Enabled'),
-      el('span', { class: 'badge', 'data-role': 'badge' }, 'Off'),
-      el('div', { class: 'spacer', style: 'flex:1' }),
-      el('button', { class: 'btn small danger', onclick: () => {
-        if (!confirm(`Remove "${d.name}"?`)) return;
-        state.config.serial = state.config.serial.filter(x => x !== d);
-        renderDevices();
-        touch();
-      } }, 'Remove')),
-    el('div', { class: 'fields' },
-      el('label', {}, 'Port', el('div', { style: 'display:flex;gap:6px;align-items:center' }, portCell, refresh, probeBtn)),
-      el('label', {}, 'Baud rate', select(BAUDS.map(b => [b, b]), d.baud, v => { d.baud = Number(v); touch(); })),
-      el('label', {}, 'Rate (per second)', el('input', { type: 'number', min: 1, max: 25, value: d.hz, oninput: e => { d.hz = Number(e.target.value) || 25; touch(); } })),
-      el('label', {}, 'Separator', el('input', { type: 'text', class: 'sep', maxlength: 4, value: d.separator, oninput: e => { d.separator = e.target.value; touch(); } })),
-      el('label', {}, 'Line end', select(LINE_ENDS, d.terminator, v => { d.terminator = v; touch(); })),
-      el('label', {}, 'When the game is closed', select(IDLE, d.idle, v => { d.idle = v; touch(); }))),
-    msg,
-    channelsTable(d),
-    el('div', { class: 'line', 'data-role': 'line' }));
+function realValue(c, sent) {
+  if (sent == null) return null;
+  if (c.lo != null && c.hi != null && c.min != null && c.max != null && c.max !== c.min) {
+    return c.lo + ((sent - c.min) / (c.max - c.min)) * (c.hi - c.lo);
+  }
+  return sent;
+}
+function fmtGauge(c, v) {
+  if (v == null || !Number.isFinite(v)) return '–';
+  const span = c.lo != null && c.hi != null ? Math.abs(c.hi - c.lo) : Math.abs((c.max ?? 1000) - (c.min ?? 0));
+  const s = span <= 20 ? (Math.round(v * 10) / 10).toLocaleString(LANG) : Math.round(v).toLocaleString(LANG);
+  return c.unit ? `${s} ${c.unit}` : s;
+}
+const fmtEnd = (c, v) => (v == null ? '' : `${Math.round(v * 10) / 10}`);
+
+function dialSvg(c) {
+  const s = svg('svg', { viewBox: `0 0 ${DIAL.size} 112`, class: 'dialsvg', role: 'img' });
+  const [x1, y1] = polar(DIAL.r, -120), [x2, y2] = polar(DIAL.r, 120);
+  s.append(svg('path', { d: `M${x1} ${y1} A${DIAL.r} ${DIAL.r} 0 1 1 ${x2} ${y2}`, class: 'arc' }));
+  for (let k = 0; k <= 10; k++) {
+    const a = -120 + 24 * k, major = k % 5 === 0;
+    const [ax, ay] = polar(DIAL.r - 3, a), [bx, by] = polar(DIAL.r - (major ? 11 : 7), a);
+    s.append(svg('line', { x1: ax, y1: ay, x2: bx, y2: by, class: major ? 'tick major' : 'tick' }));
+  }
+  const lo = c.lo != null && c.hi != null ? c.lo : c.min, hi = c.lo != null && c.hi != null ? c.hi : c.max;
+  // range labels just under the two ends of the scale, clear of the needle
+  s.append(svg('text', { x: x1, y: y1 + 16, class: 'end', 'text-anchor': 'middle' }, fmtEnd(c, lo)));
+  s.append(svg('text', { x: x2, y: y2 + 16, class: 'end', 'text-anchor': 'middle' }, fmtEnd(c, hi)));
+  const needle = svg('g', { class: 'needle', 'data-role': 'needle' },
+    svg('line', { x1: DIAL.cx, y1: DIAL.cy + 8, x2: DIAL.cx, y2: DIAL.cy - DIAL.r + 8 }));
+  needle.style.transform = 'rotate(-120deg)';
+  s.append(needle, svg('circle', { cx: DIAL.cx, cy: DIAL.cy, r: 4.5, class: 'hub' }));
+  return s;
+}
+
+function renderCockpit() {
+  const page = $('#page-cockpit');
+  const kids = [header(t('cockpit.title'), t('cockpit.lead'))];
+  if (!state.config.serial.length) {
+    kids.push(emptyState('gauge', t('cockpit.empty'), t('cockpit.emptyLead'),
+      el('button', { class: 'btn primary', onclick: () => showTab('connections') }, t('cockpit.gotoConnections'))));
+  }
+  for (const d of state.config.serial) kids.push(boardCard(d));
+  page.replaceChildren(...kids);
+}
+
+function boardCard(d) {
+  const card = el('div', { class: `card board ${d.enabled ? '' : 'dim'}`, 'data-dev': d.id });
+  const dials = el('div', { class: 'dials' }, d.channels.map((c, i) => {
+    const open = state.open?.dev === d.id && state.open.ch === i;
+    return el('button', {
+      class: `dial ${open ? 'open' : ''}`, 'data-ch': i, 'aria-expanded': String(open),
+      onclick: () => { state.open = open ? null : { dev: d.id, ch: i }; renderCockpit(); paint(); },
+    }, dialSvg(c), el('span', { class: 'dname' }, c.name || t('cockpit.newGauge', { n: i + 1 })), el('span', { class: 'dval', 'data-role': 'val' }, '–'));
+  }));
+  if (d.enabled) {
+    dials.append(el('button', { class: 'dial add', onclick: () => addGauge(d) }, icon('plus', 'big'), el('span', { class: 'dname' }, t('cockpit.addGauge'))));
+  }
+  card.append(el('div', { class: 'chead' },
+    icon('cpu'), el('h2', {}, d.name),
+    el('span', { class: 'badge', 'data-role': 'badge' }),
+    el('span', { class: 'grow' }),
+    el('span', { class: 'muted small' }, d.port || '')));
+  if (!d.enabled) card.append(el('p', { class: 'muted' }, t('cockpit.disabled')));
+  card.append(dials);
+  if (state.open?.dev === d.id && d.channels[state.open.ch]) card.append(gaugeEditor(d, state.open.ch));
   return card;
 }
 
-function channelsTable(d) {
-  const tbody = el('tbody');
-  const build = () => {
-    tbody.replaceChildren(...d.channels.map((c, i) => {
-      const formula = el('input', { type: 'text', value: c.expr, spellcheck: 'false', autocomplete: 'off', placeholder: 'e.g. truck.speed.kph * 10', 'data-role': 'formula' });
-      formula.addEventListener('input', () => { c.expr = formula.value; touch(); });
-      attachSuggest(formula, () => { c.expr = formula.value; touch(); });
-      return el('tr', { 'data-ch': i },
-        el('td', {}, el('input', { type: 'text', value: c.name, placeholder: `Channel ${i + 1}`, oninput: e => { c.name = e.target.value; touch(); } })),
-        el('td', { class: 'f' }, formula, el('div', { class: 'err', 'data-role': 'err' })),
-        el('td', { class: 'mm' }, el('input', { type: 'number', value: c.min ?? '', placeholder: 'min', oninput: e => { c.min = numOrNull(e.target.value); touch(); } })),
-        el('td', { class: 'mm' }, el('input', { type: 'number', value: c.max ?? '', placeholder: 'max', oninput: e => { c.max = numOrNull(e.target.value); touch(); } })),
-        el('td', { class: 'v', 'data-role': 'val' }, '–'),
-        el('td', {}, el('button', { class: 'btn small', title: 'Remove channel', 'aria-label': 'Remove channel', onclick: () => { d.channels.splice(i, 1); build(); touch(); } }, '✕')));
-    }));
-  };
-  build();
-  return el('div', {},
-    el('table', { class: 'ch' },
-      el('thead', {}, el('tr', {}, el('th', {}, 'Name'), el('th', {}, 'Formula'), el('th', {}, 'Min'), el('th', {}, 'Max'), el('th', { style: 'text-align:right' }, 'Value'), el('th'))),
-      tbody),
-    el('div', { class: 'row-actions' },
-      el('button', { class: 'btn small', onclick: () => { d.channels.push({ name: '', expr: '', min: null, max: null }); build(); touch(); } }, 'Add channel')));
+function addGauge(d) {
+  d.channels.push({ name: t('cockpit.newGauge', { n: d.channels.length + 1 }), expr: '', min: 0, max: 1000, lo: null, hi: null, unit: '', preset: '' });
+  state.open = { dev: d.id, ch: d.channels.length - 1 };
+  renderCockpit();
+  paint();
+  touch();
 }
 
-function renderDevices() {
-  $('#devices').replaceChildren(...state.config.serial.map(deviceCard));
-  paintDevices();
+function refreshDials(d, i) {
+  // the end labels changed: redraw this gauge's dials (small and big) but keep the inputs
+  for (const holder of document.querySelectorAll(`[data-dev="${d.id}"] [data-ch="${i}"]`)) {
+    const old = holder.querySelector('svg.dialsvg');
+    if (old) old.replaceWith(dialSvg(d.channels[i]));
+  }
+  paint();
 }
 
-function paintDevices() {
-  const devs = state.status?.devices;
-  if (!devs) return;
+function gaugeEditor(d, i) {
+  const c = d.channels[i];
+  const p = presetOf(c);
+  const custom = !p;
+  const changed = () => { refreshDials(d, i); touch(); };
+
+  const name = el('input', { type: 'text', value: c.name, oninput: e => {
+    c.name = e.target.value;
+    const label = document.querySelector(`[data-dev="${d.id}"] .dials [data-ch="${i}"] .dname`);
+    if (label) label.textContent = c.name || t('cockpit.newGauge', { n: i + 1 });
+    touch();
+  } });
+
+  const what = select([...PRESETS.map(x => [x.id, presetLabel(x)]), ['', t('gauge.custom')]], c.preset || '', v => {
+    const np = PRESETS.find(x => x.id === v);
+    if (np) {
+      const oldLabel = presetOf(c) ? presetLabel(presetOf(c)) : '';
+      if (!c.name || c.name === oldLabel || /^(Gösterge|Gauge) \d+$/.test(c.name)) c.name = presetLabel(np);
+      Object.assign(c, { preset: np.id, expr: np.expr, unit: np.unit, lo: np.lo, hi: np.hi });
+      if (c.min == null) c.min = 0;
+      if (c.max == null) c.max = 1000;
+    } else c.preset = '';
+    renderCockpit();
+    paint();
+    touch();
+  });
+
+  const unitTag = () => el('span', { class: 'unit' }, c.unit || '');
+  const num = (key, hint) => el('div', { class: 'withunit' },
+    el('input', { type: 'number', step: 'any', value: c[key] ?? '', title: hint, oninput: e => { c[key] = numOrNull(e.target.value); changed(); } }), unitTag());
+
+  const formula = el('input', { type: 'text', class: 'mono', value: c.expr, spellcheck: 'false', autocomplete: 'off', placeholder: 'truck.speed.kph', 'data-role': 'formula' });
+  formula.addEventListener('input', () => { c.expr = formula.value; touch(); });
+  attachSuggest(formula, () => { c.expr = formula.value; touch(); });
+
+  const testMsg = el('span', { class: 'muted small', 'data-role': 'testmsg' });
+  const testBtn = el('button', { class: 'btn', onclick: async () => {
+    try {
+      await api('POST', '/api/test', { id: d.id, channel: i, ms: 3000 });
+      testMsg.textContent = t('gauge.testing');
+      setTimeout(() => { testMsg.textContent = ''; }, 3200);
+    } catch (e) { testMsg.textContent = e.message; }
+  } }, icon('play'), t('gauge.test'));
+
+  const big = el('div', { class: 'bigdial', 'data-ch': i }, dialSvg(c), el('div', { class: 'dval big', 'data-role': 'val' }, '–'));
+
+  return el('div', { class: 'editor', 'data-ch-editor': i },
+    el('div', { class: 'ehead' },
+      el('h3', {}, t('gauge.title', { n: i + 1 })),
+      el('span', { class: 'grow' }),
+      el('button', { class: 'btn ghost icon', 'aria-label': t('gauge.close'), onclick: () => { state.open = null; renderCockpit(); paint(); } }, icon('x'))),
+    el('div', { class: 'egrid' },
+      big,
+      el('div', { class: 'efields' },
+        field(t('gauge.name'), name),
+        field(t('gauge.what'), what),
+        custom ? field(t('gauge.formula'), formula, t('gauge.formulaHint')) : null,
+        custom ? field(t('gauge.unit'), el('input', { type: 'text', value: c.unit, maxlength: 12, style: 'width:110px', oninput: e => { c.unit = e.target.value; changed(); } })) : null,
+        el('div', { class: 'row2' },
+          field(t('gauge.lo'), num('lo', t('gauge.loHint')), t('gauge.loHint')),
+          field(t('gauge.hi'), num('hi', t('gauge.hiHint')), t('gauge.hiHint'))),
+        custom && (c.lo == null || c.hi == null) ? el('p', { class: 'muted small' }, t('gauge.rawNote')) : null,
+        el('p', { class: 'err', 'data-role': 'ederr' }),
+        el('details', { class: 'adv' },
+          el('summary', {}, t('gauge.advanced')),
+          el('div', { class: 'row2' },
+            field(`${t('gauge.board')} · ${t('gauge.lo').toLowerCase()}`, el('input', { type: 'number', value: c.min ?? '', oninput: e => { c.min = numOrNull(e.target.value); changed(); } })),
+            field(`${t('gauge.board')} · ${t('gauge.hi').toLowerCase()}`, el('input', { type: 'number', value: c.max ?? '', oninput: e => { c.max = numOrNull(e.target.value); changed(); } }))),
+          el('p', { class: 'fhint' }, t('gauge.boardHint')),
+          custom ? null : field(t('gauge.formula'), el('code', { class: 'formula-ro' }, c.expr))),
+        el('div', { class: 'actions' },
+          testBtn, testMsg,
+          el('span', { class: 'grow' }),
+          el('button', { class: 'btn danger', onclick: () => {
+            if (!confirm(t('gauge.removeAsk', { name: c.name || t('gauge.title', { n: i + 1 }) }))) return;
+            d.channels.splice(i, 1);
+            state.open = null;
+            renderCockpit();
+            paint();
+            touch();
+          } }, icon('trash'), t('gauge.remove'))))));
+}
+
+function paintCockpit() {
   for (const d of state.config.serial) {
-    const card = document.querySelector(`[data-dev="${d.id}"]`);
-    const st = devs.find(x => x.id === d.id);
-    if (!card || !st) continue;
-    card.classList.toggle('off', !d.enabled);
-    let label = 'Off', cls = '';
-    if (d.enabled && !d.port) label = 'Choose a port';
-    else if (d.enabled) {
-      cls = st.state;
-      label = { open: 'Connected', connecting: 'Connecting…', error: 'Problem', off: 'Starting…' }[st.state] ?? st.state;
-    }
+    const card = document.querySelector(`#page-cockpit [data-dev="${d.id}"]`);
+    if (!card) continue;
+    const st = statusOf(d.id);
+    const [cls, label] = stateLabel(st, d.enabled, !!d.port);
     const badge = card.querySelector('[data-role=badge]');
     badge.textContent = label;
     badge.className = `badge ${cls}`;
-    const msg = card.querySelector('[data-role=msg]');
-    if (st.state === 'error' && d.enabled && st.msg && !msg.dataset.probe) {
-      msg.style.color = 'var(--bad)';
-      msg.textContent = st.msg;
-    } else if (st.state === 'open' && msg.style.color === 'var(--bad)') msg.textContent = '';
-    const line = card.querySelector('[data-role=line]');
-    line.replaceChildren(
-      document.createTextNode('Line: '), el('b', {}, JSON.stringify(st.line).slice(1, -1) || '–'),
-      document.createTextNode(`   sent: ${st.sent}${st.rx ? `   device says: ${st.rx}` : ''}`));
-    card.querySelectorAll('tr[data-ch]').forEach(tr => {
-      const i = Number(tr.dataset.ch);
-      tr.querySelector('[data-role=val]').textContent = st.values[i] ?? '–';
-      const err = st.errors[i];
-      tr.querySelector('[data-role=err]').textContent = err ?? '';
-      tr.querySelector('[data-role=formula]').classList.toggle('bad', !!err);
+    d.channels.forEach((c, i) => {
+      const sent = st?.values?.[i];
+      const err = st?.errors?.[i];
+      const frac = sent != null && c.min != null && c.max != null && c.max !== c.min ? Math.min(1, Math.max(0, (sent - c.min) / (c.max - c.min))) : 0;
+      for (const holder of card.querySelectorAll(`[data-ch="${i}"]`)) {
+        const needle = holder.querySelector('[data-role=needle]');
+        if (needle) needle.style.transform = `rotate(${-120 + 240 * frac}deg)`;
+        const val = holder.querySelector('[data-role=val]');
+        if (val) val.textContent = fmtGauge(c, realValue(c, sent));
+        holder.classList.toggle('bad', !!err);
+      }
+      const ed = card.querySelector(`[data-ch-editor="${i}"] [data-role=ederr]`);
+      if (ed) ed.textContent = err ? t('gauge.error', { msg: err }) : '';
     });
   }
 }
 
-$('#addDevice').addEventListener('click', () => {
-  state.config.serial.push({
-    id: `dev${Date.now() % 100000}`, name: `Device ${state.config.serial.length + 1}`, enabled: false, port: '', baud: 115200, hz: 25,
-    separator: ',', terminator: '\\n', idle: 'zeros', channels: [{ name: '', expr: '', min: null, max: null }],
+// --- display: Nextion screens -------------------------------------------------------------------
+
+function spotLabel(h) {
+  if (h.action === 'next') return t('display.actNext');
+  if (h.action === 'prev') return t('display.actPrev');
+  return t('display.actGo', { page: h.action.slice(5) });
+}
+
+function renderDisplay() {
+  const page = $('#page-display');
+  const kids = [header(t('display.title'), t('display.lead'))];
+  if (!state.config.nextion.length) kids.push(emptyState('display', t('display.empty'), t('display.emptyLead'), null));
+  for (const d of state.config.nextion) kids.push(displayCard(d));
+  kids.push(el('div', { class: 'below' }, el('button', { class: 'btn', onclick: addDisplay }, icon('plus'), t('display.add'))));
+  page.replaceChildren(...kids);
+}
+
+function addDisplay() {
+  state.config.nextion.push({
+    id: `nx${Date.now() % 100000}`, name: t('display.newName', { n: state.config.nextion.length + 1 }), enabled: false, port: '', via: '', baud: 115200,
+    width: 480, height: 272, powerOffWhenIdle: false, idlePage: 'page0', pages: [{ name: 'page1', rotation: true, showWhen: '' }], hotspots: [], bindings: [],
   });
-  renderDevices();
+  renderDisplay();
+  paint();
   touch();
-});
+}
 
-// --- Nextion displays -----------------------------------------------------------------------------
-
-const NX_BAUDS = [9600, 19200, 38400, 57600, 115200, 230400, 250000, 512000, 921600];
-const nxFilter = {}; // device id -> page filter of the bindings table
-
-function nextionCard(d) {
-  const card = el('div', { class: 'device', 'data-nx': d.id });
-  const name = el('input', { type: 'text', class: 'name', value: d.name, 'aria-label': 'Display name', oninput: () => { d.name = name.value; touch(); } });
-  const enabled = el('input', { type: 'checkbox', checked: d.enabled, onchange: () => { d.enabled = enabled.checked; touch(); } });
-  const portCell = el('div');
-  const buildPort = () => portCell.replaceChildren(select(portOptions(d.port), d.port, v => { d.port = v; touch(); }));
-  buildPort();
+function displayCard(d) {
   d.via ??= '';
-  const portField = el('label', {}, 'Port', el('div', { style: 'display:flex;gap:6px;align-items:center' }, portCell, el('button', { class: 'btn small', onclick: async () => { await loadPorts(); buildPort(); } }, 'Refresh')));
-  const baudField = el('label', {}, 'Baud rate', select(NX_BAUDS.map(b => [b, b]), d.baud, v => { d.baud = Number(v); touch(); }));
-  const showConn = () => { portField.hidden = !!d.via; baudField.hidden = !!d.via; };
-  const viaField = el('label', { title: 'A board like the Octopus gauge controller can pass the display through its own USB port (TFT connector), so the display needs no COM port of its own' }, 'Connected',
-    select([['', 'to its own COM port'], ...state.config.serial.map(s => [s.id, `through ${s.name}${s.port ? ` (${s.port})` : ''}`])], d.via,
-      v => { d.via = v; showConn(); touch(); }));
-  showConn();
-  const num = (key, w) => el('input', { type: 'number', min: 1, value: d[key], style: `width:${w}px`, oninput: e => { d[key] = Number(e.target.value) || d[key]; touch(); } });
-
-  const pagesBody = el('tbody');
-  const buildPages = () => {
-    pagesBody.replaceChildren(...d.pages.map((p, i) => {
-      const f = el('input', { type: 'text', value: p.showWhen, spellcheck: 'false', autocomplete: 'off', placeholder: 'e.g. !truck.electric.enabled', 'data-role': 'formula' });
-      f.addEventListener('input', () => { p.showWhen = f.value; touch(); });
-      attachSuggest(f, () => { p.showWhen = f.value; touch(); });
-      return el('tr', {},
-        el('td', {}, el('input', { type: 'text', value: p.name, placeholder: 'page1', oninput: e => { p.name = e.target.value; touch(); } })),
-        el('td', { style: 'text-align:center' }, el('input', { type: 'checkbox', checked: p.rotation, onchange: e => { p.rotation = e.target.checked; touch(); } })),
-        el('td', { class: 'f' }, f),
-        el('td', {}, el('button', { class: 'btn small', 'aria-label': 'Remove page', onclick: () => { d.pages.splice(i, 1); buildPages(); buildSpots(); touch(); } }, '✕')));
-    }));
-  };
-
-  const spotAction = h => select([['next', 'Next page'], ['prev', 'Previous page'], ...d.pages.map(p => [`page:${p.name}`, `Go to ${p.name}`])], h.action, v => { h.action = v; touch(); });
-  const spotsBody = el('tbody');
-  const buildSpots = () => {
-    spotsBody.replaceChildren(...d.hotspots.map((h, i) => el('tr', {},
-      ...['x', 'y', 'w', 'h'].map(k => el('td', { class: 'mm' }, el('input', { type: 'number', min: 0, max: 100, value: h[k], oninput: e => { h[k] = Number(e.target.value) || 0; touch(); } }))),
-      el('td', {}, spotAction(h)),
-      el('td', {}, el('button', { class: 'btn small', 'aria-label': 'Remove hotspot', onclick: () => { d.hotspots.splice(i, 1); buildSpots(); touch(); } }, '✕')))));
-  };
-  buildPages();
-  buildSpots();
-
-  const bindBody = el('tbody');
-  const filterSel = el('select');
-  const buildFilter = () => {
-    const pages = [...new Set(d.bindings.map(b => b.target.split('.')[0]).filter(Boolean))];
-    filterSel.replaceChildren(el('option', { value: '' }, `All pages (${d.bindings.length})`), ...pages.map(p => el('option', { value: p, selected: nxFilter[d.id] === p }, p)));
-  };
-  filterSel.addEventListener('change', () => { nxFilter[d.id] = filterSel.value; buildBindings(); });
-  const buildBindings = () => {
-    const want = nxFilter[d.id] || '';
-    bindBody.replaceChildren(...d.bindings.map((b, i) => {
-      if (want && !b.target.startsWith(`${want}.`)) return null;
-      const f = el('input', { type: 'text', value: b.expr, spellcheck: 'false', autocomplete: 'off', 'data-role': 'formula' });
-      f.addEventListener('input', () => { b.expr = f.value; touch(); });
-      attachSuggest(f, () => { b.expr = f.value; touch(); });
-      return el('tr', { 'data-b': i },
-        el('td', {}, el('input', { type: 'text', value: b.target, spellcheck: 'false', placeholder: 'page1.tgear.txt', oninput: e => { b.target = e.target.value; touch(); } })),
-        el('td', { class: 'f' }, f, el('div', { class: 'err', 'data-role': 'err' })),
-        el('td', { class: 'mm' }, el('input', { type: 'number', min: 0, max: 6, value: b.decimals ?? '', placeholder: 'auto', oninput: e => { b.decimals = numOrNull(e.target.value); touch(); } })),
-        el('td', { class: 'v', 'data-role': 'val' }, '–'),
-        el('td', {}, el('button', { class: 'btn small', 'aria-label': 'Remove binding', onclick: () => { d.bindings.splice(i, 1); buildBindings(); buildFilter(); touch(); } }, '✕')));
-    }));
-  };
-  buildFilter();
-  buildBindings();
-
+  const card = el('div', { class: `card ${d.enabled ? '' : 'dim'}`, 'data-nx': d.id });
   const nav = action => api('POST', '/api/nextion/nav', { id: d.id, action }).catch(() => {});
+  const rebuild = () => { renderDisplay(); paint(); touch(); };
+
+  // a picture of the screen with its touch areas
+  const screen = el('div', { class: 'screen', style: `aspect-ratio:${d.width} / ${d.height}` },
+    el('div', { class: 'spage', 'data-role': 'spage' }, '–'),
+    d.hotspots.map(h => el('div', { class: `spot ${h.action}`, style: `left:${h.x}%;top:${h.y}%;width:${h.w}%;height:${h.h}%` }, el('span', {}, spotLabel(h)))));
+
+  const pagesBody = el('tbody', {}, d.pages.map((p, i) => {
+    const f = el('input', { type: 'text', class: 'mono', value: p.showWhen, spellcheck: 'false', autocomplete: 'off', placeholder: '!truck.electric.enabled' });
+    f.addEventListener('input', () => { p.showWhen = f.value; touch(); });
+    attachSuggest(f, () => { p.showWhen = f.value; touch(); });
+    return el('tr', {},
+      el('td', {}, el('input', { type: 'text', value: p.name, placeholder: 'page1', onchange: e => { p.name = e.target.value; rebuild(); } })),
+      el('td', { class: 'c' }, el('input', { type: 'checkbox', checked: p.rotation, onchange: e => { p.rotation = e.target.checked; touch(); } })),
+      el('td', {}, f),
+      el('td', { class: 'c' }, el('button', { class: 'btn ghost icon', 'aria-label': t('common.remove'), onclick: () => { d.pages.splice(i, 1); rebuild(); } }, icon('trash'))));
+  }));
+
+  const actions = h => select([['next', t('display.actNext')], ['prev', t('display.actPrev')], ...d.pages.map(p => [`page:${p.name}`, t('display.actGo', { page: p.name })])], h.action, v => { h.action = v; rebuild(); });
+  const spotsBody = el('tbody', {}, d.hotspots.map((h, i) => el('tr', {},
+    ...['x', 'y', 'w', 'h'].map(k => el('td', {}, el('input', { type: 'number', min: 0, max: 100, value: h[k], class: 'n', onchange: e => { h[k] = Number(e.target.value) || 0; rebuild(); } }))),
+    el('td', {}, actions(h)),
+    el('td', { class: 'c' }, el('button', { class: 'btn ghost icon', 'aria-label': t('common.remove'), onclick: () => { d.hotspots.splice(i, 1); rebuild(); } }, icon('trash'))))));
+
+  // bindings, filtered by page
+  const pageNames = [...new Set([...d.pages.map(p => p.name), ...d.bindings.map(b => b.target.split('.')[0]).filter(Boolean)])];
+  const filter = state.nxFilter[d.id] ?? (pageNames[0] || '');
+  const chips = el('div', { class: 'chips' },
+    [['', t('display.allPages')], ...pageNames.map(n => [n, n])].map(([v, label]) => el('button', {
+      class: `chipbtn ${filter === v ? 'on' : ''}`, onclick: () => { state.nxFilter[d.id] = v; renderDisplay(); paint(); },
+    }, label, el('span', { class: 'count' }, String(v ? d.bindings.filter(b => b.target.startsWith(`${v}.`)).length : d.bindings.length)))));
+
+  const bindBody = el('tbody', {}, d.bindings.map((b, i) => {
+    if (filter && !b.target.startsWith(`${filter}.`)) return null;
+    const [pg = '', obj = '', attr = 'txt'] = b.target.split('.');
+    const parts = { pg, obj, attr };
+    const setTarget = () => { b.target = `${parts.pg}.${parts.obj}.${parts.attr}`; touch(); };
+    const other = el('input', { type: 'text', class: 'n', value: PROPS.includes(attr) ? '' : attr, hidden: PROPS.includes(attr), placeholder: 'x', oninput: e => { parts.attr = e.target.value; setTarget(); } });
+    const propSel = select([...PROPS.map(p => [p, t(`prop.${p}`)]), ['other', t('prop.other')]], PROPS.includes(attr) ? attr : 'other', v => {
+      if (v === 'other') { other.hidden = false; other.focus(); return; }
+      other.hidden = true;
+      parts.attr = v;
+      setTarget();
+    });
+    const f = el('input', { type: 'text', class: 'mono', value: b.expr, spellcheck: 'false', autocomplete: 'off', 'data-role': 'formula' });
+    f.addEventListener('input', () => { b.expr = f.value; touch(); });
+    attachSuggest(f, () => { b.expr = f.value; touch(); });
+    return el('tr', { 'data-b': i },
+      filter ? null : el('td', {}, select(pageNames.map(n => [n, n]), pg, v => { parts.pg = v; setTarget(); })),
+      el('td', {}, el('input', { type: 'text', value: obj, class: 'obj', placeholder: 'tgear', oninput: e => { parts.obj = e.target.value; setTarget(); } })),
+      el('td', {}, el('div', { class: 'inline' }, propSel, other)),
+      el('td', { class: 'f' }, f, el('div', { class: 'err', 'data-role': 'err' })),
+      el('td', {}, el('input', { type: 'number', min: 0, max: 6, class: 'n', value: b.decimals ?? '', placeholder: '–', onchange: e => { b.decimals = numOrNull(e.target.value); touch(); } })),
+      el('td', { class: 'v', 'data-role': 'val' }, '–'),
+      el('td', { class: 'c' }, el('button', { class: 'btn ghost icon', 'aria-label': t('common.remove'), onclick: () => { d.bindings.splice(i, 1); rebuild(); } }, icon('trash'))));
+  }));
+
+  const portCell = el('div', { class: 'inline' });
+  const buildPort = () => portCell.replaceChildren(select(portOptions(d.port), d.port, v => { d.port = v; touch(); }),
+    el('button', { class: 'btn', onclick: async () => { await loadPorts(); buildPort(); } }, icon('refresh'), t('conn.refresh')));
+  buildPort();
+  const portField = field(t('display.port'), portCell);
+  const baudField = field(t('display.baud'), select(NX_BAUDS.map(b => [b, b]), d.baud, v => { d.baud = Number(v); touch(); }));
+  portField.hidden = baudField.hidden = !!d.via;
+  const viaSel = select([['', t('display.ownPort')], ...state.config.serial.map(s => [s.id, t('display.through', { name: `${s.name}${s.port ? ` (${s.port})` : ''}` })])], d.via, v => {
+    d.via = v;
+    portField.hidden = baudField.hidden = !!v;
+    touch();
+  });
+
   card.append(
-    el('div', { class: 'dhead' },
-      name,
-      el('label', { class: 'switch' }, enabled, 'Enabled'),
-      el('span', { class: 'badge', 'data-role': 'badge' }, 'Off'),
-      el('span', { class: 'muted', 'data-role': 'page' }),
-      el('div', { style: 'flex:1' }),
-      el('button', { class: 'btn small', onclick: () => nav('prev') }, '‹ Previous page'),
-      el('button', { class: 'btn small', onclick: () => nav('next') }, 'Next page ›'),
-      el('button', { class: 'btn small danger', onclick: () => {
-        if (!confirm(`Remove "${d.name}"?`)) return;
+    el('div', { class: 'chead' },
+      icon('display'),
+      el('input', { type: 'text', class: 'title', value: d.name, 'aria-label': t('display.title'), oninput: e => { d.name = e.target.value; touch(); } }),
+      el('span', { class: 'badge', 'data-role': 'badge' }),
+      el('span', { class: 'grow' }),
+      el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: d.enabled, onchange: e => { d.enabled = e.target.checked; rebuild(); } }), el('span', {}, t('display.enabled')))),
+    el('div', { class: 'scrrow' },
+      el('div', { class: 'scrcol' }, screen,
+        el('div', { class: 'scrnav' },
+          el('button', { class: 'btn', onclick: () => nav('prev') }, icon('left'), t('display.prev')),
+          el('button', { class: 'btn', onclick: () => nav('next') }, t('display.next'), icon('right')))),
+      el('div', { class: 'scrinfo' },
+        el('p', { class: 'big', 'data-role': 'showing' }),
+        el('p', { class: 'muted small' }, t('display.previewNote')),
+        el('p', { class: 'muted small', 'data-role': 'stats' }),
+        el('p', { class: 'err', 'data-role': 'msg' }))),
+
+    el('h3', {}, t('display.fields')),
+    el('p', { class: 'muted' }, t('display.fieldsLead')),
+    chips,
+    el('div', { class: 'tablewrap' }, el('table', { class: 'grid' },
+      el('thead', {}, el('tr', {},
+        filter ? null : el('th', {}, t('display.page')),
+        el('th', {}, t('display.object')), el('th', {}, t('display.prop')), el('th', {}, t('display.value')),
+        el('th', {}, t('display.decimals')), el('th', { class: 'v' }, t('display.now')), el('th'))),
+      bindBody)),
+    el('div', { class: 'below' }, el('button', { class: 'btn', onclick: () => {
+      d.bindings.push({ target: `${filter || pageNames[0] || 'page1'}..txt`, expr: '', decimals: null });
+      rebuild();
+    } }, icon('plus'), t('display.addField'))),
+
+    el('h3', {}, t('display.pages')),
+    el('p', { class: 'muted' }, t('display.pagesLead')),
+    el('div', { class: 'tablewrap' }, el('table', { class: 'grid' },
+      el('thead', {}, el('tr', {}, el('th', {}, t('display.pageName')), el('th', { class: 'c' }, t('display.inRotation')), el('th', {}, t('display.showWhen')), el('th'))),
+      pagesBody)),
+    el('div', { class: 'below' }, el('button', { class: 'btn', onclick: () => { d.pages.push({ name: `page${d.pages.length + 1}`, rotation: true, showWhen: '' }); rebuild(); } }, icon('plus'), t('display.addPage'))),
+
+    el('h3', {}, t('display.spots')),
+    el('p', { class: 'muted', 'data-role': 'spotslead' }, t('display.spotsLead', { touch: '–' })),
+    el('div', { class: 'tablewrap' }, el('table', { class: 'grid' },
+      el('thead', {}, el('tr', {}, el('th', {}, t('display.spotX')), el('th', {}, t('display.spotY')), el('th', {}, t('display.spotW')), el('th', {}, t('display.spotH')), el('th', {}, t('display.spotAction')), el('th'))),
+      spotsBody)),
+    el('div', { class: 'below' }, el('button', { class: 'btn', onclick: () => { d.hotspots.push({ x: 0, y: 80, w: 50, h: 20, action: 'next' }); rebuild(); } }, icon('plus'), t('display.addSpot'))),
+
+    el('details', { class: 'adv settings' },
+      el('summary', {}, t('display.settings')),
+      el('div', { class: 'fields' },
+        field(t('display.connection'), viaSel, t('display.throughHint')),
+        portField, baudField,
+        field(t('display.width'), el('input', { type: 'number', min: 64, value: d.width, class: 'n', onchange: e => { d.width = Number(e.target.value) || d.width; rebuild(); } })),
+        field(t('display.height'), el('input', { type: 'number', min: 64, value: d.height, class: 'n', onchange: e => { d.height = Number(e.target.value) || d.height; rebuild(); } })),
+        field(t('display.idlePage'), select(pageNames.map(n => [n, n]), d.idlePage, v => { d.idlePage = v; touch(); }))),
+      el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: d.powerOffWhenIdle, onchange: e => { d.powerOffWhenIdle = e.target.checked; touch(); } }), el('span', {}, t('display.sleep'))),
+      el('div', { class: 'below' }, el('button', { class: 'btn danger', onclick: () => {
+        if (!confirm(t('display.removeAsk', { name: d.name }))) return;
         state.config.nextion = state.config.nextion.filter(x => x !== d);
-        renderNextion();
-        touch();
-      } }, 'Remove')),
-    el('div', { class: 'fields' },
-      viaField,
-      portField,
-      baudField,
-      el('label', {}, 'Screen width (px)', num('width', 80)),
-      el('label', {}, 'Screen height (px)', num('height', 80)),
-      el('label', {}, 'Page while no game runs', el('input', { type: 'text', value: d.idlePage, placeholder: 'page1', style: 'width:110px', oninput: e => { d.idlePage = e.target.value; touch(); } })),
-      el('label', { class: 'switch', style: 'flex-direction:row;color:var(--text);font-size:14px' },
-        el('input', { type: 'checkbox', checked: d.powerOffWhenIdle, onchange: e => { d.powerOffWhenIdle = e.target.checked; touch(); } }), 'Put the display to sleep when no game runs')),
-    el('div', { class: 'msg', 'data-role': 'msg' }),
-    el('h3', {}, 'Pages'),
-    el('p', { class: 'muted' }, 'Pages in rotation are what the touch hotspots cycle through. A "show when" formula pops that page up while it is true (for example the dark page with the ignition off).'),
-    el('table', { class: 'ch' }, el('thead', {}, el('tr', {}, el('th', {}, 'Page'), el('th', { style: 'text-align:center' }, 'In rotation'), el('th', {}, 'Show when'), el('th'))), pagesBody),
-    el('div', { class: 'row-actions' }, el('button', { class: 'btn small', onclick: () => { d.pages.push({ name: '', rotation: true, showWhen: '' }); buildPages(); touch(); } }, 'Add page')),
-    el('h3', {}, 'Touch hotspots'),
-    el('p', { class: 'muted' }, 'Rectangles in % of the screen (from the top left). A tap inside one runs its action. Last touch: ', el('span', { 'data-role': 'touch' }, '–')),
-    el('table', { class: 'ch' }, el('thead', {}, el('tr', {}, el('th', {}, 'X %'), el('th', {}, 'Y %'), el('th', {}, 'Width %'), el('th', {}, 'Height %'), el('th', {}, 'Action'), el('th'))), spotsBody),
-    el('div', { class: 'row-actions' }, el('button', { class: 'btn small', onclick: () => { d.hotspots.push({ x: 0, y: 80, w: 50, h: 20, action: 'next' }); buildSpots(); touch(); } }, 'Add hotspot')),
-    el('h3', {}, 'Bindings'),
-    el('p', { class: 'muted' }, 'Target is page.object.attribute as named in the Nextion editor: ', el('code', {}, '.txt'), ' sets text, ', el('code', {}, '.vis'), ' shows/hides (yes/no formula), anything else (', el('code', {}, '.val'), ', ', el('code', {}, '.pic'), ', ', el('code', {}, '.pco'), '…) takes a whole number. Only the bindings of the page on screen are sent, and only when the value changes.'),
-    el('div', { class: 'row-actions', style: 'margin:0 0 8px' }, filterSel),
-    el('table', { class: 'ch' }, el('thead', {}, el('tr', {}, el('th', {}, 'Target'), el('th', {}, 'Formula'), el('th', {}, 'Decimals'), el('th', { style: 'text-align:right' }, 'Sent'), el('th'))), bindBody),
-    el('div', { class: 'row-actions' }, el('button', { class: 'btn small', onclick: () => { d.bindings.push({ target: '', expr: '', decimals: null }); buildBindings(); buildFilter(); touch(); } }, 'Add binding')),
-    el('div', { class: 'line', 'data-role': 'line' }));
+        rebuild();
+      } }, icon('trash'), t('display.remove')))));
   return card;
 }
 
-function renderNextion() {
-  $('#nextions').replaceChildren(...state.config.nextion.map(nextionCard));
-  paintNextion();
-}
-
-function paintNextion() {
-  const list = state.status?.nextion;
-  if (!list) return;
+function paintDisplay() {
   for (const d of state.config.nextion) {
-    const card = document.querySelector(`[data-nx="${d.id}"]`);
-    const st = list.find(x => x.id === d.id);
-    if (!card || !st) continue;
-    card.classList.toggle('off', !d.enabled);
-    let label = 'Off', cls = '';
-    if (d.enabled && !d.port && !d.via) label = 'Choose a port';
-    else if (d.enabled) {
-      cls = st.state;
-      label = st.asleep ? 'Asleep' : { open: 'Connected', connecting: 'Connecting…', error: 'Problem', off: 'Starting…' }[st.state] ?? st.state;
-    }
+    const card = document.querySelector(`#page-display [data-nx="${d.id}"]`);
+    if (!card) continue;
+    const st = nxStatusOf(d.id);
+    const [cls, label] = stateLabel(st, d.enabled, !!(d.port || d.via));
     const badge = card.querySelector('[data-role=badge]');
     badge.textContent = label;
     badge.className = `badge ${cls}`;
-    card.querySelector('[data-role=page]').textContent = st.page ? `showing ${st.page}` : '';
-    const msg = card.querySelector('[data-role=msg]');
-    msg.style.color = 'var(--bad)';
-    msg.textContent = st.state === 'error' && d.enabled ? st.msg : '';
-    card.querySelector('[data-role=touch]').textContent = st.touch || '–';
-    card.querySelector('[data-role=line]').textContent = `commands sent: ${st.sent}   display restarts seen: ${st.resets}`;
+    const live = st && st.state === 'open' && d.enabled;
+    card.querySelector('[data-role=spage]').textContent = live ? (st.asleep ? t('state.asleep') : st.page || '–') : '–';
+    card.querySelector('.screen').classList.toggle('dark', !live || !!st?.asleep);
+    card.querySelector('[data-role=showing]').textContent = live && !st.asleep && st.page ? t('display.showing', { page: st.page }) : label;
+    card.querySelector('[data-role=stats]').textContent = st ? t('display.stats', { sent: st.sent, resets: st.resets }) : '';
+    card.querySelector('[data-role=msg]').textContent = st?.state === 'error' && d.enabled ? st.msg : '';
+    card.querySelector('[data-role=spotslead]').textContent = t('display.spotsLead', { touch: st?.touch || '–' });
     card.querySelectorAll('tr[data-b]').forEach(tr => {
-      const b = st.bindings[Number(tr.dataset.b)];
+      const b = st?.bindings?.[Number(tr.dataset.b)];
       if (!b) return;
       tr.querySelector('[data-role=val]').textContent = b.value === '' ? '–' : b.value;
       tr.querySelector('[data-role=err]').textContent = b.error ?? '';
@@ -449,14 +607,171 @@ function paintNextion() {
   }
 }
 
-$('#addNextion').addEventListener('click', () => {
-  state.config.nextion.push({
-    id: `nx${Date.now() % 100000}`, name: `Display ${state.config.nextion.length + 1}`, enabled: false, port: '', baud: 115200, width: 480, height: 272,
-    powerOffWhenIdle: false, idlePage: 'page0', pages: [{ name: 'page1', rotation: true, showWhen: '' }], hotspots: [], bindings: [],
+// --- connections: boards and their ports ----------------------------------------------------------
+
+function portOptions(current) {
+  const opts = [['', t('conn.choosePort')]];
+  const seen = new Set();
+  for (const p of state.ports) {
+    seen.add(p.name);
+    opts.push([p.name, p.desc ? `${p.name}: ${p.desc}` : p.name]);
+  }
+  if (current && !seen.has(current)) opts.push([current, t('conn.notPlugged', { port: current })]);
+  return opts;
+}
+
+function renderConnections() {
+  const page = $('#page-connections');
+  page.replaceChildren(
+    header(t('conn.title'), t('conn.lead')),
+    ...state.config.serial.map(connCard),
+    el('div', { class: 'below' }, el('button', { class: 'btn primary', onclick: () => {
+      state.config.serial.push({
+        id: `dev${Date.now() % 100000}`, name: t('conn.newName', { n: state.config.serial.length + 1 }), enabled: false, port: '', baud: 115200, hz: 25,
+        separator: ',', terminator: '\\n', idle: 'zeros', channels: [],
+      });
+      renderConnections();
+      paint();
+      touch();
+    } }, icon('plus'), t('conn.add'))),
+    el('div', { class: 'card note' }, icon('display'), el('div', {}, el('h3', {}, t('conn.displays')), el('p', { class: 'muted' }, t('conn.displaysLead')),
+      el('button', { class: 'btn', onclick: () => showTab('display') }, t('tab.display')))));
+}
+
+function connCard(d) {
+  const card = el('div', { class: `card ${d.enabled ? '' : 'dim'}`, 'data-dev': d.id });
+  const msg = el('p', { class: 'muted small', 'data-role': 'msg' });
+  const portCell = el('div', { class: 'inline' });
+  const probe = el('button', { class: 'btn', title: t('conn.identifyHint') }, icon('info'), t('conn.identify'));
+  probe.addEventListener('click', async () => {
+    if (!d.port) { msg.textContent = t('conn.choosePortFirst'); return; }
+    probe.disabled = true;
+    msg.className = 'muted small';
+    msg.textContent = t('conn.asking', { port: d.port });
+    try {
+      const r = await api('POST', '/api/probe', { port: d.port, baud: d.baud });
+      msg.className = `small ${r.ok ? 'okc' : 'err'}`;
+      msg.textContent = r.ok ? t('conn.answered', { port: d.port, reply: r.reply }) : (r.error || r.msg);
+    } catch (e) {
+      msg.className = 'small err';
+      msg.textContent = e.message;
+    }
+    probe.disabled = false;
   });
-  renderNextion();
-  touch();
-});
+  const buildPort = () => portCell.replaceChildren(select(portOptions(d.port), d.port, v => { d.port = v; touch(); }),
+    el('button', { class: 'btn', onclick: async () => { await loadPorts(); buildPort(); } }, icon('refresh'), t('conn.refresh')), probe);
+  buildPort();
+
+  card.append(
+    el('div', { class: 'chead' },
+      icon('cpu'),
+      el('input', { type: 'text', class: 'title', value: d.name, 'aria-label': t('conn.title'), oninput: e => { d.name = e.target.value; touch(); } }),
+      el('span', { class: 'badge', 'data-role': 'badge' }),
+      el('span', { class: 'grow' }),
+      el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: d.enabled, onchange: e => { d.enabled = e.target.checked; renderConnections(); paint(); touch(); } }), el('span', {}, t('conn.enabled')))),
+    el('div', { class: 'fields' },
+      field(t('conn.port'), portCell),
+      field(t('conn.idle'), select([['zeros', t('conn.idleZeros')], ['hold', t('conn.idleHold')], ['none', t('conn.idleNone')]], d.idle, v => { d.idle = v; touch(); }))),
+    msg,
+    el('details', { class: 'adv' },
+      el('summary', {}, t('gauge.advanced')),
+      el('div', { class: 'fields' },
+        field(t('conn.baud'), select(BAUDS.map(b => [b, b]), d.baud, v => { d.baud = Number(v); touch(); })),
+        field(t('conn.rate'), el('input', { type: 'number', min: 1, max: 25, value: d.hz, class: 'n', onchange: e => { d.hz = Number(e.target.value) || 25; touch(); } })),
+        field(t('conn.separator'), el('input', { type: 'text', maxlength: 4, value: d.separator, class: 'n', oninput: e => { d.separator = e.target.value; touch(); } })),
+        field(t('conn.lineEnd'), select(LINE_ENDS, d.terminator, v => { d.terminator = v; touch(); }))),
+      el('p', { class: 'mono small', 'data-role': 'line' })),
+    el('div', { class: 'actions' },
+      el('button', { class: 'btn', onclick: () => { state.open = null; showTab('cockpit'); } }, icon('gauge'), t('conn.editGauges'), el('span', { class: 'count' }, String(d.channels.length))),
+      el('span', { class: 'grow' }),
+      el('button', { class: 'btn danger', onclick: () => {
+        if (!confirm(t('conn.removeAsk', { name: d.name }))) return;
+        state.config.serial = state.config.serial.filter(x => x !== d);
+        renderConnections();
+        paint();
+        touch();
+      } }, icon('trash'), t('conn.remove'))));
+  return card;
+}
+
+function paintConnections() {
+  for (const d of state.config.serial) {
+    const card = document.querySelector(`#page-connections [data-dev="${d.id}"]`);
+    if (!card) continue;
+    const st = statusOf(d.id);
+    const [cls, label] = stateLabel(st, d.enabled, !!d.port);
+    const badge = card.querySelector('[data-role=badge]');
+    badge.textContent = label;
+    badge.className = `badge ${cls}`;
+    const msg = card.querySelector('[data-role=msg]');
+    if (st?.state === 'error' && d.enabled && st.msg && !msg.textContent) { msg.className = 'small err'; msg.textContent = st.msg; }
+    const line = st ? JSON.stringify(st.line ?? '').slice(1, -1) : '';
+    card.querySelector('[data-role=line]').textContent =
+      `${t('conn.line', { line: line || '–' })}   ${t('conn.sent', { n: st?.sent ?? 0 })}${st?.rx ? `   ${t('conn.says', { rx: st.rx.trim() })}` : ''}`;
+  }
+}
+
+// --- game data ------------------------------------------------------------------------------------
+
+const GROUPS = ['x', 'truck', 'trailer', 'job', 'navigation', 'controls', 'game'];
+let dataSearch = '';
+
+function renderData() {
+  const page = $('#page-data');
+  const search = el('input', { type: 'search', class: 'search', value: dataSearch, placeholder: t('data.search'), autocomplete: 'off' });
+  const list = el('div', { class: 'datalist' });
+  const count = el('p', { class: 'muted small' });
+  const build = () => {
+    const words = dataSearch.toLowerCase().split(/\s+/).filter(Boolean);
+    const rank = c => { const g = GROUPS.indexOf(c.path.split('.')[0]); return g < 0 ? GROUPS.length : g; };
+    const hits = state.catalog.filter(c => words.every(w => c.path.toLowerCase().includes(w) || (c.info || '').toLowerCase().includes(w)))
+      .sort((a, b) => rank(a) - rank(b)); // ready-made values first, then truck, trailer…
+    const shown = hits.slice(0, 200);
+    state.visible = shown.map(c => c.path);
+    count.textContent = hits.length > shown.length ? t('data.more', { shown: shown.length, all: hits.length }) : t('data.count', { n: hits.length });
+    const byGroup = new Map();
+    for (const c of shown) {
+      const g = GROUPS.includes(c.path.split('.')[0]) ? c.path.split('.')[0] : 'other';
+      if (!byGroup.has(g)) byGroup.set(g, []);
+      byGroup.get(g).push(c);
+    }
+    list.replaceChildren(...[...GROUPS, 'other'].filter(g => byGroup.has(g)).map(g => el('div', { class: 'card group' },
+      el('h3', {}, t(`group.${g}`), el('span', { class: 'count' }, String(byGroup.get(g).length))),
+      byGroup.get(g).map(c => el('button', {
+        class: 'prop', 'data-path': c.path,
+        onclick: () => { navigator.clipboard?.writeText(c.path).then(() => toast(t('data.copied', { path: c.path })), () => {}); },
+      }, el('span', { class: 'pname' }, el('span', { class: 'mono' }, c.path), c.info ? el('span', { class: 'pinfo' }, c.info) : null),
+      el('span', { class: 'pval off' }, '–'))))));
+    sendWatch();
+    paintData();
+  };
+  search.addEventListener('input', () => { dataSearch = search.value; build(); });
+  page.replaceChildren(header(t('data.title'), t('data.lead')), search, count, list,
+    el('details', { class: 'adv' }, el('summary', {}, t('help.formula')), el('p', { class: 'muted' }, t('help.body'))));
+  build();
+}
+
+function fmtValue(v) {
+  if (v == null) return '–';
+  if (typeof v === 'boolean') return v ? t('common.yes') : '0';
+  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(Math.round(v * 1000) / 1000);
+  return String(v);
+}
+
+function paintData() {
+  for (const row of document.querySelectorAll('#page-data .prop')) {
+    const v = state.values[row.dataset.path];
+    const cell = row.querySelector('.pval');
+    cell.textContent = fmtValue(v);
+    cell.classList.toggle('off', v == null);
+  }
+}
+
+const toast = text => {
+  const n = el('div', { class: 'toast' }, text);
+  document.body.append(n);
+  setTimeout(() => n.remove(), 1400);
+};
 
 // --- formula suggestions --------------------------------------------------------------------------
 
@@ -483,15 +798,15 @@ function showSuggest(input, onApply) {
   const caret = input.selectionStart ?? input.value.length;
   const token = /[A-Za-z_][A-Za-z0-9_.]*$/.exec(input.value.slice(0, caret))?.[0] ?? '';
   if (token.length < 2) return hideSuggest();
-  const t = token.toLowerCase();
-  const hits = state.catalog.filter(c => c.path.toLowerCase().includes(t));
-  hits.sort((a, b) => (b.path.toLowerCase().startsWith(t) - a.path.toLowerCase().startsWith(t)) || a.path.length - b.path.length);
+  const low = token.toLowerCase();
+  const hits = state.catalog.filter(c => c.path.toLowerCase().includes(low));
+  hits.sort((a, b) => (b.path.toLowerCase().startsWith(low) - a.path.toLowerCase().startsWith(low)) || a.path.length - b.path.length);
   sugItems = hits.slice(0, 10).map(c => c.path);
   if (!sugItems.length || (sugItems.length === 1 && sugItems[0] === token)) return hideSuggest();
   sugTarget = input; sugIndex = 0; sugApply = onApply;
   const r = input.getBoundingClientRect();
-  box.style.left = `${r.left}px`;
-  box.style.top = `${r.bottom + 2}px`;
+  box.style.left = `${r.left + window.scrollX}px`;
+  box.style.top = `${r.bottom + window.scrollY + 2}px`;
   box.hidden = false;
   paintSuggest();
 }
@@ -533,12 +848,13 @@ async function loadPorts() {
 }
 
 (async function init() {
+  setLang(LANG);
   [state.catalog, state.config] = await Promise.all([api('GET', '/api/catalog'), api('GET', '/api/config')]);
-  await loadPorts();
   state.config.nextion ??= [];
-  renderDevices();
-  renderNextion();
-  connectLive();
+  await loadPorts();
   const wanted = location.hash.slice(1);
-  showTab(['live', 'serial', 'nextion'].includes(wanted) ? wanted : 'serial');
+  state.tab = TABS.some(([n]) => n === wanted) ? wanted : 'cockpit';
+  renderLang();
+  showTab(state.tab);
+  connectLive();
 })();

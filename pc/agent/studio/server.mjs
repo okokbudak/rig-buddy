@@ -58,6 +58,10 @@ export function startStudio({ engine, hub, port = Number(process.env.RIGBUDDY_ST
             return send(200, { ...saved, rev: engine.rev });
           }
           case 'POST /api/eval': return send(200, engine.evaluate(JSON.parse(await readBody(req)).expr));
+          case 'POST /api/test': {
+            const b = JSON.parse(await readBody(req));
+            return send(200, { ok: engine.testChannel(String(b.id), Number(b.channel), Number(b.ms) || 3000) });
+          }
           case 'POST /api/nextion/nav': {
             const b = JSON.parse(await readBody(req));
             engine.nextionNav(String(b.id), String(b.action));

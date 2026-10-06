@@ -69,6 +69,11 @@ export function normalize(cfg) {
         expr: str(c.expr, 500),
         min: numOrNull(c.min),
         max: numOrNull(c.max),
+        // optional dial calibration in real units: the formula's value `lo` is sent as `min`, `hi` as `max`
+        lo: numOrNull(c.lo),
+        hi: numOrNull(c.hi),
+        unit: str(c.unit, 12),
+        preset: str(c.preset, 24),
       })),
     });
   }
@@ -271,6 +276,14 @@ export function createEngine({ hub, getRaw, dataDir }) {
           v = 0;
         }
       }
+      if (c.lo != null && c.hi != null && c.hi !== c.lo && c.min != null && c.max != null) {
+        v = c.min + ((v - c.lo) / (c.hi - c.lo)) * (c.max - c.min); // real units -> what the board expects
+      }
+      const t = r.test;
+      if (t && t.ch === i && Date.now() < t.until && c.min != null && c.max != null) {
+        const phase = (Date.now() - t.from) / (t.until - t.from); // 0..1: up to full scale and back
+        v = c.min + (c.max - c.min) * Math.sin(Math.PI * phase);
+      }
       if (c.min != null) v = Math.max(c.min, v);
       if (c.max != null) v = Math.min(c.max, v);
       values.push(Math.round(v));
@@ -288,9 +301,10 @@ export function createEngine({ hub, getRaw, dataDir }) {
     for (const d of config.serial) {
       const r = rt(d.id);
       let values;
-      if (raw == null && d.idle === 'none') continue;
-      if (raw == null && d.idle === 'zeros') values = d.channels.map(() => 0);
-      else if (raw == null && d.idle === 'hold' && r.values.length) values = r.values;
+      const testing = r.test && now < r.test.until;
+      if (raw == null && d.idle === 'none' && !testing) continue;
+      if (raw == null && d.idle === 'zeros' && !testing) values = d.channels.map(() => 0);
+      else if (raw == null && d.idle === 'hold' && r.values.length && !testing) values = r.values;
       else values = evalDevice(d, raw);
       r.values = values;
       const line = values.join(d.separator) + d.terminator.replace('\\n', '\n').replace('\\r', '\r');
@@ -327,6 +341,14 @@ export function createEngine({ hub, getRaw, dataDir }) {
           return { id: d.id, state: r.state, msg: r.msg, line: r.line, values: r.values, errors: r.errors, sent: r.sent, rx: r.rx ?? '' };
         }),
       };
+    },
+    /** Sweeps one channel to full scale and back over `ms` (the editor's "test needle" button). */
+    testChannel(id, ch, ms = 3000) {
+      const d = config.serial.find(x => x.id === id);
+      if (!d || !d.channels[ch]) return false;
+      const now = Date.now();
+      rt(id).test = { ch, from: now, until: now + Math.min(10000, Math.max(500, ms)) };
+      return true;
     },
     /** Next/previous page of a Nextion display (the editor's test buttons). */
     nextionNav(id, action) {
