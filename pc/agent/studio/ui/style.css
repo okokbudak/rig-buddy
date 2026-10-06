@@ -148,6 +148,33 @@ details.adv[open] > summary { margin-bottom: 6px; }
 .bigdial .dialsvg { width: 190px; }
 .efields { display: flex; flex-direction: column; gap: 14px; }
 .efields .field select, .efields .field input[type=text] { width: 100%; }
+.dmotor { font-size: 11px; font-weight: 700; letter-spacing: .4px; color: var(--accent-text); background: var(--accent-bg); border-radius: 999px; padding: 0 8px; }
+.dmotor.off { color: var(--muted); background: var(--off-bg); }
+
+/* board: a picture of the Octopus with its driver sockets */
+.pcb { --pcb: #17392b; --pcb-line: #2f6b52; --chip: #11161c; background: var(--pcb); border: 2px solid var(--pcb-line); border-radius: 14px; padding: 14px 16px 12px; margin-top: 14px; color: #dfeee6; }
+.pcbtitle { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #8fc4aa; margin-bottom: 10px; }
+.sockets { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }
+.socket { display: flex; flex-direction: column; align-items: center; gap: 4px; background: rgba(255, 255, 255, .05); border: 2px solid transparent; border-radius: 10px; padding: 8px 4px 10px; color: inherit; font: inherit; cursor: pointer; min-width: 0; }
+.socket:hover { border-color: #5fb08a; }
+.socket.sel { border-color: #ffd36b; background: rgba(255, 211, 107, .12); }
+.socket.diff .sname::after { content: ' •'; color: #ffb547; }
+.socket.na { opacity: .35; cursor: default; }
+.sname { font-size: 11px; font-weight: 700; letter-spacing: .4px; }
+.socket .chip { width: 34px; height: 40px; border-radius: 4px; background: var(--chip); border: 1px solid #39424d; position: relative; }
+.socket.used .chip { box-shadow: inset 0 -4px 0 #4cc27f; }
+.socket.free .chip { box-shadow: inset 0 -4px 0 #8a96a3; }
+.socket.off .chip { box-shadow: inset 0 -4px 0 #c4372f; }
+.socket.na .chip { background: transparent; border-style: dashed; }
+.sgauge { font-size: 12px; text-align: center; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 30px; }
+.sneedle { font-size: 11px; color: #9fd6ba; font-variant-numeric: tabular-nums; min-height: 14px; }
+.ports { display: flex; justify-content: space-between; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.port { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: rgba(0, 0, 0, .25); border: 1px solid var(--pcb-line); border-radius: 6px; padding: 3px 10px; }
+.port.tft.on { border-color: #5b93f2; color: #cfe0ff; }
+.port .ic { width: 14px; height: 14px; }
+.sockpanel { margin-top: 16px; border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; background: var(--card2); }
+.gaugeline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.boardactions { border-top: 1px solid var(--line); padding-top: 14px; }
 
 /* display */
 .scrrow { display: grid; grid-template-columns: minmax(0, 480px) minmax(0, 1fr); gap: 22px; margin-top: 14px; align-items: start; }
@@ -199,4 +226,5 @@ table.grid input[type=checkbox] { width: 18px; height: 18px; accent-color: var(-
   .spacer { display: none; }
   main { padding: 16px; }
   .egrid, .scrrow, .row2 { grid-template-columns: 1fr; }
+  .sockets { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }

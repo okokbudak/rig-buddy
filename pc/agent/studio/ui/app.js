@@ -60,7 +60,7 @@ async function api(method, path, body) {
   return j;
 }
 
-const TABS = [['cockpit', 'gauge'], ['display', 'display'], ['connections', 'plug'], ['data', 'search']];
+const TABS = [['cockpit', 'gauge'], ['board', 'cpu'], ['display', 'display'], ['connections', 'plug'], ['data', 'search']];
 const BAUDS = [9600, 19200, 38400, 57600, 115200, 230400, 250000, 500000, 1000000];
 const NX_BAUDS = [9600, 19200, 38400, 57600, 115200, 230400, 250000, 512000, 921600];
 const LINE_ENDS = [['\\n', 'LF (\\n)'], ['\\r\\n', 'CR+LF'], ['\\r', 'CR'], ['', '—']];
@@ -68,7 +68,7 @@ const PROPS = ['txt', 'vis', 'val', 'pic', 'pco', 'bco'];
 
 const state = {
   catalog: [], config: { serial: [], nextion: [] }, ports: [], status: null, values: {},
-  tab: 'cockpit', visible: [], open: null, nxFilter: {}, testing: {},
+  tab: 'cockpit', visible: [], open: null, nxFilter: {}, testing: {}, boardSel: {}, boardMsg: {},
 };
 
 const numOrNull = v => (v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v));
@@ -149,6 +149,7 @@ function showTab(name) {
 
 function renderPage(name) {
   if (name === 'cockpit') renderCockpit();
+  else if (name === 'board') renderBoard();
   else if (name === 'display') renderDisplay();
   else if (name === 'connections') renderConnections();
   else if (name === 'data') renderData();
@@ -193,6 +194,7 @@ function paintPills() {
 function paint() {
   paintPills();
   if (state.tab === 'cockpit') paintCockpit();
+  else if (state.tab === 'board') paintBoard();
   else if (state.tab === 'display') paintDisplay();
   else if (state.tab === 'connections') paintConnections();
   else if (state.tab === 'data') paintData();
@@ -275,9 +277,10 @@ function boardCard(d) {
     return el('button', {
       class: `dial ${open ? 'open' : ''}`, 'data-ch': i, 'aria-expanded': String(open),
       onclick: () => { state.open = open ? null : { dev: d.id, ch: i }; renderCockpit(); paint(); },
-    }, dialSvg(c), el('span', { class: 'dname' }, c.name || t('cockpit.newGauge', { n: i + 1 })), el('span', { class: 'dval', 'data-role': 'val' }, '–'));
+    }, d.board ? el('span', { class: `dmotor ${d.motors[i]?.enabled ? '' : 'off'}` }, t('board.socket', { n: i })) : null,
+    dialSvg(c), el('span', { class: 'dname' }, c.name || (d.board ? t('board.free') : t('cockpit.newGauge', { n: i + 1 }))), el('span', { class: 'dval', 'data-role': 'val' }, '–'));
   }));
-  if (d.enabled) {
+  if (d.enabled && !d.board) { // a board's gauges are its motor sockets: no adding
     dials.append(el('button', { class: 'dial add', onclick: () => addGauge(d) }, icon('plus', 'big'), el('span', { class: 'dname' }, t('cockpit.addGauge'))));
   }
   card.append(el('div', { class: 'chead' },
@@ -321,9 +324,11 @@ function gaugeEditor(d, i) {
     touch();
   } });
 
-  const what = select([...PRESETS.map(x => [x.id, presetLabel(x)]), ['', t('gauge.custom')]], c.preset || '', v => {
+  const empty = d.board && !c.expr && !c.preset;
+  const what = select([...(d.board ? [['__none', t('board.free')]] : []), ...PRESETS.map(x => [x.id, presetLabel(x)]), ['', t('gauge.custom')]], empty ? '__none' : c.preset || '', v => {
     const np = PRESETS.find(x => x.id === v);
-    if (np) {
+    if (v === '__none') Object.assign(c, { name: '', expr: '', preset: '', unit: '', lo: null, hi: null }); // a free socket
+    else if (np) {
       const oldLabel = presetOf(c) ? presetLabel(presetOf(c)) : '';
       if (!c.name || c.name === oldLabel || /^(Gösterge|Gauge) \d+$/.test(c.name)) c.name = presetLabel(np);
       Object.assign(c, { preset: np.id, expr: np.expr, unit: np.unit, lo: np.lo, hi: np.hi });
@@ -356,7 +361,7 @@ function gaugeEditor(d, i) {
 
   return el('div', { class: 'editor', 'data-ch-editor': i },
     el('div', { class: 'ehead' },
-      el('h3', {}, t('gauge.title', { n: i + 1 })),
+      el('h3', {}, d.board ? t('board.socket', { n: i }) : t('gauge.title', { n: i + 1 })),
       el('span', { class: 'grow' }),
       el('button', { class: 'btn ghost icon', 'aria-label': t('gauge.close'), onclick: () => { state.open = null; renderCockpit(); paint(); } }, icon('x'))),
     el('div', { class: 'egrid' },
@@ -371,7 +376,19 @@ function gaugeEditor(d, i) {
           field(t('gauge.hi'), num('hi', t('gauge.hiHint')), t('gauge.hiHint'))),
         custom && (c.lo == null || c.hi == null) ? el('p', { class: 'muted small' }, t('gauge.rawNote')) : null,
         el('p', { class: 'err', 'data-role': 'ederr' }),
-        el('details', { class: 'adv' },
+        d.board ? el('div', { class: 'row2' },
+          field(t('board.moveTo'), select(d.channels.map((x, j) => [String(j), `${t('board.socket', { n: j })}${x.expr ? ` · ${x.name}` : ` · ${t('board.free')}`}`]), String(i), v => {
+            const j = Number(v);
+            if (j === i) return;
+            [d.channels[i], d.channels[j]] = [d.channels[j], d.channels[i]];
+            state.open = { dev: d.id, ch: j };
+            renderCockpit();
+            paint();
+            touch();
+          }), t('board.moveHint')),
+          el('div', { class: 'field' }, el('span', { class: 'flabel' }, t('board.motorLink')),
+            el('button', { class: 'btn', onclick: () => { state.boardSel[d.id] = i; showTab('board'); } }, icon('cpu'), `${t('board.socket', { n: i })} · ${t('tab.board')}`))) : null,
+        d.board ? null : el('details', { class: 'adv' },
           el('summary', {}, t('gauge.advanced')),
           el('div', { class: 'row2' },
             field(`${t('gauge.board')} · ${t('gauge.lo').toLowerCase()}`, el('input', { type: 'number', value: c.min ?? '', oninput: e => { c.min = numOrNull(e.target.value); changed(); } })),
@@ -414,6 +431,158 @@ function paintCockpit() {
       const ed = card.querySelector(`[data-ch-editor="${i}"] [data-role=ederr]`);
       if (ed) ed.textContent = err ? t('gauge.error', { msg: err }) : '';
     });
+  }
+}
+
+// --- board: motor sockets of a board that keeps its own settings (Octopus) ----------------------
+
+const SOCKETS = 8; // the Octopus has 8 driver sockets; the firmware drives the first `motors.length`
+const MICROSTEPS = [1, 2, 4, 8, 16, 32, 64, 128, 256];
+
+async function boardOp(d, op) {
+  state.boardMsg[d.id] = { kind: 'busy', text: t(op === 'upload' ? 'board.uploading' : op === 'read' ? 'board.reading' : 'board.adopting') };
+  paintBoard();
+  if (op === 'upload') {
+    // the board must get exactly what is shown: save pending edits first
+    clearTimeout(saveTimer);
+    try {
+      const saved = await api('PUT', '/api/config', state.config);
+      state.config.rev = saved.rev;
+    } catch (e) {
+      state.boardMsg[d.id] = { kind: 'bad', text: t('board.failed', { msg: e.message }) };
+      paintBoard();
+      return;
+    }
+  }
+  try {
+    const r = await api('POST', `/api/board/${op}`, { id: d.id });
+    if (!r.ok) throw new Error(r.error);
+    if (op === 'adopt') state.config = r.config;
+    state.boardMsg[d.id] = { kind: 'ok', text: t(op === 'upload' ? 'board.uploaded' : op === 'read' ? 'board.readOk' : 'board.adopted') };
+    if (op === 'adopt') { renderAll(); return; }
+  } catch (e) {
+    state.boardMsg[d.id] = { kind: 'bad', text: t('board.failed', { msg: e.message }) };
+  }
+  paintBoard();
+}
+
+function renderBoard() {
+  const page = $('#page-board');
+  const kids = [header(t('board.title'), t('board.lead'))];
+  if (!state.config.serial.length) {
+    kids.push(emptyState('cpu', t('board.empty'), t('board.emptyLead'),
+      el('button', { class: 'btn primary', onclick: () => showTab('connections') }, t('cockpit.gotoConnections'))));
+  }
+  for (const d of state.config.serial) kids.push(d.board ? boardPcbCard(d) : boardGenericCard(d));
+  page.replaceChildren(...kids);
+}
+
+function boardGenericCard(d) {
+  return el('div', { class: `card ${d.enabled ? '' : 'dim'}`, 'data-board': d.id },
+    el('div', { class: 'chead' }, icon('cpu'), el('h2', {}, d.name), el('span', { class: 'badge', 'data-role': 'badge' }), el('span', { class: 'grow' }), el('span', { class: 'muted small' }, d.port || '')),
+    el('p', { class: 'muted' }, t('board.generic')),
+    el('div', { class: 'actions' }, el('button', { class: 'btn', onclick: () => boardOp(d, 'adopt') }, icon('info'), t('board.adopt')),
+      el('span', { class: 'small', 'data-role': 'boardmsg' })));
+}
+
+function displayOn(d) {
+  return state.config.nextion.find(n => n.via === d.id);
+}
+
+function boardPcbCard(d) {
+  const sel = Math.min(state.boardSel[d.id] ?? 0, d.motors.length - 1);
+  const select_ = i => { state.boardSel[d.id] = i; renderBoard(); paint(); };
+  const nx = displayOn(d);
+
+  const sockets = el('div', { class: 'sockets' }, Array.from({ length: SOCKETS }, (_, i) => {
+    const m = d.motors[i], c = d.channels[i];
+    if (!m) return el('div', { class: 'socket na' }, el('span', { class: 'sname' }, t('board.socket', { n: i })), el('span', { class: 'sgauge' }, t('board.notUsed')));
+    const label = !m.enabled ? t('board.off') : (c?.expr ? (c.name || t('cockpit.newGauge', { n: i + 1 })) : t('board.free'));
+    return el('button', {
+      class: `socket ${i === sel ? 'sel' : ''} ${m.enabled ? (c?.expr ? 'used' : 'free') : 'off'}`, 'data-sock': i, onclick: () => select_(i),
+    }, el('span', { class: 'sname' }, t('board.socket', { n: i })), el('span', { class: 'chip' }), el('span', { class: 'sgauge' }, label), el('span', { class: 'sneedle', 'data-role': 'sval' }));
+  }));
+
+  const pcb = el('div', { class: 'pcb' },
+    el('div', { class: 'pcbtitle' }, 'BTT Octopus Pro'),
+    sockets,
+    el('div', { class: 'ports' },
+      el('span', { class: 'port usb' }, icon('plug'), t('board.usb', { port: d.port || '–' })),
+      el('span', { class: `port tft ${nx ? 'on' : ''}` }, icon('display'), nx ? t('board.tft', { name: nx.name }) : t('board.tftEmpty'))));
+
+  // the selected socket
+  const m = d.motors[sel], c = d.channels[sel];
+  const set = (key, v) => { m[key] = v; touch(); paintBoard(); };
+  const numIn = (key, attrs = {}) => el('input', { type: 'number', class: 'n', value: m[key], ...attrs, onchange: e => set(key, Number(e.target.value)) });
+  const testMsg = el('span', { class: 'muted small' });
+  const panel = el('div', { class: 'sockpanel' },
+    el('div', { class: 'ehead' }, el('h3', {}, `${t('board.socket', { n: sel })}${c?.expr ? ` · ${c.name}` : ''}`)),
+    el('div', { class: 'gaugeline' },
+      el('span', { class: 'flabel' }, t('board.gauge')),
+      c?.expr ? el('span', {}, c.name, c.preset && presetOf(c) && presetLabel(presetOf(c)) !== c.name ? el('span', { class: 'muted small' }, ` · ${presetLabel(presetOf(c))}`) : null) : el('span', { class: 'muted' }, t('board.noGauge')),
+      el('button', { class: 'btn', onclick: () => { state.open = { dev: d.id, ch: sel }; showTab('cockpit'); } }, icon('gauge'), t('board.editGauge')),
+      el('button', { class: 'btn', onclick: async () => {
+        try { await api('POST', '/api/test', { id: d.id, channel: sel, ms: 3000 }); testMsg.textContent = t('gauge.testing'); setTimeout(() => { testMsg.textContent = ''; }, 3200); } catch (e) { testMsg.textContent = e.message; }
+      } }, icon('play'), t('board.test')), testMsg),
+    el('div', { class: 'fields' },
+      el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: m.enabled, onchange: e => { m.enabled = e.target.checked; touch(); renderBoard(); paint(); } }), el('span', {}, t('board.motorOn'))),
+      field(t('board.dir'), select([['0', t('board.dirNormal')], ['1', t('board.dirReverse')]], m.dir ? '1' : '0', v => set('dir', v === '1')), t('board.dirHint')),
+      field(t('board.current'), numIn('ma', { min: 30, max: 1500, step: 10 }), t('board.currentHint')),
+      field(t('board.hold'), numIn('hold', { min: 0, max: 100 }), t('board.holdHint')),
+      field(t('board.sweep'), numIn('sweep', { min: 10, max: 360, step: 0.1 }), t('board.sweepHint'))),
+    el('details', { class: 'adv' },
+      el('summary', {}, t('gauge.advanced')),
+      el('div', { class: 'fields' },
+        field(t('board.motorType'), select([['200', t('board.spr200')], ['400', t('board.spr400')], ...(![200, 400].includes(m.spr) ? [[String(m.spr), String(m.spr)]] : [])], String(m.spr), v => set('spr', Number(v)))),
+        field(t('board.microsteps'), select(MICROSTEPS.map(x => [String(x), String(x)]), String(m.ms), v => set('ms', Number(v)))),
+        field(t('board.speed'), numIn('vmax', { min: 1, max: 3000 })),
+        field(t('board.accel'), numIn('acc', { min: 1, max: 60000, step: 100 })),
+        field(t('board.sg'), numIn('sg', { min: 0, max: 255 }))),
+      el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: m.home, onchange: e => set('home', e.target.checked) }), el('span', {}, t('board.homeOnBoot')))));
+
+  return el('div', { class: `card ${d.enabled ? '' : 'dim'}`, 'data-board': d.id },
+    el('div', { class: 'chead' },
+      icon('cpu'), el('h2', {}, d.name),
+      el('span', { class: 'badge', 'data-role': 'badge' }),
+      el('span', { class: 'muted small', 'data-role': 'fw' }),
+      el('span', { class: 'grow' }),
+      el('span', { class: 'pill', 'data-role': 'sync' })),
+    pcb,
+    panel,
+    el('div', { class: 'actions boardactions' },
+      el('button', { class: 'btn primary', 'data-role': 'upload', onclick: () => boardOp(d, 'upload') }, icon('play'), t('board.upload')),
+      el('button', { class: 'btn', onclick: () => boardOp(d, 'read') }, icon('refresh'), t('board.read')),
+      el('span', { class: 'small', 'data-role': 'boardmsg' })));
+}
+
+function paintBoard() {
+  for (const d of state.config.serial) {
+    const card = document.querySelector(`#page-board [data-board="${d.id}"]`);
+    if (!card) continue;
+    const st = statusOf(d.id);
+    const [cls, label] = stateLabel(st, d.enabled, !!d.port);
+    const badge = card.querySelector('[data-role=badge]');
+    badge.textContent = label;
+    badge.className = `badge ${cls}`;
+    const msg = state.boardMsg[d.id];
+    const msgEl = card.querySelector('[data-role=boardmsg]');
+    msgEl.textContent = msg ? msg.text : (st?.state === 'open' || !d.enabled ? '' : t('board.notConnected'));
+    msgEl.className = `small ${msg?.kind === 'bad' ? 'err' : msg?.kind === 'ok' ? 'okc' : 'muted'}`;
+    if (!d.board) continue;
+    const b = st?.board;
+    card.querySelector('[data-role=fw]').textContent = b?.version ? t('board.firmware', { v: b.version }) : '';
+    const sync = card.querySelector('[data-role=sync]');
+    if (!b) { sync.className = 'pill off'; sync.textContent = t('board.syncUnknown'); }
+    else if (b.differs.length || !b.saved) {
+      sync.className = 'pill warn';
+      sync.textContent = t('board.syncDiff', { list: b.differs.map(i => t('board.socket', { n: i })).join(', ') || '–' });
+    } else { sync.className = 'pill ok'; sync.textContent = t('board.syncOk'); }
+    for (const btn of card.querySelectorAll('[data-sock]')) {
+      const i = Number(btn.dataset.sock), c = d.channels[i];
+      const v = st?.values?.[i];
+      btn.querySelector('[data-role=sval]').textContent = c?.expr && v != null ? fmtGauge(c, realValue(c, v)) : '';
+      btn.classList.toggle('diff', !!b?.differs?.includes(i));
+    }
   }
 }
 
@@ -667,6 +836,7 @@ function connCard(d) {
       icon('cpu'),
       el('input', { type: 'text', class: 'title', value: d.name, 'aria-label': t('conn.title'), oninput: e => { d.name = e.target.value; touch(); } }),
       el('span', { class: 'badge', 'data-role': 'badge' }),
+      d.board ? el('span', { class: 'dmotor' }, t('board.octopus')) : null,
       el('span', { class: 'grow' }),
       el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: d.enabled, onchange: e => { d.enabled = e.target.checked; renderConnections(); paint(); touch(); } }), el('span', {}, t('conn.enabled')))),
     el('div', { class: 'fields' },
@@ -678,8 +848,8 @@ function connCard(d) {
       el('div', { class: 'fields' },
         field(t('conn.baud'), select(BAUDS.map(b => [b, b]), d.baud, v => { d.baud = Number(v); touch(); })),
         field(t('conn.rate'), el('input', { type: 'number', min: 1, max: 25, value: d.hz, class: 'n', onchange: e => { d.hz = Number(e.target.value) || 25; touch(); } })),
-        field(t('conn.separator'), el('input', { type: 'text', maxlength: 4, value: d.separator, class: 'n', oninput: e => { d.separator = e.target.value; touch(); } })),
-        field(t('conn.lineEnd'), select(LINE_ENDS, d.terminator, v => { d.terminator = v; touch(); }))),
+        d.board ? null : field(t('conn.separator'), el('input', { type: 'text', maxlength: 4, value: d.separator, class: 'n', oninput: e => { d.separator = e.target.value; touch(); } })),
+        d.board ? null : field(t('conn.lineEnd'), select(LINE_ENDS, d.terminator, v => { d.terminator = v; touch(); }))),
       el('p', { class: 'mono small', 'data-role': 'line' })),
     el('div', { class: 'actions' },
       el('button', { class: 'btn', onclick: () => { state.open = null; showTab('cockpit'); } }, icon('gauge'), t('conn.editGauges'), el('span', { class: 'count' }, String(d.channels.length))),

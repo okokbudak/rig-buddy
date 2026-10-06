@@ -8,6 +8,7 @@ import { compile, FormulaError } from './expr.mjs';
 import { createNextion, normalizeNextion, directFrames, tunnelLines, tunnelFrame } from './nextion.mjs';
 import { NEXTION_SEED } from './seed-nextion.mjs';
 import { read } from './props.mjs';
+import { BOARD_TYPES, normalizeMotor, motorCommand, parseCfg, parseHello, motorDiff } from './board.mjs';
 
 const TICK_MS = 40; // 25 Hz, what the gauge firmware parses at most
 const KEEPALIVE_MS = 500; // an unchanged line is repeated at least this often (gauges park without data)
@@ -45,6 +46,20 @@ SEED.nextion = [NEXTION_SEED];
 const str = (v, max, fallback = '') => (typeof v === 'string' ? v.slice(0, max) : fallback);
 const numOrNull = v => (v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v));
 
+function normalizeChannel(c) {
+  return {
+    name: str(c.name, 40),
+    expr: str(c.expr, 500),
+    min: numOrNull(c.min),
+    max: numOrNull(c.max),
+    // optional dial calibration in real units: the formula's value `lo` is sent as `min`, `hi` as `max`
+    lo: numOrNull(c.lo),
+    hi: numOrNull(c.hi),
+    unit: str(c.unit, 12),
+    preset: str(c.preset, 24),
+  };
+}
+
 /** Cleans a config coming from the editor (or an old file): unknown keys dropped, limits applied. */
 export function normalize(cfg) {
   const out = { version: 1, serial: [], nextion: [] };
@@ -54,7 +69,8 @@ export function normalize(cfg) {
     while (ids.has(id)) id += '_';
     ids.add(id);
     const port = str(d.port, 8).toUpperCase();
-    out.serial.push({
+    const board = BOARD_TYPES.includes(d.board) ? d.board : '';
+    const dev = {
       id,
       name: str(d.name, 40, id),
       enabled: !!d.enabled,
@@ -64,18 +80,18 @@ export function normalize(cfg) {
       separator: str(d.separator, 4, ','),
       terminator: ['\\n', '\\r\\n', '\\r', ''].includes(d.terminator) ? d.terminator : '\\n',
       idle: IDLE.includes(d.idle) ? d.idle : 'zeros',
-      channels: (Array.isArray(d.channels) ? d.channels.slice(0, 32) : []).map(c => ({
-        name: str(c.name, 40),
-        expr: str(c.expr, 500),
-        min: numOrNull(c.min),
-        max: numOrNull(c.max),
-        // optional dial calibration in real units: the formula's value `lo` is sent as `min`, `hi` as `max`
-        lo: numOrNull(c.lo),
-        hi: numOrNull(c.hi),
-        unit: str(c.unit, 12),
-        preset: str(c.preset, 24),
-      })),
-    });
+      board,
+      motors: board ? (Array.isArray(d.motors) ? d.motors.slice(0, 16) : []).map(normalizeMotor) : [],
+      channels: (Array.isArray(d.channels) ? d.channels.slice(0, 32) : []).map(normalizeChannel),
+    };
+    if (board) {
+      // a board with motor sockets: channel n is MOTORn, its scale is the motor's own "full" value
+      if (!dev.motors.length) dev.motors = Array.from({ length: 6 }, () => normalizeMotor());
+      dev.channels = dev.motors.map((m, i) => ({ ...(dev.channels[i] ?? normalizeChannel({})), min: 0, max: m.full }));
+      dev.separator = ',';
+      dev.terminator = '\\n';
+    }
+    out.serial.push(dev);
   }
   out.nextion = normalizeNextion(cfg?.nextion, ids);
   return out;
@@ -240,7 +256,10 @@ export function createEngine({ hub, getRaw, dataDir }) {
     const r = rt(m.id);
     r.state = m.state;
     r.msg = m.msg || '';
-    if (m.state !== 'open') r.lastLine = null; // resend as soon as it is back
+    if (m.state !== 'open') {
+      r.lastLine = null; // resend as soon as it is back
+      r.board = null; // whatever was read may not be what is plugged in next
+    }
     followVia(m.id);
   });
   hub.events.on('rx', m => {
@@ -253,7 +272,49 @@ export function createEngine({ hub, getRaw, dataDir }) {
     }
     const r = rt(m.id);
     r.rx = String(m.text).slice(0, 200);
+    waiters.get(m.id)?.feed(String(m.text).trim()); // an upload/read waiting for this board's answer
   });
+
+  // --- talking to a board: one question at a time per device, answered by its next line(s) ---------
+  const waiters = new Map(); // device id -> {feed}
+  const locks = new Map(); // device id -> promise of the operation running on it
+
+  function exchange(id, line, isEnd, timeoutMs = 3000) {
+    return new Promise((resolve, reject) => {
+      const lines = [];
+      const done = () => { clearTimeout(timer); waiters.delete(id); };
+      const timer = setTimeout(() => { done(); reject(new Error(`no answer to "${line}"`)); }, timeoutMs);
+      waiters.set(id, {
+        feed(text) {
+          if (!text || text.startsWith('@')) return;
+          lines.push(text);
+          if (isEnd(text)) { done(); resolve(lines); }
+        },
+      });
+      hub.write(id, `${line}\n`);
+    });
+  }
+  const isReply = t => /^(OK|ERR)\b/.test(t);
+
+  /** Runs `fn` alone on device `id` (an upload must not interleave with a read). */
+  function withBoard(id, fn) {
+    const d = config.serial.find(x => x.id === id);
+    if (!d) return Promise.reject(new Error('no such device'));
+    if (!d.enabled || rt(id).state !== 'open') return Promise.reject(new Error('the board is not connected'));
+    const run = (locks.get(id) ?? Promise.resolve()).catch(() => {}).then(() => fn(d));
+    locks.set(id, run);
+    return run;
+  }
+
+  async function readBoard(d) {
+    const hello = parseHello((await exchange(d.id, '?', t => /^OCTOPUS-GAUGES|^ERR/.test(t))).at(-1));
+    if (!hello) throw new Error('this board did not answer like an Octopus gauge board');
+    if (!hello.cfg) throw new Error(`firmware ${hello.version} cannot keep settings: update it to 0.7 or newer`);
+    const cfg = parseCfg(await exchange(d.id, 'CFG?', t => /^CFG END|^ERR/.test(t), 4000));
+    const info = { ...hello, ...cfg, readAt: Date.now() };
+    rt(d.id).board = info;
+    return info;
+  }
 
   function evalDevice(d, raw) {
     const r = rt(d.id);
@@ -338,9 +399,49 @@ export function createEngine({ hub, getRaw, dataDir }) {
         nextion: [...nextions.values()].map(n => n.status()),
         devices: config.serial.map(d => {
           const r = rt(d.id);
-          return { id: d.id, state: r.state, msg: r.msg, line: r.line, values: r.values, errors: r.errors, sent: r.sent, rx: r.rx ?? '' };
+          const board = r.board && d.board
+            ? { version: r.board.version, saved: r.board.saved, readAt: r.board.readAt, differs: motorDiff(d.motors, r.board.motors.slice(0, d.motors.length)) }
+            : null;
+          return { id: d.id, state: r.state, msg: r.msg, line: r.line, values: r.values, errors: r.errors, sent: r.sent, rx: r.rx ?? '', board };
         }),
       };
+    },
+    /** Reads a board's own settings (it must be connected). */
+    boardRead(id) {
+      return withBoard(id, readBoard);
+    },
+    /** Takes a connected board as it is: marks the device as that board type and copies its settings in. */
+    boardAdopt(id) {
+      return withBoard(id, async d => {
+        const info = await readBoard(d);
+        const next = JSON.parse(JSON.stringify(config));
+        const dev = next.serial.find(x => x.id === id);
+        dev.board = info.type;
+        dev.motors = info.motors.slice(0, info.count || info.motors.length);
+        apply(next);
+        return info;
+      });
+    },
+    /** Uploads the wanted settings, saves them in the board's flash, reads them back to check. */
+    boardUpload(id) {
+      return withBoard(id, async d => {
+        if (!d.board) throw new Error('this device is not a board with its own settings');
+        const steps = [];
+        for (const [i, m] of d.motors.entries()) steps.push(motorCommand(i, m));
+        const nx = config.nextion.find(n => n.enabled && n.via === id);
+        steps.push(`CFG NX en=${nx ? 1 : 0} baud=${nx?.baud ?? 115200}`);
+        for (const line of steps) {
+          const reply = (await exchange(d.id, line, isReply)).at(-1);
+          if (!reply.startsWith('OK')) throw new Error(`${reply} (${line.split(' ').slice(0, 2).join(' ')})`);
+        }
+        const saved = (await exchange(d.id, 'CFG SAVE', isReply, 10000)).at(-1); // erasing the flash sector takes a moment
+        if (!saved.startsWith('OK')) throw new Error(saved);
+        const info = await readBoard(d);
+        const diff = motorDiff(d.motors, info.motors.slice(0, d.motors.length));
+        if (diff.length) throw new Error(`the board reads back different settings for MOTOR${diff.join(', MOTOR')}`);
+        if (!info.saved) throw new Error('the board says the settings are not saved');
+        return info;
+      });
     },
     /** Sweeps one channel to full scale and back over `ms` (the editor's "test needle" button). */
     testChannel(id, ch, ms = 3000) {

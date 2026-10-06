@@ -58,6 +58,19 @@ export function startStudio({ engine, hub, port = Number(process.env.RIGBUDDY_ST
             return send(200, { ...saved, rev: engine.rev });
           }
           case 'POST /api/eval': return send(200, engine.evaluate(JSON.parse(await readBody(req)).expr));
+          case 'POST /api/board/read':
+          case 'POST /api/board/adopt':
+          case 'POST /api/board/upload': {
+            const b = JSON.parse(await readBody(req));
+            const op = { read: 'boardRead', adopt: 'boardAdopt', upload: 'boardUpload' }[url.pathname.split('/').pop()];
+            try {
+              const info = await engine[op](String(b.id));
+              // adopt changes the configuration: hand the editor the new one (and its revision)
+              return send(200, { ok: true, board: info, config: { ...engine.config, rev: engine.rev } });
+            } catch (e) {
+              return send(200, { ok: false, error: e.message });
+            }
+          }
           case 'POST /api/test': {
             const b = JSON.parse(await readBody(req));
             return send(200, { ok: engine.testChannel(String(b.id), Number(b.channel), Number(b.ms) || 3000) });
