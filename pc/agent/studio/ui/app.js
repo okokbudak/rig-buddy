@@ -615,12 +615,13 @@ function addDisplay() {
 
 function displayCard(d) {
   d.via ??= '';
+  d.widgets ??= [];
   const card = el('div', { class: `card ${d.enabled ? '' : 'dim'}`, 'data-nx': d.id });
   const nav = action => api('POST', '/api/nextion/nav', { id: d.id, action }).catch(() => {});
   const rebuild = () => { renderDisplay(); paint(); touch(); };
 
   // a picture of the screen with its touch areas
-  const screen = el('div', { class: 'screen', style: `aspect-ratio:${d.width} / ${d.height}` },
+  const screen = el('div', { class: `screen ${d.height > d.width ? 'tall' : ''}`, style: `aspect-ratio:${d.width} / ${d.height}` },
     el('div', { class: 'spage', 'data-role': 'spage' }, '–'),
     d.hotspots.map(h => el('div', { class: `spot ${h.action}`, style: `left:${h.x}%;top:${h.y}%;width:${h.w}%;height:${h.h}%` }, el('span', {}, spotLabel(h)))));
 
@@ -632,6 +633,8 @@ function displayCard(d) {
       el('td', {}, el('input', { type: 'text', value: p.name, placeholder: 'page1', onchange: e => { p.name = e.target.value; rebuild(); } })),
       el('td', { class: 'c' }, el('input', { type: 'checkbox', checked: p.rotation, onchange: e => { p.rotation = e.target.checked; touch(); } })),
       el('td', {}, f),
+      el('td', {}, el('input', { type: 'number', min: 0, max: 255, class: 'n', value: p.pic ?? '', placeholder: '–', title: t('display.picHint'), onchange: e => { p.pic = numOrNull(e.target.value); touch(); } })),
+      el('td', {}, el('input', { type: 'number', min: 0, max: 255, class: 'n', value: p.litPic ?? '', placeholder: '–', title: t('display.picHint'), onchange: e => { p.litPic = numOrNull(e.target.value); touch(); } })),
       el('td', { class: 'c' }, el('button', { class: 'btn ghost icon', 'aria-label': t('common.remove'), onclick: () => { d.pages.splice(i, 1); rebuild(); } }, icon('trash'))));
   }));
 
@@ -643,11 +646,11 @@ function displayCard(d) {
 
   // bindings, filtered by page
   const pageNames = [...new Set([...d.pages.map(p => p.name), ...d.bindings.map(b => b.target.split('.')[0]).filter(Boolean)])];
-  const filter = state.nxFilter[d.id] ?? (pageNames[0] || '');
+  const filter = state.nxFilter[d.id] ?? (d.pages.find(p => p.rotation)?.name || pageNames[0] || ''); // start with the first page of the touch rotation
   const chips = el('div', { class: 'chips' },
     [['', t('display.allPages')], ...pageNames.map(n => [n, n])].map(([v, label]) => el('button', {
       class: `chipbtn ${filter === v ? 'on' : ''}`, onclick: () => { state.nxFilter[d.id] = v; renderDisplay(); paint(); },
-    }, label, el('span', { class: 'count' }, String(v ? d.bindings.filter(b => b.target.startsWith(`${v}.`)).length : d.bindings.length)))));
+    }, label, el('span', { class: 'count' }, String(v ? d.bindings.filter(b => b.target.startsWith(`${v}.`)).length + d.widgets.filter(w => w.page === v).length : d.bindings.length + d.widgets.length)))));
 
   const bindBody = el('tbody', {}, d.bindings.map((b, i) => {
     if (filter && !b.target.startsWith(`${filter}.`)) return null;
@@ -673,6 +676,31 @@ function displayCard(d) {
       el('td', { class: 'v', 'data-role': 'val' }, '–'),
       el('td', { class: 'c' }, el('button', { class: 'btn ghost icon', 'aria-label': t('common.remove'), onclick: () => { d.bindings.splice(i, 1); rebuild(); } }, icon('trash'))));
   }));
+
+  // widgets drawn by Studio over the page picture
+  const widgetBody = el('tbody', {}, d.widgets.map((w, i) => {
+    if (filter && w.page !== filter) return null;
+    const f = el('input', { type: 'text', class: 'mono', value: w.expr, spellcheck: 'false', autocomplete: 'off', 'data-role': 'formula' });
+    f.addEventListener('input', () => { w.expr = f.value; touch(); });
+    attachSuggest(f, () => { w.expr = f.value; touch(); });
+    const pos = el('div', { class: 'inline' }, ['x', 'y', 'w', 'h'].map(k => el('input', { type: 'number', min: 0, class: 'n xs', value: w[k], 'aria-label': k, onchange: e => { w[k] = Number(e.target.value) || 0; touch(); } })));
+    return el('tr', { 'data-w': i },
+      filter ? null : el('td', {}, w.page),
+      el('td', {}, el('span', { class: 'mono' }, w.id || '–')),
+      el('td', {}, t(`kind.${w.k}`)),
+      el('td', {}, pos),
+      el('td', { class: 'f' }, f, el('div', { class: 'err', 'data-role': 'err' })),
+      el('td', { class: 'v', 'data-role': 'val' }, '–'));
+  }));
+  const widgetSection = d.widgets.length ? [
+    el('h3', {}, t('display.widgets')),
+    el('p', { class: 'muted' }, t('display.widgetsLead')),
+    d.bindings.length ? null : chips,
+    el('div', { class: 'tablewrap' }, el('table', { class: 'grid' },
+      el('thead', {}, el('tr', {}, filter ? null : el('th', {}, t('display.page')), el('th', {}, 'ID'), el('th', {}, t('display.kind')), el('th', {}, t('display.pos')),
+        el('th', {}, t('display.value')), el('th', { class: 'v' }, t('display.now')))),
+      widgetBody)),
+  ] : [];
 
   const portCell = el('div', { class: 'inline' });
   const buildPort = () => portCell.replaceChildren(select(portOptions(d.port), d.port, v => { d.port = v; touch(); }),
@@ -705,6 +733,8 @@ function displayCard(d) {
         el('p', { class: 'muted small', 'data-role': 'stats' }),
         el('p', { class: 'err', 'data-role': 'msg' }))),
 
+    ...widgetSection,
+    ...(d.bindings.length || !d.widgets.length ? [
     el('h3', {}, t('display.fields')),
     el('p', { class: 'muted' }, t('display.fieldsLead')),
     chips,
@@ -718,11 +748,12 @@ function displayCard(d) {
       d.bindings.push({ target: `${filter || pageNames[0] || 'page1'}..txt`, expr: '', decimals: null });
       rebuild();
     } }, icon('plus'), t('display.addField'))),
+    ] : []),
 
     el('h3', {}, t('display.pages')),
     el('p', { class: 'muted' }, t('display.pagesLead')),
     el('div', { class: 'tablewrap' }, el('table', { class: 'grid' },
-      el('thead', {}, el('tr', {}, el('th', {}, t('display.pageName')), el('th', { class: 'c' }, t('display.inRotation')), el('th', {}, t('display.showWhen')), el('th'))),
+      el('thead', {}, el('tr', {}, el('th', {}, t('display.pageName')), el('th', { class: 'c' }, t('display.inRotation')), el('th', {}, t('display.showWhen')), el('th', {}, t('display.pic')), el('th', {}, t('display.litPic')), el('th'))),
       pagesBody)),
     el('div', { class: 'below' }, el('button', { class: 'btn', onclick: () => { d.pages.push({ name: `page${d.pages.length + 1}`, rotation: true, showWhen: '' }); rebuild(); } }, icon('plus'), t('display.addPage'))),
 
@@ -740,7 +771,8 @@ function displayCard(d) {
         portField, baudField,
         field(t('display.width'), el('input', { type: 'number', min: 64, value: d.width, class: 'n', onchange: e => { d.width = Number(e.target.value) || d.width; rebuild(); } })),
         field(t('display.height'), el('input', { type: 'number', min: 64, value: d.height, class: 'n', onchange: e => { d.height = Number(e.target.value) || d.height; rebuild(); } })),
-        field(t('display.idlePage'), select(pageNames.map(n => [n, n]), d.idlePage, v => { d.idlePage = v; touch(); }))),
+        field(t('display.idlePage'), select(pageNames.map(n => [n, n]), d.idlePage, v => { d.idlePage = v; touch(); })),
+        field(t('display.encoding'), select([['latin1', t('enc.latin1')], ['latin5', t('enc.latin5')]], d.encoding ?? 'latin1', v => { d.encoding = v; touch(); }))),
       el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: d.powerOffWhenIdle, onchange: e => { d.powerOffWhenIdle = e.target.checked; touch(); } }), el('span', {}, t('display.sleep'))),
       el('div', { class: 'below' }, el('button', { class: 'btn danger', onclick: () => {
         if (!confirm(t('display.removeAsk', { name: d.name }))) return;
@@ -766,6 +798,13 @@ function paintDisplay() {
     card.querySelector('[data-role=stats]').textContent = st ? t('display.stats', { sent: st.sent, resets: st.resets }) : '';
     card.querySelector('[data-role=msg]').textContent = st?.state === 'error' && d.enabled ? st.msg : '';
     card.querySelector('[data-role=spotslead]').textContent = t('display.spotsLead', { touch: st?.touch || '–' });
+    card.querySelectorAll('tr[data-w]').forEach(tr => {
+      const w = st?.widgets?.[Number(tr.dataset.w)];
+      if (!w) return;
+      tr.querySelector('[data-role=val]').textContent = w.value === '' ? '–' : w.value;
+      tr.querySelector('[data-role=err]').textContent = w.error ?? '';
+      tr.querySelector('[data-role=formula]').classList.toggle('bad', !!w.error);
+    });
     card.querySelectorAll('tr[data-b]').forEach(tr => {
       const b = st?.bindings?.[Number(tr.dataset.b)];
       if (!b) return;
