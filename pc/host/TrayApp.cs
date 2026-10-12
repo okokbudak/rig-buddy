@@ -61,7 +61,7 @@ sealed class TrayApp : ApplicationContext
     void BuildUi()
     {
         _logs = new LogForm();
-        _window = new StatusForm(_sup, _bridge, _maps, ShowLogs);
+        _window = new StatusForm(_sup, _bridge, _maps, this);
         _window.HiddenToTray += () =>
         {
             if (_hiddenHintShown) return;
@@ -134,7 +134,7 @@ sealed class TrayApp : ApplicationContext
     }
 
     /** Map-mod archives (ETS2): pick them in the game's mod folder; the map is rebuilt with them. */
-    void PickMapMods()
+    internal void PickMapMods()
     {
         if (_maps.State == MapState.Building) return;
         using var dlg = new OpenFileDialog

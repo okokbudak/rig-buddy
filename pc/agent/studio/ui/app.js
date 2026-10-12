@@ -31,6 +31,7 @@ const ICONS = {
   truck: '<rect x="2" y="6" width="12" height="10" rx="1"/><path d="M14 9h4l3 3.5V16h-7"/><circle cx="6.5" cy="17.5" r="2"/><circle cx="17" cy="17.5" r="2"/>',
   cpu: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  minus: '<path d="M5 12h14"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/>',
   play: '<path d="M7 4v16l13-8z"/>',
   left: '<path d="M15 6l-6 6 6 6"/>',
@@ -613,10 +614,33 @@ function addDisplay() {
   touch();
 }
 
+// which display cards are folded to their header (kept in this browser only)
+const collapsedIds = (() => {
+  try { return new Set(JSON.parse(localStorage.getItem('studio.collapsed') || '[]')); } catch { return new Set(); }
+})();
+function saveCollapsed() {
+  try { localStorage.setItem('studio.collapsed', JSON.stringify([...collapsedIds])); } catch { /* private window: it just won't be remembered */ }
+}
+
 function displayCard(d) {
   d.via ??= '';
   d.widgets ??= [];
-  const card = el('div', { class: `card ${d.enabled ? '' : 'dim'}`, 'data-nx': d.id });
+  const card = el('div', { class: `card ${d.enabled ? '' : 'dim'} ${collapsedIds.has(d.id) ? 'collapsed' : ''}`, 'data-nx': d.id });
+  const foldBtn = el('button', { class: 'btn ghost icon fold' });
+  const paintFold = () => {
+    const folded = collapsedIds.has(d.id);
+    foldBtn.replaceChildren(icon(folded ? 'plus' : 'minus'));
+    foldBtn.setAttribute('aria-label', t(folded ? 'display.expand' : 'display.collapse'));
+    foldBtn.setAttribute('aria-expanded', String(!folded));
+    foldBtn.title = t(folded ? 'display.expand' : 'display.collapse');
+    card.classList.toggle('collapsed', folded);
+  };
+  foldBtn.addEventListener('click', () => {
+    if (collapsedIds.has(d.id)) collapsedIds.delete(d.id); else collapsedIds.add(d.id);
+    saveCollapsed();
+    paintFold();
+  });
+  paintFold();
   const nav = action => api('POST', '/api/nextion/nav', { id: d.id, action }).catch(() => {});
   const rebuild = () => { renderDisplay(); paint(); touch(); };
 
@@ -721,7 +745,8 @@ function displayCard(d) {
       el('input', { type: 'text', class: 'title', value: d.name, 'aria-label': t('display.title'), oninput: e => { d.name = e.target.value; touch(); } }),
       el('span', { class: 'badge', 'data-role': 'badge' }),
       el('span', { class: 'grow' }),
-      el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: d.enabled, onchange: e => { d.enabled = e.target.checked; rebuild(); } }), el('span', {}, t('display.enabled')))),
+      el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: d.enabled, onchange: e => { d.enabled = e.target.checked; rebuild(); } }), el('span', {}, t('display.enabled'))),
+      foldBtn),
     el('div', { class: 'scrrow' },
       el('div', { class: 'scrcol' }, screen,
         el('div', { class: 'scrnav' },

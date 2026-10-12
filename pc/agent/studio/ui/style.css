@@ -230,3 +230,8 @@ table.grid input[type=checkbox] { width: 18px; height: 18px; accent-color: var(-
   .egrid, .scrrow, .row2 { grid-template-columns: 1fr; }
   .sockets { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+/* a display folded to its header with the - button */
+.card.collapsed > :not(.chead) { display: none; }
+.card.collapsed { padding-bottom: 14px; }
+.chead .fold { margin-left: 2px; }

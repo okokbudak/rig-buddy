@@ -1,27 +1,40 @@
-// The Rig Buddy window (9:16): start-up progress, the PC address to type into
-// the app, what is working, and the few actions a user needs. Closing it only
-// hides it; the app keeps running in the tray. Colors come from Theme.
+// The Rig Buddy window: start-up progress, the PC address to type into the app, what
+// is working, and everything the tray menu offers (services, game and map mods, Studio,
+// theme, language, autostart, logs, exit). Closing it only hides it; the app keeps
+// running in the tray. Colors come from Theme.
+//
+// Layout (two columns, design units at 96 dpi):
+//   header   logo, name, version                        [ Open Studio ]
+//   left     progress / PC address / features
+//   right    services / map (game, mods, update)        / preferences
+//   bottom   [ Logs ]                                         [ Exit ]
 
 using System.Drawing.Drawing2D;
 
 sealed class StatusForm : Form
 {
+    const int Width0 = 704, Height0 = 612, FixExtra = 64;
+
     readonly Supervisor _sup;
     readonly TelemetryBridge _bridge;
     readonly MapBuilder _maps;
+    readonly TrayApp _app;
     readonly Label _mapLink;
-    readonly Label _status, _stage, _percent, _ip, _pair, _themeLink, _langLink;
+    readonly Label _status, _stage, _percent, _ip, _pair, _modsText;
     readonly Action _onThemeChanged;
     readonly ProgressLine _bar;
     readonly FeatureRow _nav, _vehicle, _jobs, _radio, _devices;
+    readonly List<(NodeService Svc, FeatureRow Row)> _svcRows = new();
     readonly CheckBox _autostart;
-    readonly Button[] _buttons;
+    readonly Button _studio, _restartAll, _gameEts2, _gameAts, _modsPick, _modsClear, _mapButton, _themeButton, _langButton, _logs, _exit;
+    readonly Button[] _plain; // flat buttons that only follow the palette
     readonly List<(Control Control, Func<Palette, Color> Fore)> _labels = new();
     readonly System.Windows.Forms.Timer _timer = new() { Interval = 100 };
     readonly RoundedPanel _fixPanel;
     readonly Label _fixText;
     readonly Button _fixButton;
-    DateTime _nextPluginCheck;
+    DateTime _nextPluginCheck, _nextModsRead;
+    int _modCount;
     bool _restartGame, _fixShown;
     string? _fixFailed;
     double _shown;
@@ -31,21 +44,23 @@ sealed class StatusForm : Form
     /** Raised when the user closes the window (the app keeps running). */
     public event Action? HiddenToTray;
 
-    public StatusForm(Supervisor sup, TelemetryBridge bridge, MapBuilder maps, Action showLogs)
+    public StatusForm(Supervisor sup, TelemetryBridge bridge, MapBuilder maps, TrayApp app)
     {
         _sup = sup;
         _bridge = bridge;
         _maps = maps;
+        _app = app;
         SuspendLayout();
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
         Text = "Rig Buddy";
-        ClientSize = new Size(360, 640);
+        ClientSize = new Size(Width0, Height0);
         FormBorderStyle = FormBorderStyle.FixedSingle;
         MaximizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 9F);
         try { Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!); } catch { }
+        var tips = new ToolTip();
 
         // header
         var logo = new PictureBox { Location = new Point(20, 20), Size = new Size(48, 48), SizeMode = PictureBoxSizeMode.Zoom };
@@ -53,17 +68,14 @@ sealed class StatusForm : Form
         Controls.Add(logo);
         Controls.Add(Lbl("Rig Buddy", 80, 18, 16F, p => p.Text1, bold: true));
         Controls.Add(Lbl(L.T("win.subtitle", Application.ProductVersion.Split('+')[0]), 82, 50, 9F, p => p.Text2));
-        _themeLink = HeaderLink(16);
-        _themeLink.Click += (_, _) => ThemeMenu().Show(_themeLink, new Point(0, _themeLink.Height));
-        _langLink = HeaderLink(38);
-        _langLink.Click += (_, _) => LanguageMenu().Show(_langLink, new Point(0, _langLink.Height));
-        Controls.AddRange([_themeLink, _langLink]);
-        _themeLink.BringToFront();
-        _langLink.BringToFront();
-        var tips = new ToolTip();
-        tips.SetToolTip(_themeLink, L.T("win.theme"));
-        tips.SetToolTip(_langLink, L.T("win.language"));
+        _studio = Btn("↗  " + L.T("win.studio"), 512, 24, 176);
+        _studio.Height = 40;
+        _studio.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+        _studio.Click += (_, _) => _app.OpenStudio();
+        tips.SetToolTip(_studio, L.T("tray.studio"));
+        Controls.Add(_studio);
 
+        // ---- left column --------------------------------------------------------------
         // start-up progress
         var progress = new RoundedPanel { Location = new Point(16, 88), Size = new Size(328, 118) };
         _status = Lbl(L.T("win.preparing"), 16, 12, 14F, p => p.Orange, bold: true);
@@ -107,23 +119,95 @@ sealed class StatusForm : Form
         _devices = Row(features, 4, L.T("f.devices"));
         Controls.Add(features);
 
-        // actions
-        _autostart = new CheckBox { Text = L.T("win.autostart"), Location = new Point(18, 560), AutoSize = true };
+        // ---- right column -------------------------------------------------------------
+        // services: state of each, restart one or all
+        var services = new RoundedPanel { Location = new Point(360, 88), Size = new Size(328, 156) };
+        services.Controls.Add(Lbl(L.T("win.services"), 16, 10, 9F, p => p.Text2));
+        _restartAll = Btn("↻  " + L.T("win.restart"), 138, 5, 174);
+        _restartAll.Height = 26;
+        _restartAll.Font = new Font("Segoe UI", 8.5F);
+        _restartAll.Click += (_, _) => { _sup.Restart(null); _shown = 0; };
+        services.Controls.Add(_restartAll);
+        int si = 0;
+        foreach (var s in _sup.Services)
+        {
+            var row = new FeatureRow { Title = L.T(s.Title), Location = new Point(16, 38 + si * 36), Size = new Size(252, 32) };
+            var one = Btn("↻", 274, 38 + si * 36, 38);
+            one.Height = 32;
+            var svc = s;
+            one.Click += (_, _) => _sup.Restart(svc.Name);
+            tips.SetToolTip(one, L.T("tray.restart_hint"));
+            services.Controls.AddRange([row, one]);
+            _svcRows.Add((s, row));
+            _svcButtons.Add(one);
+            si++;
+        }
+        Controls.Add(services);
+
+        // map: which game, map mods, update / rebuild
+        var map = new RoundedPanel { Location = new Point(360, 252), Size = new Size(328, 176) };
+        map.Controls.Add(Lbl(L.T("win.map"), 16, 10, 9F, p => p.Text2));
+        _gameEts2 = Btn("Euro Truck Simulator 2", 16, 34, 144);
+        _gameAts = Btn("American Truck Simulator", 168, 34, 144);
+        foreach (var g in new[] { _gameEts2, _gameAts })
+        {
+            g.Height = 30;
+            g.Font = new Font("Segoe UI", 8.5F);
+            g.TextAlign = ContentAlignment.MiddleCenter;
+        }
+        tips.SetToolTip(_gameEts2, L.T("tray.game"));
+        tips.SetToolTip(_gameAts, L.T("tray.game"));
+        _gameEts2.Click += (_, _) => { if (_maps.State != MapState.Building) _maps.SelectGame("ets2"); };
+        _gameAts.Click += (_, _) => { if (_maps.State != MapState.Building) _maps.SelectGame("ats"); };
+        _modsText = Lbl("", 16, 74, 9F, p => p.Text1);
+        _modsText.AutoSize = false;
+        _modsText.Size = new Size(296, 20);
+        _modsText.AutoEllipsis = true;
+        _modsPick = Btn(L.T("tray.mods_pick"), 16, 98, 180);
+        _modsPick.Height = 28;
+        _modsPick.Click += (_, _) => { _app.PickMapMods(); _nextModsRead = DateTime.MinValue; };
+        _modsClear = Btn(L.T("tray.mods_clear"), 200, 98, 112);
+        _modsClear.Height = 28;
+        _modsClear.Click += (_, _) => { MapMods.Paths = []; _maps.Check(); _nextModsRead = DateTime.MinValue; };
+        _mapButton = Btn(L.T("tray.map_update"), 16, 134, 296);
+        // update when the game changed, full rebuild otherwise
+        _mapButton.Click += (_, _) => _maps.Build(force: _maps.State == MapState.UpToDate);
+        map.Controls.AddRange([_gameEts2, _gameAts, _modsText, _modsPick, _modsClear, _mapButton]);
+        Controls.Add(map);
+
+        // preferences
+        var prefs = new RoundedPanel { Location = new Point(360, 436), Size = new Size(328, 116) };
+        prefs.Controls.Add(Lbl(L.T("win.prefs"), 16, 8, 9F, p => p.Text2));
+        prefs.Controls.Add(Lbl(L.T("tray.theme"), 16, 34, 9.5F, p => p.Text1));
+        _themeButton = Btn("", 150, 29, 162);
+        _themeButton.Height = 28;
+        _themeButton.Click += (_, _) => ThemeMenu().Show(_themeButton, new Point(0, _themeButton.Height));
+        prefs.Controls.Add(Lbl(L.T("tray.language"), 16, 62, 9.5F, p => p.Text1));
+        _langButton = Btn("", 150, 57, 162);
+        _langButton.Height = 28;
+        _langButton.Click += (_, _) => LanguageMenu().Show(_langButton, new Point(0, _langButton.Height));
+        _autostart = new CheckBox { Text = L.T("win.autostart"), Location = new Point(16, 88), AutoSize = true, BackColor = Color.Transparent };
         _autostart.Click += (_, _) => TrayApp.SetAutostart(_autostart.Checked);
-        Controls.Add(_autostart);
-        var restart = Btn(L.T("win.restart"), 16, 592, 200);
-        restart.Click += (_, _) => { _sup.Restart(null); _shown = 0; };
-        var logs = Btn(L.T("win.logs"), 224, 592, 120);
-        logs.Click += (_, _) => showLogs();
-        _buttons = [restart, logs];
-        Controls.AddRange(_buttons);
+        prefs.Controls.AddRange([_themeButton, _langButton, _autostart]);
+        Controls.Add(prefs);
+
+        // ---- bottom bar ---------------------------------------------------------------
+        _logs = Btn(L.T("win.logs"), 16, 564, 160);
+        _logs.Click += (_, _) => _app.ShowLogs();
+        _exit = Btn(L.T("tray.exit"), 528, 564, 160);
+        _exit.Click += (_, _) =>
+        {
+            if (MessageBox.Show(this, L.T("win.exit_ask"), "Rig Buddy", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes) _app.Exit();
+        };
+        Controls.AddRange([_logs, _exit]);
+        _plain = [_restartAll, _modsPick, _modsClear, _mapButton, _themeButton, _langButton, _logs, .. _svcButtons];
 
         // at the very bottom, only while a game has lost the telemetry plugin
-        _fixPanel = new RoundedPanel { Location = new Point(16, 640), Size = new Size(328, 52), Visible = false };
+        _fixPanel = new RoundedPanel { Location = new Point(16, Height0), Size = new Size(Width0 - 32, 52), Visible = false };
         _fixText = Lbl("", 12, 6, 8.5F, p => p.Red);
         _fixText.AutoSize = false;
-        _fixText.Size = new Size(206, 40);
-        _fixButton = Btn(L.T("plugin.fix"), 224, 10, 92);
+        _fixText.Size = new Size(Width0 - 32 - 24 - 116, 40);
+        _fixButton = Btn(L.T("plugin.fix"), Width0 - 32 - 108, 10, 96);
         _fixButton.Click += async (_, _) =>
         {
             _fixButton.Enabled = false;
@@ -144,10 +228,12 @@ sealed class StatusForm : Form
         _timer.Tick += (_, _) => Refresh2();
         VisibleChanged += (_, _) =>
         {
-            if (Visible) { _autostart.Checked = TrayApp.AutostartEnabled(); Refresh2(); _timer.Start(); }
+            if (Visible) { _autostart.Checked = TrayApp.AutostartEnabled(); _nextModsRead = DateTime.MinValue; Refresh2(); _timer.Start(); }
             else _timer.Stop();
         };
     }
+
+    readonly List<Button> _svcButtons = new();
 
     /** Shows the window in front, restoring it if minimized. */
     public void ShowInFront()
@@ -191,18 +277,6 @@ sealed class StatusForm : Form
         base.Dispose(disposing);
     }
 
-    Label HeaderLink(int y)
-    {
-        // short ("◐ System ▾"): the title sits left of it; the tooltip says what it is
-        var l = Lbl("", 224, y, 9F, p => p.Text2);
-        l.AutoSize = false;
-        l.Size = new Size(120, 20);
-        l.AutoEllipsis = true;
-        l.TextAlign = ContentAlignment.MiddleRight;
-        l.Cursor = Cursors.Hand;
-        return l;
-    }
-
     static ContextMenuStrip LanguageMenu()
     {
         var menu = new ContextMenuStrip();
@@ -223,13 +297,34 @@ sealed class StatusForm : Form
         foreach (var (control, fore) in _labels) control.ForeColor = fore(p);
         foreach (var c in Controls.OfType<RoundedPanel>()) c.BackColor = p.Card;
         _autostart.ForeColor = p.Text1;
-        _autostart.BackColor = p.Bg;
-        foreach (var b in _buttons) StyleButton(b);
+        _autostart.BackColor = p.Card;
+        foreach (var b in _plain) StyleButton(b);
         StyleButton(_fixButton);
-        _themeLink.Text = $"◐ {Theme.Label(Theme.Setting)} ▾";
-        _langLink.Text = $"🌐 {(L.Setting == "system" ? L.T("lang.auto") : L.LanguageName(L.Setting))} ▾";
+        // the two prominent buttons
+        _studio.BackColor = p.Accent;
+        _studio.ForeColor = p.Dark ? p.Bg : Color.White;
+        _studio.FlatAppearance.BorderColor = p.Accent;
+        _studio.FlatAppearance.MouseOverBackColor = ControlPaint.Light(p.Accent, 0.15f);
+        StyleButton(_exit);
+        _exit.ForeColor = p.Red;
+        StyleGame(_gameEts2, GameChoice.Setting == "ets2");
+        StyleGame(_gameAts, GameChoice.Setting == "ats");
+        _themeButton.Text = $"◐  {Theme.Label(Theme.Setting)}  ▾";
+        _langButton.Text = $"🌐  {(L.Setting == "system" ? L.T("lang.auto") : L.LanguageName(L.Setting))}  ▾";
         if (IsHandleCreated) Theme.ApplyTitleBar(Handle);
         Invalidate(true);
+    }
+
+    /** The chosen game's button is filled with the accent color. */
+    static void StyleGame(Button b, bool on)
+    {
+        var p = Theme.Current;
+        StyleButton(b);
+        if (!on) return;
+        b.BackColor = p.Accent;
+        b.ForeColor = p.Dark ? p.Bg : Color.White;
+        b.FlatAppearance.BorderColor = p.Accent;
+        b.FlatAppearance.MouseOverBackColor = p.Accent;
     }
 
     ContextMenuStrip ThemeMenu()
@@ -272,7 +367,7 @@ sealed class StatusForm : Form
         if (show != _fixShown)
         {
             _fixShown = show;
-            ClientSize = new Size(ClientSize.Width, LogicalToDeviceUnits(show ? 704 : 640));
+            ClientSize = new Size(ClientSize.Width, LogicalToDeviceUnits(show ? Height0 + FixExtra : Height0));
         }
     }
 
@@ -357,6 +452,36 @@ sealed class StatusForm : Form
         _radio.Set(agentUp ? p.Green : p.Orange, L.T(agentUp ? "fs.ready" : "fs.starting"));
         _devices.Set(_sup.Clients > 0 ? p.Green : p.Gray,
             _sup.Clients > 0 ? L.T("fs.devices", _sup.Clients) : L.T("fs.devices_wait"));
+
+        // services
+        foreach (var (s, row) in _svcRows)
+        {
+            string state = s.State switch
+            {
+                ServiceState.Running => "state.running",
+                ServiceState.Starting => "state.starting",
+                ServiceState.Waiting => s.Process == null && s.NextStartAt > DateTime.UtcNow ? "state.restarting" : "state.waiting",
+                _ => "state.stopped",
+            };
+            row.Set(s.State == ServiceState.Running ? p.Green : s.State == ServiceState.Stopped ? p.Gray : p.Orange, L.T(state));
+        }
+
+        // map: game, mods, update / rebuild (the mods file is read once a second, not at every tick)
+        if (DateTime.UtcNow >= _nextModsRead)
+        {
+            _nextModsRead = DateTime.UtcNow.AddSeconds(1);
+            _modCount = MapMods.Paths.Length;
+        }
+        bool idle = !building;
+        string? choice = GameChoice.Setting;
+        _gameEts2.Enabled = _gameAts.Enabled = idle;
+        StyleGame(_gameEts2, choice == "ets2");
+        StyleGame(_gameAts, choice == "ats");
+        _modsText.Text = $"{L.T("tray.mods")} · {L.T("tray.mods_count", _modCount)}";
+        _modsPick.Enabled = idle;
+        _modsClear.Enabled = idle && _modCount > 0;
+        _mapButton.Text = L.T(map == MapState.UpToDate ? "tray.map_rebuild" : "tray.map_update");
+        _mapButton.Enabled = map is not (MapState.Building or MapState.NoGame);
     }
 
     void CopyAddress()
@@ -498,8 +623,10 @@ sealed class FeatureRow : Control
             g.FillEllipse(b, 1, (Height - d) / 2, d, d);
         var textLeft = (int)(d + Height * 0.3f);
         using var titleFont = new Font("Segoe UI", 10F);
-        TextRenderer.DrawText(g, Title, titleFont, new Rectangle(textLeft, 0, Width - textLeft, Height),
-            p.Text1, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
+        // a long title is cut with "…" rather than running into the state text
+        int stateWidth = string.IsNullOrEmpty(_state) ? 0 : TextRenderer.MeasureText(g, _state, Font).Width + 10;
+        TextRenderer.DrawText(g, Title, titleFont, new Rectangle(textLeft, 0, Math.Max(20, Width - textLeft - stateWidth), Height),
+            p.Text1, TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
         TextRenderer.DrawText(g, _state, Font, new Rectangle(0, 0, Width, Height),
             p.Text2, TextFormatFlags.VerticalCenter | TextFormatFlags.Right);
     }
