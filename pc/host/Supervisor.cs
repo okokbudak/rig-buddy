@@ -66,7 +66,9 @@ sealed class Supervisor
         (new(@"building road and prefab rtree"), 55, "stage.geometry", 5.5),
         (new(@"building graph node rtree"), 85, "stage.index", 1),
         (new(@"lookup data loaded"), 92, "stage.open", 1),
-        (new(@"listening on port"), 95, "stage.telemetry", 2),
+        // the map is loaded and the server answers: ready. (The telemetry client only prints its pairing code once
+        // a game is running, so waiting for that left the bar at 99% for as long as no game was open.)
+        (new(@"listening on port"), 100, "stage.ready", 0),
     ];
 
     void SetStage(int percent, string key, double expect, string arg = "")

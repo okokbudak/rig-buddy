@@ -147,16 +147,16 @@ sealed class StatusForm : Form
         // map: which game, map mods, update / rebuild
         var map = new RoundedPanel { Location = new Point(360, 252), Size = new Size(328, 176) };
         map.Controls.Add(Lbl(L.T("win.map"), 16, 10, 9F, p => p.Text2));
-        _gameEts2 = Btn("Euro Truck Simulator 2", 16, 34, 134);
-        _gameAts = Btn("American Truck Simulator", 156, 34, 156);
+        _gameEts2 = Btn("ETS2", 16, 34, 144);
+        _gameAts = Btn("ATS", 168, 34, 144);
         foreach (var g in new[] { _gameEts2, _gameAts })
         {
             g.Height = 30;
-            g.Font = new Font("Segoe UI", 8.5F);
+            g.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             g.TextAlign = ContentAlignment.MiddleCenter;
         }
-        tips.SetToolTip(_gameEts2, L.T("tray.game"));
-        tips.SetToolTip(_gameAts, L.T("tray.game"));
+        tips.SetToolTip(_gameEts2, "Euro Truck Simulator 2");
+        tips.SetToolTip(_gameAts, "American Truck Simulator");
         _gameEts2.Click += (_, _) => { if (_maps.State != MapState.Building) _maps.SelectGame("ets2"); };
         _gameAts.Click += (_, _) => { if (_maps.State != MapState.Building) _maps.SelectGame("ats"); };
         _modsText = Lbl("", 16, 74, 9F, p => p.Text1);
