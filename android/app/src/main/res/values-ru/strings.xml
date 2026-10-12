@@ -42,7 +42,6 @@
     <string name="st_pairing">Сопряжение</string>
     <string name="st_connecting">Подключение</string>
     <string name="st_disconnected">Нет подключения</string>
-    <string name="no_game_data">Нет данных из игры</string>
     <string name="nav_closed">закрыто (%1$d)</string>
     <string name="nav_requesting_code">запрос кода сопряжения</string>
     <string name="nav_code_failed">не удалось получить код: %1$s</string>

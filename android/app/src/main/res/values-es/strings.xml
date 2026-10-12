@@ -42,7 +42,6 @@
     <string name="st_pairing">Emparejando</string>
     <string name="st_connecting">Conectando</string>
     <string name="st_disconnected">Sin conexión</string>
-    <string name="no_game_data">Sin datos del juego</string>
     <string name="nav_closed">cerrado (%1$d)</string>
     <string name="nav_requesting_code">solicitando código de emparejamiento</string>
     <string name="nav_code_failed">no se pudo obtener el código: %1$s</string>

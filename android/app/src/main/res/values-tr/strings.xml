@@ -41,8 +41,7 @@
     <string name="st_connected_wait">Bağlı · oyun bekleniyor</string>
     <string name="st_pairing">Eşleşiyor</string>
     <string name="st_connecting">Bağlanıyor</string>
-    <string name="st_disconnected">Bağlantı yok</string>
-    <string name="no_game_data">Oyun verisi gelmiyor</string>
+    <string name="st_disconnected">Bağlı değil</string>
     <string name="nav_closed">kapandı (%1$d)</string>
     <string name="nav_requesting_code">eşleşme kodu isteniyor</string>
     <string name="nav_code_failed">kod alınamadı: %1$s</string>

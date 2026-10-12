@@ -131,6 +131,9 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private View railAgentDot, railNavDot;
   private JSONObject lastTelemetry;
   private boolean staleBinding;
+  /** When (uptimeMillis) the agent last sent telemetry, the navigation server last sent a position, and we last re-subscribed. */
+  private long lastTelemetryAt, lastPositionAt, lastNavRestartAt;
+  private double lastSpeedKph;
 
   private Route route;
   private int routeStep = -1;       // step currently being driven (flat index)
@@ -291,6 +294,11 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
       @Override
       public void onTelemetry(JSONObject t) {
         lastTelemetry = t;
+        if (t != null) {
+          lastTelemetryAt = SystemClock.uptimeMillis();
+          JSONObject truck = t.optJSONObject("truck");
+          lastSpeedKph = truck != null ? truck.optDouble("speedKph", 0) : 0;
+        }
         home.onTelemetry(t);
         if ("vehicle".equals(screen)) vehicle.onTelemetry(t);
         if ("jobs".equals(screen)) jobs.onTelemetry(t);
@@ -691,7 +699,34 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     nav.start(host());
     agent.start(host());
     scheduleRediscovery();
+    screenHost.removeCallbacks(linkWatch);
+    screenHost.postDelayed(linkWatch, LINK_CHECK_MS);
   }
+
+  /**
+   * The navigation server sometimes stops sending positions while the game is running (it says
+   * "stale" once and then stays quiet until the app subscribes again). The agent's telemetry shows
+   * the game is there, so: game running but no positions (the server said stale, or the truck is
+   * moving and nothing arrives) -> subscribe again by ourselves, at most every 15 s.
+   */
+  private static final long LINK_CHECK_MS = 4_000;
+  private final Runnable linkWatch = new Runnable() {
+    @Override
+    public void run() {
+      if (isFinishing()) return;
+      long now = SystemClock.uptimeMillis();
+      boolean game = lastTelemetry != null && now - lastTelemetryAt < 4_000;
+      boolean positions = now - lastPositionAt < 8_000;
+      boolean stuck = game && !positions && (staleBinding || lastSpeedKph > 1);
+      if (stuck && now - lastNavRestartAt > 15_000 && !host().isEmpty()) {
+        lastNavRestartAt = now;
+        Log.i(TAG, "game is running but no positions: subscribing to the navigation server again");
+        nav.stop();
+        nav.start(host());
+      }
+      screenHost.postDelayed(this, LINK_CHECK_MS);
+    }
+  };
 
   private void useHost(String found, String name) {
     prefs.edit().putString("host", found).apply();
@@ -881,6 +916,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     switch (type) {
       case "positionUpdate":
         if (data instanceof JSONObject) {
+          lastPositionAt = SystemClock.uptimeMillis();
           boolean first = !tracker.hasData() || staleBinding;
           if (first) Log.i(TAG, "first positionUpdate: " + data);
           tracker.onPositionUpdate((JSONObject) data);
@@ -946,7 +982,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
         break;
       case "staleBinding":
         staleBinding = true;
-        statusView.setText(Ui.s(R.string.no_game_data));
+        statusView.setText(Ui.s(R.string.st_disconnected));
         statusView.setTextColor(0xffe37400);
         break;
       default:
@@ -1544,6 +1580,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   @Override
   protected void onStop() {
     screenHost.removeCallbacks(rediscover);
+    screenHost.removeCallbacks(linkWatch);
     nav.stop();
     agent.stop();
     mapView.onStop();

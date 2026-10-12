@@ -42,7 +42,6 @@
     <string name="st_pairing">Pareando</string>
     <string name="st_connecting">Conectando</string>
     <string name="st_disconnected">Sem conexão</string>
-    <string name="no_game_data">Sem dados do jogo</string>
     <string name="nav_closed">fechado (%1$d)</string>
     <string name="nav_requesting_code">solicitando código de pareamento</string>
     <string name="nav_code_failed">não foi possível obter o código: %1$s</string>

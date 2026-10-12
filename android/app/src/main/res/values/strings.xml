@@ -44,7 +44,6 @@
     <string name="st_pairing">Pairing</string>
     <string name="st_connecting">Connecting</string>
     <string name="st_disconnected">Not connected</string>
-    <string name="no_game_data">No data from the game</string>
     <string name="nav_closed">closed (%1$d)</string>
     <string name="nav_requesting_code">requesting a pairing code</string>
     <string name="nav_code_failed">could not get a code: %1$s</string>

@@ -42,7 +42,6 @@
     <string name="st_pairing">Appairage</string>
     <string name="st_connecting">Connexion</string>
     <string name="st_disconnected">Non connecté</string>
-    <string name="no_game_data">Aucune donnée du jeu</string>
     <string name="nav_closed">fermé (%1$d)</string>
     <string name="nav_requesting_code">demande d’un code d’appairage</string>
     <string name="nav_code_failed">impossible d’obtenir un code : %1$s</string>

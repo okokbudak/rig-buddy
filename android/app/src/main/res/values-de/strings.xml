@@ -42,7 +42,6 @@
     <string name="st_pairing">Kopplung</string>
     <string name="st_connecting">Verbinde</string>
     <string name="st_disconnected">Nicht verbunden</string>
-    <string name="no_game_data">Keine Daten vom Spiel</string>
     <string name="nav_closed">geschlossen (%1$d)</string>
     <string name="nav_requesting_code">Kopplungscode wird angefordert</string>
     <string name="nav_code_failed">kein Code erhalten: %1$s</string>
