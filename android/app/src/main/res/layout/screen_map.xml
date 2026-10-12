@@ -308,11 +308,15 @@
                 android:layout_width="0dp"
                 android:layout_height="56dp"
                 android:layout_weight="1"
+                android:background="@drawable/bg_search_input"
                 android:hint="@string/search_hint"
                 android:imeOptions="actionSearch|flagNoExtractUi|flagNoFullscreen"
                 android:inputType="text"
-                android:paddingStart="12dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
                 android:singleLine="true"
+                android:textColor="#202124"
+                android:textColorHint="#80868b"
                 android:textSize="20sp" />
 
             <ImageButton
