@@ -147,8 +147,8 @@ sealed class StatusForm : Form
         // map: which game, map mods, update / rebuild
         var map = new RoundedPanel { Location = new Point(360, 252), Size = new Size(328, 176) };
         map.Controls.Add(Lbl(L.T("win.map"), 16, 10, 9F, p => p.Text2));
-        _gameEts2 = Btn("Euro Truck Simulator 2", 16, 34, 144);
-        _gameAts = Btn("American Truck Simulator", 168, 34, 144);
+        _gameEts2 = Btn("Euro Truck Simulator 2", 16, 34, 134);
+        _gameAts = Btn("American Truck Simulator", 156, 34, 156);
         foreach (var g in new[] { _gameEts2, _gameAts })
         {
             g.Height = 30;
