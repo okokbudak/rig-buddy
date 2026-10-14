@@ -224,6 +224,59 @@ static void setPower(bool on) {
   digitalWrite(POWER_PIN, on ? HIGH : LOW);
 }
 
+// ---- LED strips (WS2811 protocol, 800 kHz) on PB0, bit-banged with the cycle counter ----
+// A frame of 24 ICs takes ~0.7 ms with interrupts off, so it is sent at power-up and then only every
+// LED_REFRESH_MS, and not while a needle is moving.
+static bool ledColorsChanged = true;
+static uint32_t ledAt = 0;
+
+static void ledShow() {
+  uint8_t buf[LED_COUNT * 3];
+  uint8_t n = 0;
+  for (uint8_t s = 0; s < LED_SEGMENTS; s++) {
+    for (uint8_t k = 0; k < LED_SEG_PIXELS[s]; k++) {
+      const Rgb& c = LED_COLOR[s];
+      buf[n++] = LED_ORDER_GRB ? c.g : c.r;
+      buf[n++] = LED_ORDER_GRB ? c.r : c.g;
+      buf[n++] = c.b;
+    }
+  }
+  const uint32_t period = SystemCoreClock / 800000UL;          // 1.25 us
+  const uint32_t hi0 = period * 28 / 100, hi1 = period * 72 / 100;   // 0.35 us / 0.9 us high
+  noInterrupts();
+  GPIOB->BSRR = (uint32_t)GPIO_PIN_0 << 16;
+  uint32_t next = DWT->CYCCNT;
+  for (uint8_t i = 0; i < n; i++) {
+    for (uint8_t bit = 0x80; bit; bit >>= 1) {
+      while ((int32_t)(DWT->CYCCNT - next) < 0) {}
+      uint32_t start = next;
+      GPIOB->BSRR = GPIO_PIN_0;
+      uint32_t hi = (buf[i] & bit) ? hi1 : hi0;
+      while ((DWT->CYCCNT - start) < hi) {}
+      GPIOB->BSRR = (uint32_t)GPIO_PIN_0 << 16;
+      next = start + period;
+    }
+  }
+  interrupts();                                                // the line stays low: the ICs latch after 50 us
+  ledColorsChanged = false;
+  ledAt = millis();
+}
+
+static bool anyNeedleMoving() {
+  for (uint8_t i = 0; i < N_MOTORS; i++) if (ax[i].v != 0 || ax[i].pos != ax[i].target) return true;
+  return false;
+}
+
+static void ledInit() {
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CYCCNT = 0;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+  delay(2);
+  ledShow();
+}
+
 // Field n -> MOTORn; the field after the last motor (field 7) is the power output, 0 or 1. A line with
 // fewer fields moves only those motors; a field that is not a plain integer drops the whole line (a broken
 // line must never move a needle or switch the head unit).
@@ -440,6 +493,22 @@ static void command(char* s) {
       if (*p == '0' || *p == '1') { setPower(*p == '1'); powerAt = millis(); say("OK power %s", powerOn ? "on" : "off"); }
       else say("power %s", powerOn ? "on" : "off");
       break;
+    case 'L': {                                        // L<seg|*>,<r>,<g>,<b>: try a colour (not saved); L: list
+      if (!*p) {
+        for (uint8_t i = 0; i < LED_SEGMENTS; i++) say("LED %u pixels=%u rgb=%u,%u,%u", i, LED_SEG_PIXELS[i], LED_COLOR[i].r, LED_COLOR[i].g, LED_COLOR[i].b);
+        break;
+      }
+      int first, last;
+      if (*p == '*') { first = 0; last = LED_SEGMENTS - 1; p++; }
+      else if (*p >= '0' && *p <= '9' && atoi(p) < LED_SEGMENTS) { first = last = atoi(p); while (*p >= '0' && *p <= '9') p++; }
+      else { say("ERR usage L<segment|*>,<r>,<g>,<b>"); break; }
+      int r, g, bl;
+      if (*p++ != ',' || sscanf(p, "%d,%d,%d", &r, &g, &bl) != 3 || r < 0 || r > 255 || g < 0 || g > 255 || bl < 0 || bl > 255) { say("ERR usage L<segment|*>,<r>,<g>,<b>"); break; }
+      for (int i = first; i <= last; i++) LED_COLOR[i] = { (uint8_t)r, (uint8_t)g, (uint8_t)bl };
+      ledColorsChanged = true;
+      say("OK LED colour set (until the next reset; edit LED_COLOR in config.h to keep it)");
+      break;
+    }
     case 'E': {
       setDrivers(*p == '1');
       char list[3 * N_MOTORS + 1] = ""; uint8_t n = 0;
@@ -512,8 +581,8 @@ static void command(char* s) {
       say("OK entering DFU"); Serial.flush(); delay(100);
       jumpToDfu();
       break;
-    case '?': say("OCTOPUS-GAUGES %s motors=%u cfg=1 power=1", FW_VERSION, N_MOTORS); break;
-    default: say("ERR unknown command. I E Z P D C S G H T U W CFG BOOTLOADER ?"); break;
+    case '?': say("OCTOPUS-GAUGES %s motors=%u cfg=1 power=1 leds=%u", FW_VERSION, N_MOTORS, LED_COUNT); break;
+    default: say("ERR unknown command. I E Z P D C S G H T U W L CFG BOOTLOADER ?"); break;
   }
 }
 
@@ -542,6 +611,7 @@ void setup() {
   for (uint8_t i = 0; i < N_MOTORS; i++) tmcInit(i);
   setDrivers(true);
   for (uint8_t i = 0; i < N_MOTORS; i++) if (S.m[i].enabled && S.m[i].homeOnBoot) homeStart(i);
+  ledInit();                                           // the strips light up with the board
 }
 
 void loop() {
@@ -560,6 +630,7 @@ void loop() {
     applyData(tmp);
   }
   for (uint8_t i = 0; i < N_MOTORS; i++) homeUpdate(i);
+  if ((ledColorsChanged || millis() - ledAt >= LED_REFRESH_MS) && !anyNeedleMoving()) ledShow();
   if (powerOn && millis() - powerAt > POWER_TIMEOUT_MS) {   // the PC went away: do not keep the head unit on forever
     setPower(false);
     say("power off: no power field for %lu s", (unsigned long)(POWER_TIMEOUT_MS / 1000));

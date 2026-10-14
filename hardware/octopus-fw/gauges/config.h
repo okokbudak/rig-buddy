@@ -4,7 +4,7 @@
 // All user-tunable settings live in this file.
 #include <Arduino.h>
 
-#define FW_VERSION "1.1"
+#define FW_VERSION "1.2"
 
 constexpr uint8_t N_MOTORS = 6;
 
@@ -57,6 +57,22 @@ constexpr float   HOME_MAX_DEG = SWEEP_DEG + 40.0f;   // give up after this much
 // pin to GND, so with the header's 12 V jumper set, 1 gives the head unit its 12 V. Off at power-up and at reset.
 constexpr uint32_t POWER_PIN = PA8;                      // FAN0 on the Octopus Pro V1.0/V1.0.1
 constexpr uint32_t POWER_TIMEOUT_MS = 5UL * 60UL * 1000UL;   // no data line with that field for this long -> off
+
+// ---- LED strips: one chain of 12 V WS2811-type strips (3 LEDs per IC) on the NEOPIXEL header, data on PB0 ----
+// All strips are wired one after the other (DO of a strip -> DI of the next), in the order of LED_SEG_PIXELS.
+// A "pixel" is one IC (3 LEDs). The colours are constant: they are sent at power-up and again every few seconds
+// (a strip whose 12 V came after the board would otherwise stay dark). Power the strips from a always-on fan
+// header (FAN6/FAN7, 12 V jumper), NOT from a switched FAN0..FAN5 output; the data GND is the board's GND.
+constexpr uint32_t LED_PIN = PB0;
+constexpr uint8_t  LED_SEGMENTS = 6;
+constexpr uint8_t  LED_SEG_PIXELS[LED_SEGMENTS] = { 6, 6, 3, 3, 3, 3 };   // 18+18+9+9+9+9 LEDs = 24 ICs
+constexpr uint8_t  LED_COUNT = 24;                                      // sum of the line above
+constexpr bool     LED_ORDER_GRB = true;                                // false: the strips want R,G,B
+constexpr uint32_t LED_REFRESH_MS = 2000;
+struct Rgb { uint8_t r, g, b; };
+Rgb LED_COLOR[LED_SEGMENTS] = {                                         // colour of each segment
+  { 255, 147, 41 }, { 255, 147, 41 }, { 255, 147, 41 }, { 255, 147, 41 }, { 255, 147, 41 }, { 255, 147, 41 },
+};
 
 // ---- Nextion display on the TFT connector (5V, GND, TX, RX): USART1 ----
 constexpr uint32_t NEXTION_TX = PA9;             // board TX -> display RX

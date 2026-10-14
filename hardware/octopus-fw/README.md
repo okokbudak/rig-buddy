@@ -38,6 +38,8 @@ Betik karta `BOOTLOADER` yollar, kart ST DFU'ya geçer, `out\firmware.bin` **0x0
 
 **Elektrik:** FAN0 çıkışının gerilimi konnektörün jumper'ıyla seçilir (12 V'a getirmeden çoklu metreyle ölç; HE/BED çıkışları 24 V taşır, head unit'i oraya bağlama). ES3400 MOSFET 25 °C'de 5,8 A taşır ama JST-XH konnektör ~3 A ile sınırlı; head unit ≤2 A, araya 2,5–3 A'lik sigorta koy, en az 22 AWG tel kullan.
 
+**LED şeritler (firmware 1.2):** 12 V WS2811 tipi şeritler (3 LED'de bir IC) tek zincirde PB0'dan (NeoPixel soketinin veri pini) sürülür: 6+6+3+3+3+3 = 24 IC (72 LED). Renkler **sabit**: `config.h` içindeki `LED_COLOR` (parça başına R,G,B; varsayılan sıcak beyaz 255,147,41) ve `LED_SEG_PIXELS`, `LED_ORDER_GRB` ayarlıdır. Kart açılırken ve sonra her 2 sn'de bir gönderilir (şeridin 12 V'u karttan sonra gelirse karanlık kalmasın); bir ibre hareket ediyorsa bekler, çünkü bir kare ~0,7 ms kesmeleri kapatır. Deneme: `L` renkleri listeler, `L<parça|*>,<r>,<g>,<b>` geçici renk verir (reset'e kadar; kalıcı olması için `config.h`'yi değiştirip yeniden derle). Şeridin +12 V'u kartın **hep açık** FAN6/FAN7 soketinden (jumper 12 V), GND'si ortak GND'den; veri hattında 330–470 Ω seri direnç. FAN0..FAN5 anahtarlamalıdır, şerit gücü için kullanma.
+
 `@<komut>\n` satırları Nextion'a gider (kart sonuna FF FF FF ekler). Ekrandan gelen her çerçeve `@<hex>\n` olarak geri döner.
 
 ## Ayarlar (`CFG`): Studio'nun Kart sayfası bunları kullanır
@@ -54,7 +56,8 @@ Anahtarlar: `en` motor açık, `dir` yön ters, `ms` mikroadım (1…256), `ma` 
 ## Diğer komutlar (teşhis)
 | Komut | Ne yapar |
 |---|---|
-| `?` | `OCTOPUS-GAUGES 1.1 motors=6 cfg=1 power=1` |
+| `?` | `OCTOPUS-GAUGES 1.2 motors=6 cfg=1 power=1 leds=24` |
+| `L` / `L<parça\|*>,<r>,<g>,<b>` | LED parçalarını listele / geçici renk ver |
 | `W1` / `W0` / `W` | Güç çıkışı (FAN0) aç / kapat / durum |
 | `I` | Her motorun durumu (ve güç çıkışı): TMC2209 cevabı, konum, akım, yön, skala; ayarlar kayıtlı mı; ekran sayaçları |
 | `E1` / `E0` | Sürücüleri aç / kapat |
