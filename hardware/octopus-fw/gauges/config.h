@@ -67,7 +67,8 @@ constexpr uint32_t LED_PIN = PB0;
 constexpr uint8_t  LED_SEGMENTS = 6;
 constexpr uint8_t  LED_SEG_PIXELS[LED_SEGMENTS] = { 6, 6, 3, 3, 3, 3 };   // 18+18+9+9+9+9 LEDs = 24 ICs
 constexpr uint8_t  LED_COUNT = 24;                                      // sum of the line above
-constexpr bool     LED_ORDER_GRB = true;                                // false: the strips want R,G,B
+// Colour order on the wire, first byte first: 0 RGB, 1 GRB, 2 BRG (these strips), 3 RBG, 4 GBR, 5 BGR.
+constexpr uint8_t  LED_ORDER = 2;
 constexpr uint32_t LED_REFRESH_MS = 2000;
 struct Rgb { uint8_t r, g, b; };
 Rgb LED_COLOR[LED_SEGMENTS] = {                                         // colour of each segment

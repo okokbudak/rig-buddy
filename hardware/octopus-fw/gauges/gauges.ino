@@ -236,9 +236,9 @@ static void ledShow() {
   for (uint8_t s = 0; s < LED_SEGMENTS; s++) {
     for (uint8_t k = 0; k < LED_SEG_PIXELS[s]; k++) {
       const Rgb& c = LED_COLOR[s];
-      buf[n++] = LED_ORDER_GRB ? c.g : c.r;
-      buf[n++] = LED_ORDER_GRB ? c.r : c.g;
-      buf[n++] = c.b;
+      static const uint8_t ORDER[6][3] = { {0,1,2}, {1,0,2}, {2,0,1}, {0,2,1}, {1,2,0}, {2,1,0} };   // indexes into r,g,b
+      const uint8_t rgb[3] = { c.r, c.g, c.b };
+      for (uint8_t q = 0; q < 3; q++) buf[n++] = rgb[ORDER[LED_ORDER][q]];
     }
   }
   const uint32_t period = SystemCoreClock / 800000UL;          // 1.25 us
