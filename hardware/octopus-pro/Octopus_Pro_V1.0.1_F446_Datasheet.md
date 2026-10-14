@@ -93,7 +93,7 @@ Besleme **4,75–29 V**, sürekli **2,0 A RMS**, tepe **2,8 A**, StallGuard4, UA
 | **HE2** | **PB10** | HY1904C | " | " |
 | **HE3** | PB11 | HY1904C | " | HE terminal bloğu şematikte "KF128-8P", akım değeri **[YOK]** |
 | **BED-OUT** | PA1 | IPD036N04L | 40 V / 90 A, RDS(on) ≤ 3,6 mΩ (Infineon) | Kılavuz sınırı: **≤300 W**, giriş ≤28 V **[RESMİ]** |
-| **FAN0** | PA8 | ES3400 | 30 V, RDS(on) < 28 mΩ @10 V. Akım değeri için datasheet'ini indirmedim | PWM |
+| **FAN0** | PA8 | ES3400 | 30 V, RDS(on) < 28 mΩ @10 V, **5,8 A @25 °C, 4,6 A @70 °C, darbe (IDM) 30 A** (ElecSuper datasheet'i **[PARÇA]**; "3400" adını başka üreticiler de kullanıyor, değerleri farklı: karttaki parçanın üreticisini doğrula). Bu, çıkışın sürekli akımı değil, sadece MOSFET'in sınırı | PWM |
 | **FAN1** | PE5 | ES3400 | " | PWM |
 | **FAN2** | PD12 | ES3400 | " | PWM |
 | **FAN3** | PD13 | ES3400 | " | PWM |
@@ -104,6 +104,8 @@ Besleme **4,75–29 V**, sürekli **2,0 A RMS**, tepe **2,8 A**, StallGuard4, UA
 Hangi Q numarasının hangi çıkışa gittiğini şematik metninden kesin çıkaramadım **[TÜRETİLMİŞ]**. **BTT'nin ısıtıcı/yatak/fan çıkışları klasik olarak eksi ucu (GND) anahtarlar** (V1.1 görselinde HE terminalleri "VIN" ve "MCU pini" diye etiketli), bu kart için multimetreyle doğrula: sinyal kablosu olan cihazların (head unit, Nextion) GND'sini bu çıkışlarla anahtarlama, röle kullan.
 
 **Fan ve prob gerilim seçimi** **[RESMİ]**: Her fan başlığının ve prob başlığının voltajı jumper ile **5 V / 12 V / VIN** olarak seçilir. Jumper hatları doğrudan regülatöre/girişe bağlı, **yanlış kısa devre kartı bozar**. PWM fan portlarında flyback koruması var **[RESMİ]**.
+
+**Kardeş kart için BTT'nin yayımladığı tek fan değeri** **[RESMİ, başka kart]**: Octopus **MAX EZ** kılavuzu fan portu için **1 A sürekli, 1,5 A anlık** diyor. Octopus Pro için böyle bir rakam yok; BTT wiki'si orijinal Octopus Pro'da "kolay değiştirilebilir sigorta" olduğunu söylüyor ama değerini yazmıyor. Konnektör başlıkları genelde JST-XH (üretici değeri tipik 3 A): fanlar için, 2 A'lik bir cihaz için sınırda. Ayrıca bir kullanıcı forumda 12 V jumper'ı takılıyken fan pinlerinde 24 V ölçtüğünü yazmış (tek rapor): **jumper'a güvenme, cihazı bağlamadan multimetreyle ölç.**
 
 ### Akım için tavsiyem **[TÜRETİLMİŞ, üretici değeri DEĞİL]**
 BTT sürekli akım vermediği için, onay alana kadar muhafazakâr kullan: **fan başına ≤ 1 A, ısıtıcı (HE) başına ≤ 5 A**. Toplam yük 12 V/5 V raylarda yukarıdaki sınırları aşmamalı. Dashboard'daki küçük fan, LED ve röle bobinleri bunun çok altında.
