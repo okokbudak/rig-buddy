@@ -34,6 +34,10 @@ Betik karta `BOOTLOADER` yollar, kart ST DFU'ya geçer, `out\firmware.bin` **0x0
 ## Veri satırı
 `v0,v1,v2,...\n`: düz tam sayılar, **n. alan MOTORn'i** sürer. Bir motorun `full` değeri ibreyi skalanın son çizgisine götürür, 0 ilk çizgiye. Az alanlı satır sadece o motorları oynatır. Tam sayı olmayan bir alan bütün satırı geçersiz kılar. Kapalı motorun alanı yok sayılır.
 
+**Güç çıkışı (firmware 1.1):** motorlardan sonraki **7. alan** FAN0'ı (PA8) açar (`1`) ya da kapatır (`0`). FAN0'ın MOSFET'i fan konnektörünün eksi ucunu GND'ye bağlar (alçak taraf anahtarlama); 12 V jumper'ı takılıysa `1` head unit'e 12 V verir. Çıkış kart açılırken ve reset'te **kapalıdır**; 7. alanlı satır `POWER_TIMEOUT_MS` (5 dk, `config.h`) boyunca gelmezse kart kendisi keser. 7. alan olmayan satır çıkışa dokunmaz. Motorlar 7. alandan etkilenmez. Elle deneme: `W1` / `W0` (sonraki veri satırı yine yazar), `W` durumu söyler. Studio'da Kart sayfasındaki "Güç çıkışı" bölümü formülü (örn. `truck.electric.enabled`) ve kapanma gecikmesini (varsayılan 60 sn) yönetir.
+
+**Elektrik:** FAN0 çıkışının gerilimi konnektörün jumper'ıyla seçilir (12 V'a getirmeden çoklu metreyle ölç; HE/BED çıkışları 24 V taşır, head unit'i oraya bağlama). ES3400 MOSFET 25 °C'de 5,8 A taşır ama JST-XH konnektör ~3 A ile sınırlı; head unit ≤2 A, araya 2,5–3 A'lik sigorta koy, en az 22 AWG tel kullan.
+
 `@<komut>\n` satırları Nextion'a gider (kart sonuna FF FF FF ekler). Ekrandan gelen her çerçeve `@<hex>\n` olarak geri döner.
 
 ## Ayarlar (`CFG`): Studio'nun Kart sayfası bunları kullanır
@@ -50,8 +54,9 @@ Anahtarlar: `en` motor açık, `dir` yön ters, `ms` mikroadım (1…256), `ma` 
 ## Diğer komutlar (teşhis)
 | Komut | Ne yapar |
 |---|---|
-| `?` | `OCTOPUS-GAUGES 0.8 motors=6 cfg=1` |
-| `I` | Her motorun durumu: TMC2209 cevabı, konum, akım, yön, skala; ayarlar kayıtlı mı; ekran sayaçları |
+| `?` | `OCTOPUS-GAUGES 1.1 motors=6 cfg=1 power=1` |
+| `W1` / `W0` / `W` | Güç çıkışı (FAN0) aç / kapat / durum |
+| `I` | Her motorun durumu (ve güç çıkışı): TMC2209 cevabı, konum, akım, yön, skala; ayarlar kayıtlı mı; ekran sayaçları |
 | `E1` / `E0` | Sürücüleri aç / kapat |
 | `Z` | Şu anki iğne konumlarını 0 kabul et |
 | `P<n>,<derece>` | Motor n'yi (ya da `*`) o açıya götür |

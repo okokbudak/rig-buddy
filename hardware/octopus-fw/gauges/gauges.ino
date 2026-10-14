@@ -2,7 +2,8 @@
 // Six NEMA17 gauge motors on MOTOR0..MOTOR5 (TMC2209, UART mode) and a Nextion display on the TFT
 // connector, all fed over USB CDC by Rig Buddy Studio (or SimHub's Custom Serial device):
 //   data line   "v0,v1,...\n"   plain integers, field n drives MOTORn (fewer fields: the rest stay put);
-//                               the value fullScale (per motor) puts the needle on its last mark
+//                               the value fullScale (per motor) puts the needle on its last mark;
+//                               field 7 (after the six motors) is the power output FAN0: 1 on, 0 off
 //   "@<cmd>\n"                  a Nextion command (see the tunnel below)
 //   anything else               a text command (see README.md); "?" answers "OCTOPUS-GAUGES <version> motors=6 cfg=1"
 // Per-motor settings (direction, current, steps, sweep, scale, speed...) come from settings.h: the PC
@@ -214,20 +215,31 @@ static uint32_t lastParse = 0;
 static uint8_t testStage = 0;
 static uint32_t testT0 = 0;
 
-// Field n -> MOTORn. A line with fewer fields moves only those motors; a field that is not a plain
-// integer drops the whole line (a broken line must never move a needle).
+// ---- power output (FAN0): off until a data line asks for it, off again when the lines stop ----
+static bool powerOn = false;
+static uint32_t powerAt = 0;                           // when the power field (or the W command) last spoke
+
+static void setPower(bool on) {
+  powerOn = on;
+  digitalWrite(POWER_PIN, on ? HIGH : LOW);
+}
+
+// Field n -> MOTORn; the field after the last motor (field 7) is the power output, 0 or 1. A line with
+// fewer fields moves only those motors; a field that is not a plain integer drops the whole line (a broken
+// line must never move a needle or switch the head unit).
 static void applyData(char* s) {
-  long val[N_MOTORS];
+  long val[N_MOTORS + 1];
   uint8_t count = 0;
   char* tok = strtok(s, ",");
-  while (tok && count < N_MOTORS) {
+  while (tok && count < N_MOTORS + 1) {
     char* end;
     long v = strtol(tok, &end, 10);
     if (end == tok || (*end != 0 && *end != '\r')) return;
     val[count++] = v;
     tok = strtok(NULL, ",");
   }
-  for (uint8_t i = 0; i < count; i++) {
+  if (count > N_MOTORS) { setPower(val[N_MOTORS] != 0); powerAt = millis(); }
+  for (uint8_t i = 0; i < count && i < N_MOTORS; i++) {
     const MotorSettings& m = S.m[i];
     if (!m.enabled || hstate[i] == H_RUN || testStage) continue;
     long v = constrain(val[i], 0L, (long)m.fullScale);
@@ -421,8 +433,13 @@ static void command(char* s) {
       }
       say("NX en=%u baud=%lu commands-to-display=%lu frames-from-display=%lu", S.nxEnabled, (unsigned long)S.nxBaud,
           (unsigned long)nxToDisplay, (unsigned long)nxFromDisplay);
+      say("POWER %s (FAN0, off after %lu s without the power field)", powerOn ? "ON" : "off", (unsigned long)(POWER_TIMEOUT_MS / 1000));
       break;
     }
+    case 'W':                                          // W1 / W0: power output on / off by hand, W: its state
+      if (*p == '0' || *p == '1') { setPower(*p == '1'); powerAt = millis(); say("OK power %s", powerOn ? "on" : "off"); }
+      else say("power %s", powerOn ? "on" : "off");
+      break;
     case 'E': {
       setDrivers(*p == '1');
       char list[3 * N_MOTORS + 1] = ""; uint8_t n = 0;
@@ -495,8 +512,8 @@ static void command(char* s) {
       say("OK entering DFU"); Serial.flush(); delay(100);
       jumpToDfu();
       break;
-    case '?': say("OCTOPUS-GAUGES %s motors=%u cfg=1", FW_VERSION, N_MOTORS); break;
-    default: say("ERR unknown command. I E Z P D C S G H T U CFG BOOTLOADER ?"); break;
+    case '?': say("OCTOPUS-GAUGES %s motors=%u cfg=1 power=1", FW_VERSION, N_MOTORS); break;
+    default: say("ERR unknown command. I E Z P D C S G H T U W CFG BOOTLOADER ?"); break;
   }
 }
 
@@ -512,6 +529,7 @@ static void handleLine(char* s) {
 
 // ---- main ----
 void setup() {
+  pinMode(POWER_PIN, OUTPUT); setPower(false);         // the head unit stays off until Studio asks for power
   Serial.begin(115200);                                // USB CDC, baud is ignored
   settingsLoad();
   for (uint8_t i = 0; i < N_MOTORS; i++) settingsDerive(i);
@@ -542,6 +560,10 @@ void loop() {
     applyData(tmp);
   }
   for (uint8_t i = 0; i < N_MOTORS; i++) homeUpdate(i);
+  if (powerOn && millis() - powerAt > POWER_TIMEOUT_MS) {   // the PC went away: do not keep the head unit on forever
+    setPower(false);
+    say("power off: no power field for %lu s", (unsigned long)(POWER_TIMEOUT_MS / 1000));
+  }
   if (testStage == 1 && millis() - testT0 > 2500) { for (uint8_t i = 0; i < N_MOTORS; i++) setTarget(i, 0); testStage = 2; testT0 = millis(); }
   else if (testStage == 2 && millis() - testT0 > 2500) testStage = 0;
 }

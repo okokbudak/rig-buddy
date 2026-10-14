@@ -49,7 +49,7 @@ export function parseHello(text) {
   const m = /^OCTOPUS-GAUGES\s+(\S+)(.*)$/.exec(String(text).trim());
   if (!m) return null;
   const kv = Object.fromEntries([...m[2].matchAll(/(\w+)=(\S+)/g)].map(x => [x[1], x[2]]));
-  return { type: 'octopus', version: m[1], motors: Number(kv.motors) || 6, cfg: kv.cfg === '1' };
+  return { type: 'octopus', version: m[1], motors: Number(kv.motors) || 6, cfg: kv.cfg === '1', power: kv.power === '1' };
 }
 
 /** The lines of a "CFG?" answer -> {motors: [...], nx: {en, baud}, saved, count}. */

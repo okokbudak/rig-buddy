@@ -4,7 +4,7 @@
 // All user-tunable settings live in this file.
 #include <Arduino.h>
 
-#define FW_VERSION "1.0"
+#define FW_VERSION "1.1"
 
 constexpr uint8_t N_MOTORS = 6;
 
@@ -51,6 +51,12 @@ constexpr float   HOME_DEG_S = 360.0f;           // speed towards the stop (Stal
 constexpr uint16_t HOME_BLANK_MS = 150;          // ignore DIAG this long after starting (acceleration)
 constexpr float   HOME_BACKOFF_DEG = 0.5f;       // after the stall, rest this far off the stop
 constexpr float   HOME_MAX_DEG = SWEEP_DEG + 40.0f;   // give up after this much travel without a stall
+
+// ---- power output: FAN0 switches the head unit's power ----
+// The data line's field after the motors (field 7) is 0 or 1. FAN0's MOSFET connects the fan header's minus
+// pin to GND, so with the header's 12 V jumper set, 1 gives the head unit its 12 V. Off at power-up and at reset.
+constexpr uint32_t POWER_PIN = PA8;                      // FAN0 on the Octopus Pro V1.0/V1.0.1
+constexpr uint32_t POWER_TIMEOUT_MS = 5UL * 60UL * 1000UL;   // no data line with that field for this long -> off
 
 // ---- Nextion display on the TFT connector (5V, GND, TX, RX): USART1 ----
 constexpr uint32_t NEXTION_TX = PA9;             // board TX -> display RX

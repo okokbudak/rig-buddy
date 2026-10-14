@@ -336,5 +336,47 @@ const NX = {
   assert.ok(w.some(x => x[1].includes('page page1')), 'idle page shown');
 }
 
+// the power output (FAN0): field 7 of the data line, with an off delay
+{
+  const w = [];
+  const ev = new EventEmitter();
+  let raw = { truck: { electric: { enabled: true } } };
+  const h = {
+    events: ev, connected: true,
+    open: id => { queueMicrotask(() => ev.emit('state', { id, state: 'open' })); return true; },
+    close: () => {}, write: (id, data) => { if (id === 'oct') w.push(String(data)); },
+    ports: async () => ({ ports: [] }), probe: async () => ({}),
+  };
+  const eng = createEngine({ hub: h, getRaw: () => raw, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'studio-')) });
+  const c = structuredClone(eng.config);
+  c.serial = [{ id: 'oct', name: 'Octopus', enabled: true, port: 'COM9', board: 'octopus', power: { enabled: true, expr: 'truck.electric.enabled', offDelay: 1 } }];
+  eng.apply(c);
+  assert.equal(eng.config.serial[0].power.offDelay, 1);
+  await new Promise(r => setTimeout(r, 200));
+  assert.ok(w.length && w.at(-1).split(',').length === 7 && w.at(-1).split(',')[6].trim() === '1', `ignition on -> seventh field 1 (${w.at(-1)})`);
+  assert.equal(eng.status().devices[0].power.on, true);
+  raw = { truck: { electric: { enabled: false } } };
+  await new Promise(r => setTimeout(r, 300));
+  assert.equal(w.at(-1).trim().split(',')[6], '1', 'still on during the off delay');
+  assert.equal(eng.status().devices[0].power.want, false);
+  await new Promise(r => setTimeout(r, 1100));
+  assert.equal(w.at(-1).trim().split(',')[6], '0', 'off after the delay');
+  assert.ok(eng.testPower('oct', 1000));
+  await new Promise(r => setTimeout(r, 200));
+  assert.equal(w.at(-1).trim().split(',')[6], '1', 'test switches it on');
+  // without the output the line keeps its six fields; a formula error never switches on
+  const c2 = structuredClone(eng.config);
+  c2.serial[0].power = { enabled: false, expr: 'truck.electric.enabled', offDelay: 60 };
+  eng.apply(c2);
+  await new Promise(r => setTimeout(r, 200));
+  assert.equal(w.at(-1).trim().split(',').length, 6);
+  const c3 = structuredClone(eng.config);
+  c3.serial[0].power = { enabled: true, expr: '1 +', offDelay: 60 };
+  eng.apply(c3);
+  await new Promise(r => setTimeout(r, 1200)); // the earlier test window has run out
+  assert.equal(w.at(-1).trim().split(',')[6], '0', 'a broken formula keeps the output off');
+  assert.ok(eng.status().devices[0].power.error);
+}
+
 console.log('studio: all tests passed');
 process.exit(0);

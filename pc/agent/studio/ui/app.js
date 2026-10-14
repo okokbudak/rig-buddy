@@ -541,6 +541,21 @@ function boardPcbCard(d) {
         field(t('board.sg'), numIn('sg', { min: 0, max: 255 }))),
       el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: m.home, onchange: e => set('home', e.target.checked) }), el('span', {}, t('board.homeOnBoot')))));
 
+  // the power output (FAN0): switches the head unit with the ignition
+  const pw = d.power;
+  const pwMsg = el('span', { class: 'muted small' });
+  const powerPanel = el('div', { class: 'sockpanel' },
+    el('div', { class: 'ehead' }, el('h3', {}, t('power.title')), el('span', { class: 'pill off', 'data-role': 'powerstate' })),
+    el('p', { class: 'muted small' }, t('power.lead')),
+    el('div', { class: 'fields' },
+      el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: pw.enabled, onchange: e => { pw.enabled = e.target.checked; touch(); renderBoard(); paint(); } }), el('span', {}, t('power.on'))),
+      pw.enabled ? field(t('power.expr'), el('input', { type: 'text', class: 'mono', value: pw.expr, onchange: e => { pw.expr = e.target.value; touch(); } }), t('power.exprHint')) : null,
+      pw.enabled ? field(t('power.delay'), el('input', { type: 'number', class: 'n', min: 0, max: 3600, value: pw.offDelay, onchange: e => { pw.offDelay = Number(e.target.value); touch(); } }), t('power.delayHint')) : null),
+    pw.enabled ? el('div', { class: 'actions' },
+      el('button', { class: 'btn', onclick: async () => {
+        try { await api('POST', '/api/test-power', { id: d.id, ms: 5000 }); pwMsg.textContent = t('power.testing'); setTimeout(() => { pwMsg.textContent = ''; }, 5200); } catch (e) { pwMsg.textContent = e.message; }
+      } }, icon('play'), t('power.test')), pwMsg) : null);
+
   return el('div', { class: `card ${d.enabled ? '' : 'dim'}`, 'data-board': d.id },
     el('div', { class: 'chead' },
       icon('cpu'), el('h2', {}, d.name),
@@ -550,6 +565,7 @@ function boardPcbCard(d) {
       el('span', { class: 'pill', 'data-role': 'sync' })),
     pcb,
     panel,
+    powerPanel,
     el('div', { class: 'actions boardactions' },
       el('button', { class: 'btn primary', 'data-role': 'upload', onclick: () => boardOp(d, 'upload') }, icon('play'), t('board.upload')),
       el('button', { class: 'btn', onclick: () => boardOp(d, 'read') }, icon('refresh'), t('board.read')),
@@ -578,6 +594,14 @@ function paintBoard() {
       sync.className = 'pill warn';
       sync.textContent = t('board.syncDiff', { list: b.differs.map(i => t('board.socket', { n: i })).join(', ') || '–' });
     } else { sync.className = 'pill ok'; sync.textContent = t('board.syncOk'); }
+    const ps = card.querySelector('[data-role=powerstate]');
+    const p = st?.power;
+    if (!d.power.enabled) ps.textContent = '';
+    else if (p?.error) { ps.className = 'pill warn'; ps.textContent = t('power.error', { msg: p.error }); }
+    else if (!p) { ps.className = 'pill off'; ps.textContent = t('power.waiting'); }
+    else if (p.on) { ps.className = 'pill ok'; ps.textContent = p.want ? t('power.stateOn') : t('power.stateHold', { s: p.holdLeft }); }
+    else { ps.className = 'pill off'; ps.textContent = t('power.stateOff'); }
+    if (d.power.enabled && b && !b.power) { ps.className = 'pill warn'; ps.textContent = t('power.oldFw'); }
     for (const btn of card.querySelectorAll('[data-sock]')) {
       const i = Number(btn.dataset.sock), c = d.channels[i];
       const v = st?.values?.[i];

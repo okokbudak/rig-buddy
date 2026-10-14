@@ -35,6 +35,19 @@ function normalizeChannel(c) {
   };
 }
 
+/**
+ * A board's power output (the Octopus' FAN0, firmware 1.1+): 1 while the formula is true plus `offDelay`
+ * seconds after it stops being true, so a pause or a menu does not cut the head unit at once.
+ */
+function normalizePower(p = {}) {
+  const delay = Math.round(Number(p.offDelay));
+  return {
+    enabled: !!p.enabled,
+    expr: str(p.expr, 500).trim() ? str(p.expr, 500) : 'truck.electric.enabled', // the ignition
+    offDelay: Number.isFinite(delay) ? Math.min(3600, Math.max(0, delay)) : 60,
+  };
+}
+
 /** Cleans a config coming from the editor (or an old file): unknown keys dropped, limits applied. */
 export function normalize(cfg) {
   const out = { version: 1, serial: [], nextion: [] };
@@ -58,7 +71,9 @@ export function normalize(cfg) {
       board,
       motors: board ? (Array.isArray(d.motors) ? d.motors.slice(0, 16) : []).map(normalizeMotor) : [],
       channels: (Array.isArray(d.channels) ? d.channels.slice(0, 32) : []).map(normalizeChannel),
+      power: normalizePower(d.power ?? {}),
     };
+    if (!board) dev.power.enabled = false; // only a board with the matching firmware has the output
     if (board) {
       // a board with motor sockets: channel n is MOTORn, its scale is the motor's own "full" value
       if (!dev.motors.length) dev.motors = Array.from({ length: 6 }, () => normalizeMotor());
@@ -76,6 +91,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
   const file = path.join(dataDir, 'studio.json');
   let config = load();
   let compiled = new Map(); // device id -> [{fn, error}]
+  let compiledPower = new Map(); // device id -> {fn, error} of its power formula
   const runtime = new Map(); // device id -> {state, msg, line, values, lastLine, lastSent, sent}
   let desired = new Map(); // hub id -> "port@baud" currently asked of the hub
   let nextions = new Map(); // nextion id -> runtime from nextion.mjs
@@ -112,7 +128,13 @@ export function createEngine({ hub, getRaw, dataDir }) {
 
   function compileAll() {
     compiled = new Map();
+    compiledPower = new Map();
     for (const d of config.serial) {
+      try {
+        compiledPower.set(d.id, { fn: compile(d.power.expr), error: null });
+      } catch (e) {
+        compiledPower.set(d.id, { fn: null, error: e instanceof FormulaError ? e.message : String(e.message) });
+      }
       compiled.set(d.id, d.channels.map(c => {
         if (!c.expr.trim()) return { fn: null, error: 'empty formula' };
         try {
@@ -327,6 +349,27 @@ export function createEngine({ hub, getRaw, dataDir }) {
     return values;
   }
 
+  /** 1/0 for a board's power output: the formula, held `offDelay` seconds after it turned false. */
+  function evalPower(d, raw, now) {
+    const r = rt(d.id);
+    const p = compiledPower.get(d.id);
+    let want = false;
+    r.powerError = null;
+    if (!p || p.error) r.powerError = p?.error ?? 'error';
+    else if (raw != null) {
+      try {
+        want = !!Number(p.fn(path => read(raw, path)));
+      } catch (e) {
+        r.powerError = e.message;
+      }
+    }
+    if (want) r.powerHoldUntil = now + d.power.offDelay * 1000;
+    r.powerWant = want;
+    // a "Test" keeps it on for a few seconds, without the off delay
+    r.powerOn = want || now < (r.powerHoldUntil ?? 0) || now < (r.powerTest ?? 0);
+    return r.powerOn ? 1 : 0;
+  }
+
   function tick() {
     // nothing to drive and nobody looking at the Studio page: don't parse the telemetry 25x a second
     if (!engine.viewers && !config.serial.some(d => d.enabled) && !config.nextion.some(d => d.enabled)) return;
@@ -343,7 +386,8 @@ export function createEngine({ hub, getRaw, dataDir }) {
       else if (raw == null && d.idle === 'hold' && r.values.length && !testing) values = r.values;
       else values = evalDevice(d, raw);
       r.values = values;
-      const line = values.join(d.separator) + d.terminator.replace('\\n', '\n').replace('\\r', '\r');
+      const sendVals = d.board && d.power.enabled ? [...values, evalPower(d, raw, now)] : values;
+      const line = sendVals.join(d.separator) + d.terminator.replace('\\n', '\n').replace('\\r', '\r');
       r.line = line;
       if (r.state !== 'open') continue;
       if (now - r.lastSent < 1000 / d.hz) continue;
@@ -375,9 +419,10 @@ export function createEngine({ hub, getRaw, dataDir }) {
         devices: config.serial.map(d => {
           const r = rt(d.id);
           const board = r.board && d.board
-            ? { version: r.board.version, saved: r.board.saved, readAt: r.board.readAt, differs: motorDiff(d.motors, r.board.motors.slice(0, d.motors.length)) }
+            ? { version: r.board.version, saved: r.board.saved, readAt: r.board.readAt, power: !!r.board.power, differs: motorDiff(d.motors, r.board.motors.slice(0, d.motors.length)) }
             : null;
-          return { id: d.id, state: r.state, msg: r.msg, line: r.line, values: r.values, errors: r.errors, sent: r.sent, rx: r.rx ?? '', board };
+          return { id: d.id, state: r.state, msg: r.msg, line: r.line, values: r.values, errors: r.errors, sent: r.sent, rx: r.rx ?? '', board,
+            power: d.board && d.power.enabled ? { on: !!r.powerOn, want: !!r.powerWant, error: r.powerError ?? null, holdLeft: Math.max(0, Math.round(((r.powerHoldUntil ?? 0) - Date.now()) / 1000)) } : null };
         }),
       };
     },
@@ -424,6 +469,13 @@ export function createEngine({ hub, getRaw, dataDir }) {
       if (!d || !d.channels[ch]) return false;
       const now = Date.now();
       rt(id).test = { ch, from: now, until: now + Math.min(10000, Math.max(500, ms)) };
+      return true;
+    },
+    /** Switches a board's power output on for a few seconds (wiring check), whatever the formula says. */
+    testPower(id, ms = 5000) {
+      const d = config.serial.find(x => x.id === id);
+      if (!d || !d.board || !d.power.enabled) return false;
+      rt(id).powerTest = Date.now() + Math.min(30000, Math.max(1000, ms));
       return true;
     },
     /** Next/previous page of a Nextion display (the editor's test buttons). */
