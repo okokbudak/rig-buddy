@@ -22,6 +22,16 @@ struct MotorSettings {
   uint8_t  reserved[3];
 };
 
+// The LED chain on PB0: split into segments (start pixel, length, colour); pixels in no segment stay dark.
+struct LedSeg { uint8_t start, len, r, g, b, on; };
+struct LedSettings {
+  uint8_t count;           // pixels (ICs) in the chain, 1..LED_MAX_PIXELS
+  uint8_t order;           // colour order on the wire (see config.h)
+  uint8_t bri;             // overall brightness 0..255
+  uint8_t nseg;            // segments in use
+  LedSeg  seg[LED_MAX_SEGS];   // later segments paint over earlier ones
+};
+
 struct Settings {
   uint32_t magic;
   uint16_t version;
@@ -30,11 +40,25 @@ struct Settings {
   uint8_t  nxEnabled;      // 1: the Nextion tunnel on the TFT connector is on
   uint8_t  reserved[3];
   uint32_t nxBaud;
+  LedSettings led;         // since settings version 2
   uint32_t crc;            // CRC-32 of everything above
 };
 
+// Version 1 had no LED block. Firmware 1.2 still reads it (the LED settings then start from the defaults).
+struct SettingsV1 {
+  uint32_t magic;
+  uint16_t version;
+  uint16_t size;
+  MotorSettings m[N_MOTORS];
+  uint8_t  nxEnabled;
+  uint8_t  reserved[3];
+  uint32_t nxBaud;
+  uint32_t crc;
+};
+static_assert(offsetof(SettingsV1, crc) == offsetof(Settings, led), "version 2 only appends the LED block");
+
 constexpr uint32_t SETTINGS_MAGIC = 0x4F435447;  // "OCTG"
-constexpr uint16_t SETTINGS_VERSION = 1;
+constexpr uint16_t SETTINGS_VERSION = 2;
 constexpr uint32_t SETTINGS_ADDR = 0x08060000;   // flash sector 7 of the STM32F446ZE
 constexpr uint32_t SETTINGS_SECTOR = FLASH_SECTOR_7;
 
@@ -51,6 +75,19 @@ static uint32_t crc32(const uint8_t* d, uint32_t n) {
   return ~c;
 }
 static uint32_t settingsCrc(const Settings& s) { return crc32((const uint8_t*)&s, offsetof(Settings, crc)); }
+
+static void ledDefaults(LedSettings& l) {
+  memset(&l, 0, sizeof(l));
+  l.count = LED_DEFAULT_COUNT;
+  l.order = LED_DEFAULT_ORDER;
+  l.bri = 255;
+  l.nseg = LED_DEFAULT_SEGMENTS;
+  uint8_t at = 0;
+  for (uint8_t i = 0; i < LED_DEFAULT_SEGMENTS; i++) {
+    l.seg[i] = { at, LED_DEFAULT_SEG_PIXELS[i], LED_DEFAULT_RGB[0], LED_DEFAULT_RGB[1], LED_DEFAULT_RGB[2], 1 };
+    at += LED_DEFAULT_SEG_PIXELS[i];
+  }
+}
 
 static void settingsDefaults(Settings& s) {
   memset(&s, 0, sizeof(s));
@@ -74,6 +111,7 @@ static void settingsDefaults(Settings& s) {
   }
   s.nxEnabled = 1;
   s.nxBaud = NEXTION_BAUD;
+  ledDefaults(s.led);
   s.crc = settingsCrc(s);
 }
 
@@ -84,9 +122,21 @@ static bool settingsValid(const Settings& s) {
 /** The saved copy in flash, or false when there is none (or it is damaged). */
 static bool settingsFromFlash(Settings& out) {
   const Settings* f = (const Settings*)SETTINGS_ADDR;
-  if (!settingsValid(*f)) return false;
-  memcpy(&out, f, sizeof(Settings));
-  return true;
+  if (settingsValid(*f)) {
+    memcpy(&out, f, sizeof(Settings));
+    return true;
+  }
+  const SettingsV1* o = (const SettingsV1*)SETTINGS_ADDR;   // saved by firmware 1.0 / 1.1: take it over
+  if (o->magic == SETTINGS_MAGIC && o->version == 1 && o->size == sizeof(SettingsV1) &&
+      o->crc == crc32((const uint8_t*)o, offsetof(SettingsV1, crc))) {
+    settingsDefaults(out);                                   // the LED block keeps the defaults
+    memcpy(&out, o, offsetof(SettingsV1, crc));
+    out.version = SETTINGS_VERSION;
+    out.size = sizeof(Settings);
+    out.crc = settingsCrc(out);
+    return true;
+  }
+  return false;
 }
 
 static bool settingsLoad() {

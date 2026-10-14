@@ -7,7 +7,7 @@ import path from 'node:path';
 import { compile, FormulaError } from './expr.mjs';
 import { createNextion, normalizeNextion, directFrames, tunnelLines, tunnelFrame } from './nextion.mjs';
 import { read } from './props.mjs';
-import { BOARD_TYPES, normalizeMotor, motorCommand, parseCfg, parseHello, motorDiff } from './board.mjs';
+import { BOARD_TYPES, normalizeLeds, ledCommand, normalizeMotor, motorCommand, parseCfg, parseHello, motorDiff } from './board.mjs';
 
 const TICK_MS = 40; // 25 Hz, what the gauge firmware parses at most
 const KEEPALIVE_MS = 500; // an unchanged line is repeated at least this often (gauges park without data)
@@ -72,8 +72,9 @@ export function normalize(cfg) {
       motors: board ? (Array.isArray(d.motors) ? d.motors.slice(0, 16) : []).map(normalizeMotor) : [],
       channels: (Array.isArray(d.channels) ? d.channels.slice(0, 32) : []).map(normalizeChannel),
       power: normalizePower(d.power ?? {}),
+      leds: normalizeLeds(d.leds ?? {}),
     };
-    if (!board) dev.power.enabled = false; // only a board with the matching firmware has the output
+    if (!board) dev.power.enabled = dev.leds.enabled = false; // only a board with the matching firmware has these
     if (board) {
       // a board with motor sockets: channel n is MOTORn, its scale is the motor's own "full" value
       if (!dev.motors.length) dev.motors = Array.from({ length: 6 }, () => normalizeMotor());
@@ -214,9 +215,17 @@ export function createEngine({ hub, getRaw, dataDir }) {
     }
   }
 
+  /** Sends the wanted LED chain to a connected board (Studio drives it when the device's LEDs are enabled). */
+  function pushLeds(d) {
+    if (!d.board || !d.leds.enabled || rt(d.id).state !== 'open' || waiters.has(d.id)) return;
+    hub.write(d.id, `${ledCommand(d.leds)}\n`);
+  }
+
   function apply(next) {
     revCount++;
+    const before = new Map(config.serial.map(d => [d.id, JSON.stringify(d.leds)]));
     config = normalize(next);
+    for (const d of config.serial) if (before.get(d.id) !== JSON.stringify(d.leds)) pushLeds(d);
     compileAll();
     buildNextions();
     syncPorts();
@@ -256,6 +265,12 @@ export function createEngine({ hub, getRaw, dataDir }) {
     if (m.state !== 'open') {
       r.lastLine = null; // resend as soon as it is back
       r.board = null; // whatever was read may not be what is plugged in next
+    } else {
+      const d = config.serial.find(x => x.id === m.id);
+      if (d) { // the board may still be starting: say it twice
+        pushLeds(d);
+        setTimeout(() => { const cur = config.serial.find(x => x.id === m.id); if (cur) pushLeds(cur); }, 1500).unref();
+      }
     }
     followVia(m.id);
   });
@@ -450,6 +465,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
         for (const [i, m] of d.motors.entries()) steps.push(motorCommand(i, m));
         const nx = config.nextion.find(n => n.enabled && n.via === id);
         steps.push(`CFG NX en=${nx ? 1 : 0} baud=${nx?.baud ?? 115200}`);
+        if (d.leds.enabled) steps.push(ledCommand(d.leds)); // the board keeps the LEDs too, so they light without the PC
         for (const line of steps) {
           const reply = (await exchange(d.id, line, isReply)).at(-1);
           if (!reply.startsWith('OK')) throw new Error(`${reply} (${line.split(' ').slice(0, 2).join(' ')})`);
@@ -476,6 +492,13 @@ export function createEngine({ hub, getRaw, dataDir }) {
       const d = config.serial.find(x => x.id === id);
       if (!d || !d.board || !d.power.enabled) return false;
       rt(id).powerTest = Date.now() + Math.min(30000, Math.max(1000, ms));
+      return true;
+    },
+    /** The editor's colour pickers: shows `leds` on the board at once, without saving anything. */
+    ledLive(id, leds) {
+      const d = config.serial.find(x => x.id === id);
+      if (!d || !d.board || rt(id).state !== 'open' || waiters.has(id)) return false;
+      hub.write(id, `${ledCommand(normalizeLeds(leds))}\n`);
       return true;
     },
     /** Next/previous page of a Nextion display (the editor's test buttons). */

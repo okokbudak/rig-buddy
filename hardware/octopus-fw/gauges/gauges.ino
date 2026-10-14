@@ -231,15 +231,17 @@ static bool ledColorsChanged = true;
 static uint32_t ledAt = 0;
 
 static void ledShow() {
-  uint8_t buf[LED_COUNT * 3];
-  uint8_t n = 0;
-  for (uint8_t s = 0; s < LED_SEGMENTS; s++) {
-    for (uint8_t k = 0; k < LED_SEG_PIXELS[s]; k++) {
-      const Rgb& c = LED_COLOR[s];
-      static const uint8_t ORDER[6][3] = { {0,1,2}, {1,0,2}, {2,0,1}, {0,2,1}, {1,2,0}, {2,1,0} };   // indexes into r,g,b
-      const uint8_t rgb[3] = { c.r, c.g, c.b };
-      for (uint8_t q = 0; q < 3; q++) buf[n++] = rgb[ORDER[LED_ORDER][q]];
-    }
+  const LedSettings& L = S.led;
+  static const uint8_t ORDER[6][3] = { {0,1,2}, {1,0,2}, {2,0,1}, {0,2,1}, {1,2,0}, {2,1,0} };   // wire byte -> r,g,b index
+  uint8_t buf[LED_MAX_PIXELS * 3];
+  const uint8_t n = L.count * 3;
+  memset(buf, 0, n);                                           // pixels in no segment stay dark
+  for (uint8_t s = 0; s < L.nseg; s++) {
+    const LedSeg& g = L.seg[s];
+    if (!g.on) continue;
+    const uint8_t rgb[3] = { (uint8_t)((uint16_t)g.r * L.bri / 255), (uint8_t)((uint16_t)g.g * L.bri / 255), (uint8_t)((uint16_t)g.b * L.bri / 255) };
+    for (uint8_t p = g.start; p < g.start + g.len && p < L.count; p++)
+      for (uint8_t q = 0; q < 3; q++) buf[p * 3 + q] = rgb[ORDER[L.order][q]];
   }
   const uint32_t period = SystemCoreClock / 800000UL;          // 1.25 us
   const uint32_t hi0 = period * 28 / 100, hi1 = period * 72 / 100;   // 0.35 us / 0.9 us high
@@ -378,6 +380,9 @@ static void cfgDumpMotor(uint8_t i) {
 static void cfgDump() {
   for (uint8_t i = 0; i < N_MOTORS; i++) cfgDumpMotor(i);
   say("CFG NX en=%u baud=%lu", S.nxEnabled, (unsigned long)S.nxBaud);
+  say("CFG LED n=%u order=%u bri=%u segs=%u", S.led.count, S.led.order, S.led.bri, S.led.nseg);
+  for (uint8_t i = 0; i < S.led.nseg; i++)
+    say("CFG SEG %u start=%u len=%u r=%u g=%u b=%u on=%u", i, S.led.seg[i].start, S.led.seg[i].len, S.led.seg[i].r, S.led.seg[i].g, S.led.seg[i].b, S.led.seg[i].on);
   say("CFG END motors=%u saved=%u", N_MOTORS, settingsSaved() ? 1 : 0);
 }
 
@@ -425,6 +430,7 @@ static void cfgCommand(char* s) {
     else settingsDefaults(S);
     for (uint8_t i = 0; i < N_MOTORS; i++) applyMotor(i, old.m[i]);
     if (S.nxEnabled != old.nxEnabled || S.nxBaud != old.nxBaud) nextionStart();
+    ledColorsChanged = true;
     say("OK CFG %s", p);
     return;
   }
@@ -471,8 +477,52 @@ static void cfgCommand(char* s) {
   say("ERR CFG unknown: %s", p);
 }
 
+// ---- LED command ----
+//   LED?                                  the chain: "LED n=24 order=2 bri=255 segs=6" and one "LED SEG i start=.. len=.. r=.. g=.. b=.. on=.." per segment
+//   LED [n=<pixels>] [order=0..5] [bri=0..255] [clear] [seg=<start>,<len>,<r>,<g>,<b>,<on> ...]
+//        changes the chain at once (all checked first); the first seg= (or clear) drops the old segments.
+//        Not saved until CFG SAVE.
+static void ledDump() {
+  const LedSettings& L = S.led;
+  say("LED n=%u order=%u bri=%u segs=%u", L.count, L.order, L.bri, L.nseg);
+  for (uint8_t i = 0; i < L.nseg; i++)
+    say("LED SEG %u start=%u len=%u r=%u g=%u b=%u on=%u", i, L.seg[i].start, L.seg[i].len, L.seg[i].r, L.seg[i].g, L.seg[i].b, L.seg[i].on);
+}
+
+static void ledCommand(char* s) {
+  char* p = s + 3;
+  while (*p == ' ') p++;
+  if (*p == '?' || !*p) { ledDump(); return; }
+  LedSettings t = S.led;
+  bool segsReset = false;
+  for (char* tok = strtok(p, " "); tok; tok = strtok(NULL, " ")) {
+    long a[6];
+    if (!strcmp(tok, "clear")) { t.nseg = 0; segsReset = true; continue; }
+    if (!strncmp(tok, "n=", 2)) { long v = atol(tok + 2); if (v < 1 || v > LED_MAX_PIXELS) { say("ERR LED bad value: %s", tok); return; } t.count = v; continue; }
+    if (!strncmp(tok, "order=", 6)) { long v = atol(tok + 6); if (v < 0 || v > 5) { say("ERR LED bad value: %s", tok); return; } t.order = v; continue; }
+    if (!strncmp(tok, "bri=", 4)) { long v = atol(tok + 4); if (v < 0 || v > 255) { say("ERR LED bad value: %s", tok); return; } t.bri = v; continue; }
+    if (!strncmp(tok, "seg=", 4)) {
+      if (!segsReset) { t.nseg = 0; segsReset = true; }
+      int used = 0;
+      int k = sscanf(tok + 4, "%ld,%ld,%ld,%ld,%ld,%ld%n", &a[0], &a[1], &a[2], &a[3], &a[4], &a[5], &used);
+      bool ok = k == 6 && tok[4 + used] == 0 && t.nseg < LED_MAX_SEGS && a[1] >= 1 && a[0] >= 0 && a[2] >= 0 && a[2] <= 255 && a[3] >= 0 && a[3] <= 255 && a[4] >= 0 && a[4] <= 255 && (a[5] == 0 || a[5] == 1);
+      if (!ok) { say("ERR LED bad segment: %s", tok); return; }
+      t.seg[t.nseg++] = { (uint8_t)a[0], (uint8_t)min(a[1], 255L), (uint8_t)a[2], (uint8_t)a[3], (uint8_t)a[4], (uint8_t)a[5] };
+      continue;
+    }
+    say("ERR LED unknown: %s", tok);
+    return;
+  }
+  for (uint8_t i = 0; i < t.nseg; i++)
+    if (t.seg[i].start >= t.count || (uint16_t)t.seg[i].start + t.seg[i].len > t.count) { say("ERR LED segment %u does not fit in %u pixels", i, t.count); return; }
+  S.led = t;
+  ledColorsChanged = true;
+  say("OK LED");
+}
+
 static void command(char* s) {
   if (!strncmp(s, "CFG", 3)) { cfgCommand(s); return; }
+  if (!strncmp(s, "LED", 3)) { ledCommand(s); return; }
   const char* p = s + 1;
   int a, b;
   switch (s[0]) {
@@ -493,22 +543,6 @@ static void command(char* s) {
       if (*p == '0' || *p == '1') { setPower(*p == '1'); powerAt = millis(); say("OK power %s", powerOn ? "on" : "off"); }
       else say("power %s", powerOn ? "on" : "off");
       break;
-    case 'L': {                                        // L<seg|*>,<r>,<g>,<b>: try a colour (not saved); L: list
-      if (!*p) {
-        for (uint8_t i = 0; i < LED_SEGMENTS; i++) say("LED %u pixels=%u rgb=%u,%u,%u", i, LED_SEG_PIXELS[i], LED_COLOR[i].r, LED_COLOR[i].g, LED_COLOR[i].b);
-        break;
-      }
-      int first, last;
-      if (*p == '*') { first = 0; last = LED_SEGMENTS - 1; p++; }
-      else if (*p >= '0' && *p <= '9' && atoi(p) < LED_SEGMENTS) { first = last = atoi(p); while (*p >= '0' && *p <= '9') p++; }
-      else { say("ERR usage L<segment|*>,<r>,<g>,<b>"); break; }
-      int r, g, bl;
-      if (*p++ != ',' || sscanf(p, "%d,%d,%d", &r, &g, &bl) != 3 || r < 0 || r > 255 || g < 0 || g > 255 || bl < 0 || bl > 255) { say("ERR usage L<segment|*>,<r>,<g>,<b>"); break; }
-      for (int i = first; i <= last; i++) LED_COLOR[i] = { (uint8_t)r, (uint8_t)g, (uint8_t)bl };
-      ledColorsChanged = true;
-      say("OK LED colour set (until the next reset; edit LED_COLOR in config.h to keep it)");
-      break;
-    }
     case 'E': {
       setDrivers(*p == '1');
       char list[3 * N_MOTORS + 1] = ""; uint8_t n = 0;
@@ -581,8 +615,8 @@ static void command(char* s) {
       say("OK entering DFU"); Serial.flush(); delay(100);
       jumpToDfu();
       break;
-    case '?': say("OCTOPUS-GAUGES %s motors=%u cfg=1 power=1 leds=%u", FW_VERSION, N_MOTORS, LED_COUNT); break;
-    default: say("ERR unknown command. I E Z P D C S G H T U W L CFG BOOTLOADER ?"); break;
+    case '?': say("OCTOPUS-GAUGES %s motors=%u cfg=1 power=1 leds=%u", FW_VERSION, N_MOTORS, S.led.count); break;
+    default: say("ERR unknown command. I E Z P D C S G H T U W LED CFG BOOTLOADER ?"); break;
   }
 }
 

@@ -44,6 +44,44 @@ export function motorCommand(i, m) {
     ` sweep=${Math.round(m.sweep * 10)} full=${m.full} vmax=${m.vmax} acc=${m.acc} sg=${m.sg}`;
 }
 
+// --- the LED chain on PB0 (firmware 1.2+): split into segments, live like WLED ---------------------------
+//   -> "LED n=24 order=2 bri=255 seg=0,6,255,147,41,1 seg=6,6,..."   <- "OK LED" | "ERR LED ..."
+export const LED_ORDERS = ['RGB', 'GRB', 'BRG', 'RBG', 'GBR', 'BGR'];
+export const LED_MAX_PIXELS = 64;
+export const LED_MAX_SEGS = 16;
+const LED_DEFAULT_SEGS = [6, 6, 3, 3, 3, 3]; // the user's six strips (ICs): 18+18+9+9+9+9 LEDs
+const LED_WARM = '#ff9329';
+
+function defaultSegments() {
+  let at = 0;
+  return LED_DEFAULT_SEGS.map(len => ({ name: '', start: (at += len) - len, len, color: LED_WARM, on: true }));
+}
+
+export function normalizeLeds(l = {}) {
+  const count = int(l.count, 1, LED_MAX_PIXELS, 24);
+  const segs = [];
+  for (const s of (Array.isArray(l.segments) ? l.segments : defaultSegments()).slice(0, LED_MAX_SEGS)) {
+    const start = int(s?.start, 0, count - 1, 0);
+    segs.push({
+      name: String(s?.name ?? '').slice(0, 24),
+      start,
+      len: int(s?.len, 1, count - start, 1),
+      color: /^#[0-9a-f]{6}$/i.test(String(s?.color)) ? String(s.color).toLowerCase() : LED_WARM,
+      on: s?.on !== false,
+    });
+  }
+  return { enabled: !!l.enabled, count, order: int(l.order, 0, 5, 2), bri: int(l.bri, 0, 255, 255), segments: segs };
+}
+
+/** The firmware command that makes the chain look like `l` (a normalized LED config). */
+export function ledCommand(l) {
+  const segs = l.segments.map(s => {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(s.color.slice(i, i + 2), 16));
+    return `seg=${s.start},${s.len},${r},${g},${b},${+s.on}`;
+  });
+  return `LED n=${l.count} order=${l.order} bri=${l.bri} ${segs.length ? segs.join(' ') : 'clear'}`;
+}
+
 /** "OCTOPUS-GAUGES 0.8 motors=6 cfg=1" -> {type, version, motors, cfg}; null for anything else. */
 export function parseHello(text) {
   const m = /^OCTOPUS-GAUGES\s+(\S+)(.*)$/.exec(String(text).trim());
@@ -64,7 +102,9 @@ export function parseCfg(lines) {
         enabled: kv.en === 1, dir: kv.dir === 1, ms: kv.ms, ma: kv.ma, hold: kv.hold, home: kv.home === 1,
         spr: kv.spr, sweep: kv.sweep / 10, full: kv.full, vmax: kv.vmax, acc: kv.acc, sg: kv.sg,
       });
-    } else if (/^CFG NX\s/.test(line)) out.nx = { en: kv.en === 1, baud: kv.baud };
+    } else if (/^CFG LED\s/.test(line)) out.led = { count: kv.n, order: kv.order, bri: kv.bri, segs: [] };
+    else if ((m = /^CFG SEG (\d+)\s/.exec(line))) (out.led ??= { segs: [] }).segs[Number(m[1])] = { start: kv.start, len: kv.len, r: kv.r, g: kv.g, b: kv.b, on: kv.on === 1 };
+    else if (/^CFG NX\s/.test(line)) out.nx = { en: kv.en === 1, baud: kv.baud };
     else if (/^CFG END/.test(line)) { out.saved = kv.saved === 1; out.count = kv.motors ?? out.motors.length; }
   }
   return out;

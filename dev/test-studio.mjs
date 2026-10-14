@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createEngine, normalize } from '../pc/agent/studio/engine.mjs';
+import { normalizeLeds, ledCommand, parseCfg } from '../pc/agent/studio/board.mjs';
 import { compile, FormulaError } from '../pc/agent/studio/expr.mjs';
 import { catalog, read } from '../pc/agent/studio/props.mjs';
 
@@ -352,30 +353,80 @@ const NX = {
   c.serial = [{ id: 'oct', name: 'Octopus', enabled: true, port: 'COM9', board: 'octopus', power: { enabled: true, expr: 'truck.electric.enabled', offDelay: 1 } }];
   eng.apply(c);
   assert.equal(eng.config.serial[0].power.offDelay, 1);
-  await new Promise(r => setTimeout(r, 200));
-  assert.ok(w.length && w.at(-1).split(',').length === 7 && w.at(-1).split(',')[6].trim() === '1', `ignition on -> seventh field 1 (${w.at(-1)})`);
+  // timers on a busy machine drift: wait for the state instead of for a fixed time
+  const until = async (fn, what, ms = 3000) => {
+    const t0 = Date.now();
+    while (!fn()) {
+      if (Date.now() - t0 > ms) assert.fail(`${what} (last line: ${JSON.stringify(w.at(-1))})`);
+      await new Promise(r => setTimeout(r, 20));
+    }
+  };
+  const field7 = () => w.at(-1)?.trim().split(',')[6];
+  await until(() => field7() === '1', 'ignition on -> seventh field 1');
   assert.equal(eng.status().devices[0].power.on, true);
   raw = { truck: { electric: { enabled: false } } };
-  await new Promise(r => setTimeout(r, 300));
-  assert.equal(w.at(-1).trim().split(',')[6], '1', 'still on during the off delay');
-  assert.equal(eng.status().devices[0].power.want, false);
-  await new Promise(r => setTimeout(r, 1100));
-  assert.equal(w.at(-1).trim().split(',')[6], '0', 'off after the delay');
+  await until(() => eng.status().devices[0].power.want === false, 'the formula went false');
+  assert.equal(field7(), '1', 'still on right after the formula went false (off delay)');
+  await until(() => field7() === '0', 'off after the delay');
   assert.ok(eng.testPower('oct', 1000));
-  await new Promise(r => setTimeout(r, 200));
-  assert.equal(w.at(-1).trim().split(',')[6], '1', 'test switches it on');
+  await until(() => field7() === '1', 'test switches it on');
   // without the output the line keeps its six fields; a formula error never switches on
   const c2 = structuredClone(eng.config);
   c2.serial[0].power = { enabled: false, expr: 'truck.electric.enabled', offDelay: 60 };
   eng.apply(c2);
-  await new Promise(r => setTimeout(r, 200));
-  assert.equal(w.at(-1).trim().split(',').length, 6);
+  await until(() => w.at(-1).trim().split(',').length === 6, 'six fields without the output');
   const c3 = structuredClone(eng.config);
   c3.serial[0].power = { enabled: true, expr: '1 +', offDelay: 60 };
   eng.apply(c3);
-  await new Promise(r => setTimeout(r, 1200)); // the earlier test window has run out
-  assert.equal(w.at(-1).trim().split(',')[6], '0', 'a broken formula keeps the output off');
-  assert.ok(eng.status().devices[0].power.error);
+  await until(() => eng.status().devices[0].power?.error, 'the broken formula is reported');
+  await until(() => field7() === '0', 'a broken formula keeps the output off', 4000); // after the test window ran out
+}
+
+// the LED chain: normalising, the firmware command, the push on connect / edit, live colours
+{
+  const l = normalizeLeds({});
+  assert.equal(l.count, 24);
+  assert.equal(l.order, 2);
+  assert.deepEqual(l.segments.map(s => [s.start, s.len]), [[0, 6], [6, 6], [12, 3], [15, 3], [18, 3], [21, 3]]);
+  assert.equal(l.enabled, false);
+  const odd = normalizeLeds({ count: 10, order: 9, bri: -5, segments: [{ start: 8, len: 50, color: 'red', on: false }, { start: 99, len: 1 }] });
+  assert.equal(odd.order, 5, 'an order past the last one is clamped');
+  assert.equal(odd.bri, 0);
+  assert.deepEqual(odd.segments[0], { name: '', start: 8, len: 2, color: '#ff9329', on: false });
+  assert.equal(odd.segments[1].start, 9, 'a start past the end is pulled in');
+  assert.equal(ledCommand(normalizeLeds({ count: 6, segments: [{ start: 0, len: 6, color: '#0a0b0c' }] })), 'LED n=6 order=2 bri=255 seg=0,6,10,11,12,1');
+  assert.equal(ledCommand(normalizeLeds({ count: 6, segments: [] })), 'LED n=6 order=2 bri=255 clear');
+  assert.deepEqual(parseCfg(['CFG LED n=24 order=2 bri=255 segs=1', 'CFG SEG 0 start=0 len=24 r=1 g=2 b=3 on=1', 'CFG END motors=6 saved=1']).led,
+    { count: 24, order: 2, bri: 255, segs: [{ start: 0, len: 24, r: 1, g: 2, b: 3, on: true }] });
+
+  const w = [];
+  const ev = new EventEmitter();
+  const h = {
+    events: ev, connected: true,
+    open: id => { queueMicrotask(() => ev.emit('state', { id, state: 'open' })); return true; },
+    close: () => {}, write: (id, data) => { if (id === 'oct') w.push(String(data)); },
+    ports: async () => ({ ports: [] }), probe: async () => ({}),
+  };
+  const eng = createEngine({ hub: h, getRaw: () => null, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'studio-')) });
+  const c = structuredClone(eng.config);
+  c.serial = [{ id: 'oct', name: 'Octopus', enabled: true, port: 'COM9', board: 'octopus', idle: 'none', leds: { enabled: false } }];
+  eng.apply(c);
+  await new Promise(r => setTimeout(r, 100));
+  assert.ok(!w.some(x => x.startsWith('LED')), 'LEDs not enabled: the board keeps its own');
+  const c2 = structuredClone(eng.config);
+  c2.serial[0].leds.enabled = true;
+  eng.apply(c2);
+  assert.ok(w.at(-1).startsWith('LED n=24 order=2 bri=255 seg=0,6,255,147,41,1 seg=6,6'), `enabling pushes the chain (${w.at(-1)})`);
+  const n = w.length;
+  eng.apply(structuredClone(eng.config));
+  assert.equal(w.length, n, 'an unchanged chain is not sent again');
+  const c3 = structuredClone(eng.config);
+  c3.serial[0].leds.segments[0].color = '#000000';
+  eng.apply(c3);
+  assert.ok(w.at(-1).includes('seg=0,6,0,0,0,1'), 'an edit is pushed');
+  assert.equal(eng.ledLive('oct', { count: 3, segments: [{ start: 0, len: 3, color: '#ffffff' }] }), true);
+  assert.equal(w.at(-1), 'LED n=3 order=2 bri=255 seg=0,3,255,255,255,1\n');
+  assert.equal(eng.ledLive('nope', {}), false);
 }
 
 console.log('studio: all tests passed');

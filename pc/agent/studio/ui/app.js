@@ -31,6 +31,7 @@ const ICONS = {
   truck: '<rect x="2" y="6" width="12" height="10" rx="1"/><path d="M14 9h4l3 3.5V16h-7"/><circle cx="6.5" cy="17.5" r="2"/><circle cx="17" cy="17.5" r="2"/>',
   cpu: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  split: '<path d="M12 3v18M4 8l4 4-4 4M20 8l-4 4 4 4"/>',
   minus: '<path d="M5 12h14"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/>',
   play: '<path d="M7 4v16l13-8z"/>',
@@ -566,10 +567,98 @@ function boardPcbCard(d) {
     pcb,
     panel,
     powerPanel,
+    ledPanel(d),
     el('div', { class: 'actions boardactions' },
       el('button', { class: 'btn primary', 'data-role': 'upload', onclick: () => boardOp(d, 'upload') }, icon('play'), t('board.upload')),
       el('button', { class: 'btn', onclick: () => boardOp(d, 'read') }, icon('refresh'), t('board.read')),
       el('span', { class: 'small', 'data-role': 'boardmsg' })));
+}
+
+// --- LED chain (PB0): split into segments, colours change on the strips while you drag ---------------
+const LED_MAX_SEGS = 16;
+const LED_PRESET = [6, 6, 3, 3, 3, 3];
+const LED_ORDERS = ['RGB', 'GRB', 'BRG', 'RBG', 'GBR', 'BGR'];
+
+function ledPanel(d) {
+  const L = d.leds;
+  const strip = el('div', { class: 'ledstrip' });
+  const paintStrip = () => {
+    const colors = Array(L.count).fill(null);
+    for (const s of L.segments) if (s.on) for (let p = s.start; p < s.start + s.len && p < L.count; p++) colors[p] = s.color;
+    strip.replaceChildren(...colors.map((c, i) => {
+      const cell = el('span', { class: `ledcell ${c ? '' : 'dark'}`, title: String(i) });
+      if (c) cell.style.background = c;
+      if (L.segments.some(s => s.start === i)) cell.classList.add('first'); // a segment begins here
+      return cell;
+    }));
+  };
+  let timer = null;
+  const live = () => { // the strips follow at once (at most ~15 updates a second)
+    paintStrip();
+    if (timer) return;
+    timer = setTimeout(() => { timer = null; api('POST', '/api/led-live', { id: d.id, leds: L }).catch(() => {}); }, 65);
+  };
+  const keep = () => { touch(); live(); }; // saved with the config (and sent to the board when Studio drives the LEDs)
+  const rebuild = () => { touch(); renderBoard(); paint(); };
+  const clampSeg = s => {
+    s.start = Math.max(0, Math.min(L.count - 1, Math.round(s.start) || 0));
+    s.len = Math.max(1, Math.min(L.count - s.start, Math.round(s.len) || 1));
+  };
+  const nextFree = () => { // first pixel after the last segment
+    const end = L.segments.reduce((m, s) => Math.max(m, s.start + s.len), 0);
+    return end < L.count ? end : 0;
+  };
+
+  const rows = L.segments.map((s, i) => el('div', { class: 'ledrow' },
+    el('input', { type: 'color', value: s.color, title: t('led.color'),
+      oninput: e => { s.color = e.target.value; live(); }, onchange: e => { s.color = e.target.value; keep(); } }),
+    el('input', { type: 'text', class: 'ledname', value: s.name, placeholder: t('led.segment', { n: i + 1 }), maxlength: 24, onchange: e => { s.name = e.target.value; touch(); } }),
+    el('label', { class: 'ledn' }, t('led.start'), el('input', { type: 'number', class: 'n', min: 0, max: L.count - 1, value: s.start, onchange: e => { s.start = Number(e.target.value); clampSeg(s); rebuild(); live(); } })),
+    el('label', { class: 'ledn' }, t('led.len'), el('input', { type: 'number', class: 'n', min: 1, max: L.count, value: s.len, onchange: e => { s.len = Number(e.target.value); clampSeg(s); rebuild(); live(); } })),
+    el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: s.on, onchange: e => { s.on = e.target.checked; keep(); } }), el('span', {}, t('led.on'))),
+    el('button', { class: 'btn', title: t('led.split'), disabled: s.len < 2, onclick: () => {
+      const half = Math.floor(s.len / 2);
+      L.segments.splice(i + 1, 0, { name: '', start: s.start + s.len - half, len: half, color: s.color, on: s.on });
+      s.len -= half;
+      rebuild(); live();
+    } }, icon('split'), t('led.splitBtn')),
+    el('button', { class: 'btn', title: t('led.remove'), onclick: () => { L.segments.splice(i, 1); rebuild(); live(); } }, icon('trash'))));
+
+  const body = !L.enabled ? [] : [
+    el('div', { class: 'fields' },
+      field(t('led.count'), el('input', { type: 'number', class: 'n', min: 1, max: 64, value: L.count, onchange: e => {
+        L.count = Math.max(1, Math.min(64, Math.round(Number(e.target.value)) || 1));
+        L.segments = L.segments.filter(s => s.start < L.count);
+        L.segments.forEach(clampSeg);
+        rebuild(); live();
+      } }), t('led.countHint')),
+      field(t('led.order'), select(LED_ORDERS.map((o, i) => [String(i), o]), String(L.order), v => { L.order = Number(v); keep(); }), t('led.orderHint')),
+      field(t('led.bri'), el('input', { type: 'range', min: 0, max: 255, value: L.bri,
+        oninput: e => { L.bri = Number(e.target.value); live(); }, onchange: e => { L.bri = Number(e.target.value); keep(); } }))),
+    el('div', { class: 'ledwrap' }, strip),
+    el('div', { class: 'ledrows' }, rows),
+    el('div', { class: 'actions' },
+      el('button', { class: 'btn', disabled: L.segments.length >= LED_MAX_SEGS, onclick: () => {
+        const at = nextFree();
+        L.segments.push({ name: '', start: at, len: Math.max(1, Math.min(3, L.count - at)), color: '#ff9329', on: true });
+        rebuild(); live();
+      } }, icon('plus'), t('led.add')),
+      el('button', { class: 'btn', onclick: () => {
+        let at = 0;
+        L.count = LED_PRESET.reduce((a, b) => a + b, 0);
+        L.segments = LED_PRESET.map(len => ({ name: '', start: (at += len) - len, len, color: '#ff9329', on: true }));
+        rebuild(); live();
+      } }, icon('refresh'), t('led.preset')),
+      el('button', { class: 'btn', onclick: () => { L.segments.forEach(s => { s.on = false; }); rebuild(); live(); } }, t('led.allOff')),
+      el('span', { class: 'muted small' }, t('led.saveHint'))),
+  ];
+  const panel = el('div', { class: 'sockpanel' },
+    el('div', { class: 'ehead' }, el('h3', {}, t('led.title'))),
+    el('p', { class: 'muted small' }, t('led.lead')),
+    el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: L.enabled, onchange: e => { L.enabled = e.target.checked; rebuild(); if (L.enabled) live(); } }), el('span', {}, t('led.use'))),
+    ...body);
+  if (L.enabled) paintStrip();
+  return panel;
 }
 
 function paintBoard() {

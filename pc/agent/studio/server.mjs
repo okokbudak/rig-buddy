@@ -75,6 +75,10 @@ export function startStudio({ engine, hub, port = Number(process.env.RIGBUDDY_ST
             const b = JSON.parse(await readBody(req));
             return send(200, { ok: engine.testChannel(String(b.id), Number(b.channel), Number(b.ms) || 3000) });
           }
+          case 'POST /api/led-live': {
+            const b = JSON.parse(await readBody(req));
+            return send(200, { ok: engine.ledLive(String(b.id), b.leds ?? {}) });
+          }
           case 'POST /api/test-power': {
             const b = JSON.parse(await readBody(req));
             return send(200, { ok: engine.testPower(String(b.id), Number(b.ms) || 5000) });
