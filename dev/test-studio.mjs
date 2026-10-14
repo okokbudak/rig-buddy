@@ -119,7 +119,7 @@ const again = createEngine({ hub: fake, getRaw: () => null, dataDir: dir });
 assert.equal(again.config.serial[1].port, 'COM15');
 // --- Nextion ---------------------------------------------------------------------------------
 {
-  const { createNextion, normalizeNextion, parseTarget } = await import('../pc/agent/studio/nextion.mjs');
+  const { createNextion, normalizeNextion, parseTarget, directFrames } = await import('../pc/agent/studio/nextion.mjs');
   const { NEXTION_SEED } = await import('../pc/agent/studio/seed-nextion.mjs');
   assert.deepEqual(parseTarget('page1.tgear.txt'), { page: 'page1', obj: 'tgear', attr: 'txt' });
   assert.equal(parseTarget('tgear.txt'), null);
@@ -139,9 +139,10 @@ assert.equal(again.config.serial[1].port, 'COM15');
   assert.equal(cfg.bindings.length, NEXTION_SEED.bindings.length);
   assert.equal(cfg.bindings.length, 86 - 0 > 0 ? cfg.bindings.length : 0);
   const sent = [];
-  const nxHub = { write: (id, data) => sent.push(Buffer.from(data)) };
+  // createNextion hands each batch of commands to out(); on a display with its own COM port they leave as FF FF FF framed bytes
+  const nxOut = { out: cmdList => sent.push(directFrames(cmdList)) };
   const cmds = () => sent.splice(0).flatMap(b => b.toString('latin1').split('\xff\xff\xff').filter(Boolean));
-  const nx = createNextion(cfg, { hub: nxHub, hubId: 'nx:scania' });
+  const nx = createNextion(cfg, nxOut);
   nx.state('open');
   assert.deepEqual(cmds(), ['bkcmd=0', 'sendxy=1']);
   // game closed + power off: the display sleeps, once
@@ -189,7 +190,7 @@ assert.equal(again.config.serial[1].port, 'COM15');
   assert.deepEqual(cmds().filter(c => c.startsWith('page ')), []);
   // a pop-up page (ignition off) wins over the rotation while its condition is true
   const popCfg = normalize({ serial: [], nextion: [{ ...cfg, pages: [{ name: 'page2', rotation: false, showWhen: '!truck.electric.enabled' }, ...cfg.pages] }] }).nextion[0];
-  const nx2 = createNextion(popCfg, { hub: nxHub, hubId: 'nx:t' });
+  const nx2 = createNextion(popCfg, nxOut);
   nx2.state('open'); cmds();
   nx2.tick(live, 100);
   assert.ok(cmds().includes('page page2'));
@@ -197,7 +198,7 @@ assert.equal(again.config.serial[1].port, 'COM15');
   nx2.tick(live, 200);
   assert.ok(cmds().includes('page page1'));
   {
-    const nx3 = createNextion({ ...cfg, powerOffWhenIdle: false }, { hub: nxHub, hubId: 'nx:t3' });
+    const nx3 = createNextion({ ...cfg, powerOffWhenIdle: false }, nxOut);
     nx3.state('open'); cmds();
     nx3.tick(live, 1000); nx3.tick(live, 1400); cmds();
   // ...also minutes later: no periodic re-write (it makes the display flicker)
@@ -216,7 +217,7 @@ assert.equal(again.config.serial[1].port, 'COM15');
   const st = nx.status();
   assert.equal(st.bindings.filter(b => b.error).length, 0, JSON.stringify(st.bindings.filter(b => b.error)));
   for (const page of ['page1', 'page3', 'page4', 'page5']) {
-    const n = createNextion({ ...cfg, idlePage: page, powerOffWhenIdle: false }, { hub: nxHub, hubId: 'x' });
+    const n = createNextion({ ...cfg, idlePage: page, powerOffWhenIdle: false }, nxOut);
     n.state('open'); cmds();
     n.tick(null, 10); n.tick(null, 400);
     const idleCmds = cmds();
@@ -224,11 +225,50 @@ assert.equal(again.config.serial[1].port, 'COM15');
     assert.ok(n.status().bindings.every(b => !b.error), `${page}: no errors with no game`);
   }
   // page 5 text formats
-  const n5 = createNextion({ ...cfg, pages: [{ name: 'page5', rotation: true, showWhen: '' }], powerOffWhenIdle: false }, { hub: nxHub, hubId: 'x' });
+  const n5 = createNextion({ ...cfg, pages: [{ name: 'page5', rotation: true, showWhen: '' }], powerOffWhenIdle: false }, nxOut);
   n5.state('open'); cmds(); n5.tick(live, 10); n5.tick(live, 400);
   const c5 = cmds();
   assert.ok(c5.includes('teta.txt="1:31"') && c5.includes('tdue.txt="2:05"') && c5.includes('tfromc.txt="Hamburg"'), c5.join(' | '));
-  assert.ok(createNextion(normalizeNextion([{ bindings: [{ target: 'bad', expr: '1' }] }], new Set())[0], { hub: nxHub, hubId: 'y' }).status().bindings[0].error);
+  assert.ok(createNextion(normalizeNextion([{ bindings: [{ target: 'bad', expr: '1' }] }], new Set())[0], nxOut).status().bindings[0].error);
+
+  // transports: a display on its own COM port gets FF FF FF framed commands, one behind a pass-through board gets "@<command>" lines
+  const { tunnelLines, tunnelFrame, rgb565 } = await import('../pc/agent/studio/nextion.mjs');
+  assert.equal(directFrames(['a', 'b']).toString('latin1'), 'a\xff\xff\xffb\xff\xff\xff');
+  assert.equal(tunnelLines(['page page1', 'bkcmd=0']).toString('latin1'), '@page page1\n@bkcmd=0\n');
+  assert.deepEqual([...tunnelFrame('@88')], [0x88, 0xff, 0xff, 0xff]);
+  assert.deepEqual([...tunnelFrame('@670190014001')], [0x67, 0x01, 0x90, 0x01, 0x40, 0x01, 0xff, 0xff, 0xff]); // a touch at 400,320
+  assert.equal(tunnelFrame('hello'), null);
+  assert.equal(tunnelFrame('@6'), null);
+  assert.equal(rgb565('#0B1119'), 2179); // the Scania emblem's background
+  assert.equal(rgb565('#00FF00'), 2016);
+  assert.equal(rgb565('nonsense'), 65535);
+
+  // widgets: Studio draws lamps, bars and text over the page picture (no components in the Nextion project)
+  const wcfg = normalize({ serial: [], nextion: [{
+    id: 'w', enabled: true, port: 'COM13', width: 272, height: 480, encoding: 'latin5', powerOffWhenIdle: false,
+    pages: [{ name: 'pg1', rotation: true, showWhen: '', pic: 5, litPic: 6 }],
+    widgets: [
+      { page: 'pg1', k: 'lamp', id: 'low', x: 220, y: 300, w: 30, h: 40, expr: 'truck.lights.beamLow.enabled' },
+      { page: 'pg1', k: 'bar', id: 'fuel', x: 0, y: 100, w: 100, h: 10, expr: 'x.fuelPercent', color: '#00FF00' },
+      { page: 'pg1', k: 'text', id: 'name', x: 0, y: 0, w: 200, h: 30, font: 2, color: '#FFFFFF', align: 'c', expr: "'Işık İğ'" },
+    ],
+  }] }).nextion[0];
+  assert.equal(wcfg.widgets.length, 3);
+  assert.equal(wcfg.encoding, 'latin5');
+  live.truck.lights.beamLow.enabled = true; // fuel is 200 of 400 = 50 %
+  const wn = createNextion(wcfg, nxOut);
+  wn.state('open'); cmds();
+  wn.tick(live, 10); wn.tick(live, 400);
+  const wc = cmds();
+  assert.ok(wc.includes('xpic 220,300,30,40,220,300,6'), 'a lit lamp is cropped from the lit picture: ' + wc.join(' | '));
+  assert.ok(wc.includes('fill 0,100,50,10,2016') && wc.includes('xpic 50,100,50,10,50,100,5'), 'a half bar: green fill, background for the rest');
+  assert.ok(wc.includes('xstr 0,0,200,30,2,65535,5,1,1,0,"Iþýk Ýð"'), 'Turkish letters become ISO-8859-9 bytes');
+  wn.tick(live, 440);
+  assert.deepEqual(cmds(), [], 'unchanged widgets are not redrawn');
+  live.truck.lights.beamLow.enabled = false;
+  wn.tick(live, 480);
+  assert.deepEqual(cmds(), ['xpic 220,300,30,40,220,300,5'], 'only the lamp that changed is drawn again');
+  assert.deepEqual(wn.status().widgets.map(w => w.error), [null, null, null]);
 }
 
 // an edit of a Nextion display (its port stays open) re-initialises the display
@@ -251,7 +291,9 @@ assert.equal(again.config.serial[1].port, 'COM15');
   w.length = 0;
   const c2 = structuredClone(eng.config);
   c2.nextion[0].powerOffWhenIdle = false; // edit: the runtime is rebuilt, the port is not reopened
+  const rev0 = eng.rev;
   eng.apply(c2);
+  assert.notEqual(eng.rev, rev0, 'every saved change gets a new revision (the page refuses to save over a newer one)');
   await new Promise(r => setTimeout(r, 160));
   assert.equal(eng.status().nextion[0].state, 'open', 'still open after an edit');
   assert.ok(w.some(x => x[1].includes('bkcmd=0')), 're-initialised after an edit');
