@@ -1,0 +1,10 @@
+# generated, or kept on one machine only (see README.md)
+*.bin
+octopus-fw/out/
+octopus-fw/build/
+nextion-portrait/out/
+nextion-portrait/layout.json
+nextion-portrait/preview-values.json
+nextion-portrait/studio-display.json
+nextion-portrait/assets/*
+!nextion-portrait/assets/README.md

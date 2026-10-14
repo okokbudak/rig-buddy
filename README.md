@@ -196,6 +196,7 @@ translations is a big help too; see "Translations" below.
 | `setup/` | Development setup, Node bundling (`bundle.mjs`), release scripts and the Inno Setup installer script |
 | `art/` | App icon (`rigbuddy.svg`) and `MakeIcon.java`, which renders the Android/Windows icons |
 | `dev/` | Simulation, deployment and protocol test tools; `dev/demo/` runs Rig Buddy with demo data for screenshots |
+| `hardware/` | Dashboard hardware that Studio drives: firmware for an Octopus Pro gauge controller and a portrait Nextion display (see `hardware/README.md`) |
 
 Created during setup and not part of the repository: `vendor/` (Node, Gradle,
 tm-maps), `data/` (data built from the game), `bin/` (RigBuddy.exe), `logs/`
@@ -475,6 +476,7 @@ ayrıntılar için aşağıdaki "Çeviriler" bölümüne bakabilirsiniz.
 | `setup/` | Geliştirme ortamı kurulumu, Node paketleme (`bundle.mjs`) ve sürüm betikleri, Inno Setup kurulum dosyası |
 | `art/` | Uygulama ikonu (`rigbuddy.svg`) ve Android/Windows ikonlarını üreten `MakeIcon.java` |
 | `dev/` | Simülasyon, dağıtım ve protokol testi araçları; `dev/demo/` ekran görüntüleri için Rig Buddy'yi demo verilerle çalıştırır |
+| `hardware/` | Studio'nun sürdüğü gösterge donanımı: Octopus Pro gösterge kartının firmware'i ve dikey Nextion ekran (`hardware/README.md`'ye bakın) |
 
 Kurulum sırasında oluşturulan ve depoya eklenmeyen klasörler: `vendor/`
 (Node, Gradle, tm-maps), `data/` (oyundan üretilen veri), `bin/`

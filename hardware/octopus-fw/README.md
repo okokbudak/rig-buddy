@@ -1,0 +1,76 @@
+# Octopus Pro gösterge firmware'i (V1.0.1, STM32F446ZET6)
+
+6 gösterge motorunu (MOTOR0…MOTOR5) ve TFT konnektöründeki Nextion ekranını sürer. Verileri USB'den **Rig Buddy Studio** gönderir (SimHub Custom Serial de olur). Motor ayarları (yön, akım, skala, hız…) **kartın kendi flash'ında** durur ve Studio'nun **Kart** sayfasından yüklenir. Bunlar için firmware'i yeniden derlemek gerekmez.
+
+## Klasörler
+| Yol | Ne |
+|---|---|
+| `gauges\` | Asıl firmware (`gauges.ino`; `settings.h` = karta yüklenen ayarlar; `config.h` = pinler ve ilk açılış varsayılanları) |
+| `hello\` | Sadece USB testi, motorlara dokunmaz |
+| `build.sh` | Derler, bağlanma adresini denetler, `out\firmware.bin` üretir (karta yazmaz) |
+| `flash.ps1` | `out\firmware.bin`'i USB'den karta yazar (Windows) |
+| `out\` | Derleme ürünleri (git dışı): `firmware.bin`, ve istersen karttaki ikilinin kopyası `firmware-on-board.bin` |
+
+BTT önyükleyicisinin yedeği (ilk 64 KB flash) depoda **yok** (ikili dosyalar git dışı); `Simdash\octopus-fw\backup\flash_first64k.bin` içinde duruyor, silme.
+
+## Kartı hazırlama (bir kere)
+1. **24 V** kaynağı Octopus'un **POWER** terminaline bağla (12 V mantık için yetmez). MOTOR jumper'larını **VIN** tarafına koy (güç kapalıyken).
+2. Altı **TMC2209**'u **UART modunda** tak: sürücü soketlerinin altındaki UART jumper'ı. Sürücüler **DRIVER0–5** soketlerinde. Dikkat: kartta 9 motor konnektörü var (M2_1 ve M2_2 aynı DRIVER2'den beslenir), sürücü soketlerini konnektör etiketlerine bakarak sayma.
+3. Motor konnektörleri: M0, M1, **M2_1**, M3, M4, M5.
+4. Nextion: **TFT** konnektörü → 5V kırmızı, GND siyah, **TX → sarı (Nextion RX)**, **RX → mavi (Nextion TX)**.
+
+## Firmware yükleme
+**USB ile (normal yol):** kart USB'ye bağlı, firmware çalışıyor ve COM portunu başka program (Studio, SimHub) tutmuyorken:
+```
+powershell -ExecutionPolicy Bypass -File flash.ps1
+```
+Betik karta `BOOTLOADER` yollar, kart ST DFU'ya geçer, `out\firmware.bin` **0x08008000**'e yazılır, geri okunup doğrulanır, kart kendiliğinden açılır. BTT önyükleyicisine (0x08000000) ve ayar sektörüne (0x08060000) dokunulmaz: **ayarlar firmware güncellemesinde kaybolmaz.** dfu-util 0.11 ya da daha yenisi lazım: yolu `-DfuUtil C:\yol\dfu-util.exe` ile ya da `DFU_UTIL` ortam değişkeniyle ver (yoksa PATH'teki kullanılır). **Karta yazmadan önce sor**; `build.sh`'ın doğrulamadığı bir dosyayı yazma.
+
+**Jumper'lı yol (firmware cevap vermiyorsa, ya da kartta 0.7 varsa):** BOOT0 jumper'ını tak, RESET'e bas, `flash.ps1`'i çalıştır, jumper'ı çıkar, RESET'e bas.
+> 0.7 ve 0.8'in `BOOTLOADER` komutu çalışmıyor: DFU işareti RTC yedek register'ına yazılıyor ama hemen ardından gelen reset yazmayı kaybettirebiliyordu. 1.0 işareti geri okuyup doğrulayınca reset atıyor (arka arkaya 5/5 denendi). Bu sürümlerden 1.0'a bir kez jumper'la geçilir.
+
+**SD kart ile (yedek yol):** FAT32 SD'nin köküne `firmware.bin`, kartı tak, reset; dosya **FIRMWARE.CUR** olursa yüklendi.
+
+## Veri satırı
+`v0,v1,v2,...\n`: düz tam sayılar, **n. alan MOTORn'i** sürer. Bir motorun `full` değeri ibreyi skalanın son çizgisine götürür, 0 ilk çizgiye. Az alanlı satır sadece o motorları oynatır. Tam sayı olmayan bir alan bütün satırı geçersiz kılar. Kapalı motorun alanı yok sayılır.
+
+`@<komut>\n` satırları Nextion'a gider (kart sonuna FF FF FF ekler). Ekrandan gelen her çerçeve `@<hex>\n` olarak geri döner.
+
+## Ayarlar (`CFG`): Studio'nun Kart sayfası bunları kullanır
+| Komut | Ne yapar |
+|---|---|
+| `CFG?` | Tüm ayarlar: `CFG M0 en=1 dir=1 ms=16 ma=500 hold=30 home=0 spr=200 sweep=2400 full=3000 vmax=500 acc=5000 sg=40` ×6, `CFG NX en=1 baud=115200`, `CFG END motors=6 saved=1` |
+| `CFG M<n\|*> anahtar=değer …` | Motor ayarı, hemen uygulanır. Önce hepsi denetlenir, biri hatalıysa hiçbiri değişmez (`ERR CFG bad setting: …`) |
+| `CFG NX en=0\|1 baud=…` | Ekran tüneli |
+| `CFG SAVE` | Flash'a kaydet (~1 sn), güç kesilse de kalır |
+| `CFG LOAD` / `CFG DEFAULTS` | Kayıtlıya / ilk açılış varsayılanlarına dön (kaydetmez) |
+
+Anahtarlar: `en` motor açık, `dir` yön ters, `ms` mikroadım (1…256), `ma` akım mA (30–1500), `hold` beklerken akım %, `home` açılışta StallGuard sıfırlama, `spr` tur başına adım (200/400), `sweep` ibre açısı ×0,1° (2400 = 240°), `full` son çizgideki değer, `vmax` °/sn, `acc` °/sn², `sg` StallGuard eşiği.
+
+## Diğer komutlar (teşhis)
+| Komut | Ne yapar |
+|---|---|
+| `?` | `OCTOPUS-GAUGES 0.8 motors=6 cfg=1` |
+| `I` | Her motorun durumu: TMC2209 cevabı, konum, akım, yön, skala; ayarlar kayıtlı mı; ekran sayaçları |
+| `E1` / `E0` | Sürücüleri aç / kapat |
+| `Z` | Şu anki iğne konumlarını 0 kabul et |
+| `P<n>,<derece>` | Motor n'yi (ya da `*`) o açıya götür |
+| `D<n>,<0\|1>` / `C<n>,<mA>` | Yön / akım (`CFG M<n> dir=` / `ma=` ile aynı; `CFG SAVE` kalıcı yapar) |
+| `S<n>,<eşik>` / `G<n>` / `H<n>[,<eşik>]` | StallGuard eşiği / sonucu / sıfırlama denemesi |
+| `T` | Hepsi 0 → tam skala → 0 |
+| `U<n>` | TMC2209 UART ham okuma |
+| `BOOTLOADER` | Motorları kapatır, karta DFU modunda reset atar (`flash.ps1` kullanır) |
+
+## Derleme
+Ubuntu'da (arduino-cli 1.5.1 ve `STMicroelectronics:stm32` çekirdeği **3.0.0** kurulu olmalı):
+```
+bash hardware/octopus-fw/build.sh gauges
+```
+Script `arduino-cli compile`'ı şu üç ayarla çalıştırır (elle derlersen üçünü de ekle):
+- `build.flash_offset=0x8000`: uygulama 0x08008000'dan başlar, BTT önyükleyicisi (32 KiB) 0x08000000'da. **Bu olmadan ikili 0x08000000'a göre bağlanır ve karta yazılınca açılmaz.**
+- `upload.maximum_size=360448` (0x58000): firmware 0x08060000'ın altında kalmalı, orası ayar sektörü (sektör 7).
+- `build.extra_flags=-DHSE_VALUE=12000000UL`: karttaki 12 MHz kristal.
+
+Kart tanımı (FQBN): `STMicroelectronics:stm32:GenF4:pnum=GENERIC_F446ZETX,usb=CDCgen,xusb=FS`. `gauges\build_opt.h` seri tamponlarını büyütür (Nextion için).
+
+Script ELF'teki `.isr_vector` adresinin tam `0x08008000` olduğunu denetler (değilse hata verip çıkar), ikiliyi `out\firmware.bin` olarak koyar ve `out\firmware-on-board.bin` varsa onunla kaç baytın farklı olduğunu yazar (Windows'ta derlenmiş karttaki ikiliyle 9 bayt fark normal: derleyicinin yol metni `win32-x64` / `linux-x64`). Sonra, sorarak, `flash.ps1`.
