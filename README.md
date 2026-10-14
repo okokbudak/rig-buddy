@@ -51,6 +51,9 @@ truck.
   offer and the route is planned for you.
 - **Profile:** Your money, level, company, garages, trucks and drivers.
 - **Radio:** The station and song of the in-game radio.
+- **Rig Buddy Studio:** Drive your own dashboard hardware, such as analog
+  gauges and Nextion touch displays, from the game's data, and set it all up
+  on a web page on your PC (see "4. Optional: your own dashboard hardware").
 - **Any Android device:** Phone, tablet or car head unit (Android 5.0 or
   later). Light and dark theme, following your device's theme automatically.
 
@@ -112,6 +115,27 @@ game you start, its map and data are shown.
 Start the game and the screens on your device fill with live data. To pick a
 destination, long-press a point on the map or use search. Choose an offer on
 the Jobs screen and its route is planned for you.
+
+### 4. Optional: your own dashboard hardware
+
+**Rig Buddy Studio** turns the game's data into numbers for gauges and
+displays you build yourself. Open it with **Open Studio** in the Rig Buddy
+window (or the tray icon's menu); it is a web page that only your own PC can
+open (`http://127.0.0.1:62850`).
+
+- **Cockpit:** each gauge is a formula on the game's data, for example
+  `truck.speed.kph * 10` or `x.fuelPercent`, with its range and a live needle.
+  The numbers go out as plain lines (`v0,v1,v2`) over a USB serial port, up to
+  25 times a second. Any board that reads such lines works.
+- **Board:** for a gauge board with the matching firmware, see and set each
+  motor socket and save the settings to the board.
+- **Display:** a Nextion touch display: pages, touch areas and what each field
+  shows, drawn from formulas. Only what changed is sent.
+- **Connections** lists the serial ports; **Game data** lists everything the
+  game reports, live, to build formulas from.
+
+Close any other program that uses the same COM port (SimHub, for example): a
+port can only be used by one program at a time.
 
 ## Good to know
 
@@ -295,6 +319,10 @@ araç ekranı gerçek bir kamyonun multimedya sistemi gibi davranır.
 - **Profil:** Paranız, seviyeniz, şirketiniz, garajlarınız, kamyonlarınız ve
   şoförleriniz.
 - **Radyo:** Oyun içi radyonun istasyon ve şarkı bilgisi.
+- **Rig Buddy Studio:** Kendi yaptığınız gösterge paneli donanımını, örneğin
+  analog göstergeleri ve Nextion dokunmatik ekranları oyunun verileriyle
+  sürün ve hepsini PC'nizdeki bir web sayfasından ayarlayın ("4. İsteğe bağlı:
+  kendi gösterge paneliniz" bölümüne bakın).
 - **Her Android cihazda:** Telefon, tablet ya da araç multimedya ekranı
   (Android 5.0 ve üzeri). Açık ve koyu tema, cihazınızın temasına kendiliğinden uyar.
 
@@ -360,6 +388,27 @@ o oyunun haritası ve bilgileri gelir.
 Oyunu açın; cihazınızdaki ekranlar anlık verilerle dolacaktır. Hedef seçmek
 için haritada bir noktaya uzun basabilir ya da arama yapabilirsiniz. İşler
 ekranında bir ilanı seçtiğinizde rotası kendiliğinden çizilir.
+
+#### 4. İsteğe bağlı: kendi gösterge paneliniz
+
+**Rig Buddy Studio**, oyunun verilerini kendi yaptığınız gösterge ve ekranlar
+için sayılara çevirir. Rig Buddy penceresindeki **Studio'yu aç** düğmesiyle
+(ya da simge menüsünden) açılır; yalnızca kendi PC'nizin açabildiği bir web
+sayfasıdır (`http://127.0.0.1:62850`).
+
+- **Kokpit:** her gösterge oyun verisi üzerinde bir formüldür, örneğin
+  `truck.speed.kph * 10` ya da `x.fuelPercent`; aralığı ve canlı ibresi
+  görünür. Sayılar USB seri port üzerinden düz satırlar (`v0,v1,v2`) olarak,
+  saniyede en çok 25 kez gönderilir. Böyle satırları okuyan her kart çalışır.
+- **Kart:** uygun yazılımı olan bir gösterge kartında her motor soketini görüp
+  ayarlayabilir ve ayarları karta kaydedebilirsiniz.
+- **Ekran:** Nextion dokunmatik ekran: sayfalar, dokunma alanları ve her
+  alanda ne yazacağı formüllerle çizilir. Yalnızca değişenler gönderilir.
+- **Bağlantılar** seri portları listeler; **Oyun verileri** oyunun bildirdiği
+  her şeyi canlı gösterir, formülleri buradan kurarsınız.
+
+Aynı COM portunu kullanan başka bir programı (örneğin SimHub) kapatın: bir
+port aynı anda yalnızca tek program tarafından kullanılabilir.
 
 ### Kullanırken bilmeniz gerekenler
 
