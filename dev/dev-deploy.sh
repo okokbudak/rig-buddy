@@ -22,8 +22,8 @@ if [ "$3" != "--no-build" ]; then
   $ADB install -r "$(cygpath -m "$ROOT/android/app/build/outputs/apk/debug/app-debug.apk")" | tail -1
 fi
 $ADB logcat -c
-$ADB shell am force-stop tr.ets2nav
-$ADB shell am start -n tr.ets2nav/.MainActivity --es host "$PC_HOST" > /dev/null
+$ADB shell am force-stop tr.rigbuddy
+$ADB shell am start -n tr.rigbuddy/.MainActivity --es host "$PC_HOST" > /dev/null
 end=$((SECONDS + WAIT)); while [ $SECONDS -lt $end ]; do :; done 2>/dev/null
 $ADB exec-out screencap -p > "$SHOT"
-$ADB logcat -d -v time | grep -E "ETS2Nav|NavClient|TileServer|AndroidRuntime|FATAL|Mbgl" | grep -v chatty | tail -25
+$ADB logcat -d -v time | grep -E "RigBuddy|NavClient|TileServer|AndroidRuntime|FATAL|Mbgl" | grep -v chatty | tail -25

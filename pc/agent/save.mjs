@@ -12,7 +12,7 @@ const GAMES = {
 };
 const STEAM = process.env.STEAM_PATH || steamPathFromRegistry() || 'C:/Program Files (x86)/Steam';
 // <repo>/data/game, written by pipeline/build-map-data
-const DATA = path.join(process.env.ETS2NAV_DATA || path.resolve(import.meta.dirname, '../../data'), 'game');
+const DATA = path.join(process.env.RIGBUDDY_DATA || path.resolve(import.meta.dirname, '../../data'), 'game');
 
 function steamPathFromRegistry() {
   try {

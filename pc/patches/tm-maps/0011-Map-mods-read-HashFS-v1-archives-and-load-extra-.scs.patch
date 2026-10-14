@@ -1,7 +1,7 @@
-From bb845eb2589fd537a30ac4b917747db08b4fd4fe Mon Sep 17 00:00:00 2001
+From 0531d52ed3994a05da4858a8a188e1a550650630 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
 Date: Fri, 25 Sep 2026 00:46:22 +0300
-Subject: [PATCH] Map mods: read HashFS v1 archives and load extra .scs
+Subject: [PATCH 11/12] Map mods: read HashFS v1 archives and load extra .scs
  (--mod), tolerate what mods do differently
 
 Reads version-1 archives (how mods are packed), adds parser --mod (loaded after
@@ -174,7 +174,7 @@ index ece847d..81ae511 100644
    if (validate(json)) {
      return json;
 diff --git a/packages/clis/parser/game-files/def-parser.ts b/packages/clis/parser/game-files/def-parser.ts
-index 6f2e8ee..71736fc 100644
+index 48ddc70..e6793d3 100644
 --- a/packages/clis/parser/game-files/def-parser.ts
 +++ b/packages/clis/parser/game-files/def-parser.ts
 @@ -369,8 +369,13 @@ function processCityJson(obj: CitySii) {
@@ -512,5 +512,5 @@ index d673fef..8b279fe 100644
  }
  
 -- 
-2.55.0.windows.5
+2.43.0
 

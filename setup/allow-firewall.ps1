@@ -21,7 +21,7 @@ $rules | Where-Object { $_.Action -eq 'Block' } | ForEach-Object {
   Write-Host "removing block rule: $($_.DisplayName) ($($_.Profile))"
   Remove-NetFirewallRule -Name $_.Name
 }
-Get-NetFirewallRule -DisplayName 'Rig Buddy (Node.js)', 'ETS2 Nav (Node.js)', 'Rig Buddy (discovery)' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+Get-NetFirewallRule -DisplayName 'Rig Buddy (Node.js)', 'Rig Buddy (discovery)' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 # the app finds the PC by broadcasting on UDP 62846; RigBuddy.exe answers
 $exe = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\bin\RigBuddy.exe'))
 New-NetFirewallRule -DisplayName 'Rig Buddy (discovery)' -Direction Inbound -Action Allow -Profile Private `

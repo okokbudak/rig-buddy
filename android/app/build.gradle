@@ -17,11 +17,11 @@ def appVersionCode = appVersion.tokenize('.').collect { it.replaceAll('\\D.*', '
         .with { (it[0] * 10000) + (it[1] * 100) + it[2] }
 
 android {
-    namespace 'tr.ets2nav'
+    namespace 'tr.rigbuddy'
     compileSdk 34
 
     defaultConfig {
-        applicationId 'tr.ets2nav'
+        applicationId 'tr.rigbuddy'
         // Phones, tablets and head units: Android 5.0+ (old head units run 8.1).
         minSdk 21
         targetSdk 34

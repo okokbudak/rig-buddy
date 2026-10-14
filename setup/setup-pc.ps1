@@ -60,11 +60,11 @@ Step "truckermudgeon/maps @ $TmMapsRev + patches (vendor\tm-maps)"
 $tm = Join-Path $vendor 'tm-maps'
 if (Test-Path "$tm\.git") { Write-Host '  already there' } else {
   Exec { git clone -q $TmMapsRepo $tm } 'git clone'
-  Exec { git -C $tm checkout -q -b ets2nav-local $TmMapsRev } 'git checkout'
+  Exec { git -C $tm checkout -q -b rigbuddy-local $TmMapsRev } 'git checkout'
   # sources of the gdeflate addon (pc\native\build-addons.sh)
   Exec { git -C $tm submodule update --init -q packages/clis/parser/gdeflate/libdeflate } 'git submodule'
   $patches = (Get-ChildItem "$Root\pc\patches\tm-maps\*.patch" | Sort-Object Name).FullName
-  Exec { git -C $tm -c user.name=ets2nav -c user.email=ets2nav@localhost am -q $patches } 'git am'
+  Exec { git -C $tm -c user.name=rigbuddy -c user.email=rigbuddy@localhost am -q $patches } 'git am'
 }
 # (re)install when missing, or when the repo folder moved: npm's workspace
 # links are absolute junctions that then point nowhere.
@@ -89,10 +89,9 @@ if (-not (Test-Path "$Root\pc\agent\node_modules\ws")) {
 }
 
 Step 'PC app (bin\RigBuddy.exe)'
-$running = Get-Process RigBuddy, ETS2Nav -ErrorAction SilentlyContinue # ETS2Nav = name before the rename
+$running = Get-Process RigBuddy -ErrorAction SilentlyContinue
 if ($running) { & "$Root\bin\$($running[0].Name).exe" --quit | Out-Null; $running | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue }
 Exec { dotnet publish "$Root\pc\host\RigBuddy.csproj" -c Release -o "$Root\bin" --nologo -v q } 'dotnet publish'
-Remove-Item "$Root\bin\ETS2Nav.*", (Join-Path ([Environment]::GetFolderPath('Programs')) 'ETS2 Nav.lnk') -ErrorAction SilentlyContinue
 $lnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'Rig Buddy.lnk'
 $sc = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
 $sc.TargetPath = "$Root\bin\RigBuddy.exe"

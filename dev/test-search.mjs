@@ -6,7 +6,7 @@ const WebSocket = createRequire(new URL('../pc/agent/package.json', import.meta.
 const host = process.argv[2] ?? 'localhost';
 const { code } = await (await fetch(`http://${host}:62840/local/pairing-code`)).json();
 const ws = new WebSocket(`ws://${host}:62840/navigator?connectionParams=1`, {
-  headers: { Origin: 'http://ets2nav.local', 'User-Agent': 'ets2nav-test' },
+  headers: { Origin: 'http://rigbuddy.local', 'User-Agent': 'rigbuddy-test' },
 });
 let id = 0;
 const pending = new Map();

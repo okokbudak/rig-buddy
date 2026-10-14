@@ -225,8 +225,8 @@ keytool -genkeypair -v -keystore rigbuddy.jks -alias rigbuddy -keyalg RSA -keysi
 - Test without the game: `dev\dev-run-sim.ps1 berlin hamburg 90`, then `dev\dev-play-recording.ps1`
 - Demo mode for screenshots (made-up profile, a truck on the A24, a sample radio station): `dev\demo\run-demo.ps1`
 - Control the program from scripts: `RigBuddy.exe --status`, `--restart [server|agent|telemetry]`, `--quit`
-- Changing tm-maps: commit to the `ets2nav-local` branch in `vendor\tm-maps` and regenerate the patches with
-  `git -C vendor\tm-maps format-patch d56d0e3..ets2nav-local -o ..\..\pc\patches\tm-maps`.
+- Changing tm-maps: commit to the `rigbuddy-local` branch in `vendor\tm-maps` and regenerate the patches with
+  `git -C vendor\tm-maps format-patch d56d0e3..rigbuddy-local -o ..\..\pc\patches\tm-maps`.
 
 ### Translations
 
@@ -480,8 +480,8 @@ keytool -genkeypair -v -keystore rigbuddy.jks -alias rigbuddy -keyalg RSA -keysi
 - Oyun olmadan test etmek: `dev\dev-run-sim.ps1 berlin hamburg 90`, ardından `dev\dev-play-recording.ps1`
 - Ekran görüntüleri için demo modu (uydurma profil, A24'te bir kamyon, örnek bir radyo istasyonu): `dev\demo\run-demo.ps1`
 - Programı betikten yönetmek: `RigBuddy.exe --status`, `--restart [server|agent|telemetry]`, `--quit`
-- tm-maps üzerinde değişiklik yapmak: `vendor\tm-maps` içindeki `ets2nav-local` dalına
-  commit atıp yamaları `git -C vendor\tm-maps format-patch d56d0e3..ets2nav-local -o ..\..\pc\patches\tm-maps` ile yeniden üretin.
+- tm-maps üzerinde değişiklik yapmak: `vendor\tm-maps` içindeki `rigbuddy-local` dalına
+  commit atıp yamaları `git -C vendor\tm-maps format-patch d56d0e3..rigbuddy-local -o ..\..\pc\patches\tm-maps` ile yeniden üretin.
 
 #### Çeviriler
 

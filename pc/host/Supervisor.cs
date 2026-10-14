@@ -123,7 +123,7 @@ sealed class Supervisor
             {
                 ["NODE_ENV"] = "development",
                 ["RATE_LIMIT_ENABLED"] = "false",
-                ["ALLOWED_ORIGIN"] = "http://ets2nav.local",
+                ["ALLOWED_ORIGIN"] = "http://rigbuddy.local",
                 ["LOG_LEVEL"] = "info",
             },
             HealthUrl = "http://127.0.0.1:62840/health",
@@ -136,7 +136,7 @@ sealed class Supervisor
             Title = "svc.agent",
             WorkDir = Cwd("agent", Path.Combine(paths.Root, @"pc\agent")),
             Args = dist != null ? [Path.Combine(dist, @"agent\index.mjs")] : [Path.Combine(paths.Root, @"pc\agent\index.mjs")],
-            Env = new() { ["ETS2NAV_DATA"] = data },
+            Env = new() { ["RIGBUDDY_DATA"] = data },
             HealthUrl = "http://127.0.0.1:62843/health",
             BeforeStart = dist != null ? null
                 : () => CopyShim(shim, Path.Combine(paths.Root, @"pc\agent\node_modules\trucksim-telemetry\build\Release")),

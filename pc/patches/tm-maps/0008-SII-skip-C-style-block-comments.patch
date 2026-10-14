@@ -1,7 +1,7 @@
-From 35e5d60a9fe3a91d17379ddb440edd4ad3810d77 Mon Sep 17 00:00:00 2001
+From 84b22d80aeca0776ecf5cbabf77b9aef4e52734a Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
 Date: Fri, 18 Sep 2026 01:36:23 +0300
-Subject: [PATCH] SII: skip C-style block comments
+Subject: [PATCH 08/12] SII: skip C-style block comments
 
 ETS2 1.61 starts def/world/model.stable.sii with a /* ... */ comment, which
 the lexer had no token for: it skipped the characters one by one and the parse
@@ -37,3 +37,6 @@ index 7d5e6cf..5ba7e89 100644
  ];
  
  const SiiLexer = new Lexer(allTokens);
+-- 
+2.43.0
+

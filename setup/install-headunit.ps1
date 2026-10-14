@@ -15,7 +15,7 @@ param(
 )
 . "$PSScriptRoot\lib.ps1"
 $apk = Join-Path $Root 'android\app\build\outputs\apk\debug\app-debug.apk'
-$pkg = 'tr.ets2nav'
+$pkg = 'tr.rigbuddy'
 
 if (-not $NoBuild) {
   Step 'build APK'

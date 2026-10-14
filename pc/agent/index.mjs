@@ -188,7 +188,7 @@ const MAX_BODY = 16 * 1024; // the app sends nothing over the WebSocket; keep wh
 // Phones and tablets can't `adb push` the map: the app downloads data/<game>.mbtiles
 // from here on first connect and again whenever `version` (size + mtime) changes.
 
-const DATA_DIR = process.env.ETS2NAV_DATA || path.resolve(import.meta.dirname, '../../data');
+const DATA_DIR = process.env.RIGBUDDY_DATA || path.resolve(import.meta.dirname, '../../data');
 
 function tileFile(g) {
   const file = path.join(DATA_DIR, `${g}.mbtiles`);

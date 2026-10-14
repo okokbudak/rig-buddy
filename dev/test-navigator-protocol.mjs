@@ -11,7 +11,7 @@ const { code } = await (await fetch(`${base}/local/pairing-code`)).json();
 console.log('pairing code:', code);
 
 const ws = new WebSocket(`ws://${host}:62840/navigator?connectionParams=1`, {
-  headers: { Origin: 'http://ets2nav.local', 'User-Agent': 'ets2nav-test' },
+  headers: { Origin: 'http://rigbuddy.local', 'User-Agent': 'rigbuddy-test' },
 });
 let nextId = 1;
 const send = (method, path, input) => {

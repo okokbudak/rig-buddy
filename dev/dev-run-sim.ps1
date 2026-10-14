@@ -5,11 +5,11 @@ param([string]$From = 'berlin', [string]$To = 'hamburg', [int]$Kph = 90)
 $root = Split-Path $PSScriptRoot -Parent
 . "$PSScriptRoot\nav-control.ps1"
 $node = Join-Path $root 'vendor\node\node.exe'
-$env:Path = "$(Split-Path $node);$env:Path"; $env:NODE_ENV = 'development'; $env:ETS2NAV_DATA = Join-Path $root 'data'
+$env:Path = "$(Split-Path $node);$env:Path"; $env:NODE_ENV = 'development'; $env:RIGBUDDY_DATA = Join-Path $root 'data'
 Send-Nav 'stop telemetry' | Out-Null
 $logs = Join-Path $root 'logs'; New-Item -ItemType Directory -Force $logs | Out-Null
 Set-Location (Join-Path $root 'vendor\tm-maps\packages\clis\navigator')
-$p = Start-Process -FilePath $node -ArgumentList "..\..\..\node_modules\tsx\dist\cli.mjs ets2nav-sim.ts $From $To $Kph" `
+$p = Start-Process -FilePath $node -ArgumentList "..\..\..\node_modules\tsx\dist\cli.mjs rigbuddy-sim.ts $From $To $Kph" `
   -RedirectStandardOutput "$logs\sim.log" -RedirectStandardError "$logs\sim.err" -PassThru -WindowStyle Hidden
 $deadline = (Get-Date).AddSeconds(120)
 while (-not $p.HasExited -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 2 }

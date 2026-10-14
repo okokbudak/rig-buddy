@@ -1,0 +1,64 @@
+From 5317ffae10d9285d01e7b78254cbd803f6d2e0cd Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
+Date: Mon, 14 Sep 2026 00:27:44 +0300
+Subject: [PATCH 01/12] rigbuddy-local: expose last pairing code on LAN for
+ head-unit auto-pairing
+
+---
+ packages/apis/navigation/domain/pairing-code.ts | 12 +++++++++++-
+ packages/apis/navigation/infra/http/handler.ts  | 11 +++++++++++
+ 2 files changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/packages/apis/navigation/domain/pairing-code.ts b/packages/apis/navigation/domain/pairing-code.ts
+index 9b9fba2..6106054 100644
+--- a/packages/apis/navigation/domain/pairing-code.ts
++++ b/packages/apis/navigation/domain/pairing-code.ts
+@@ -1,7 +1,17 @@
++// rigbuddy-local: remember the most recently issued code so LAN clients (the
++// head-unit app) can pair without the user typing it in.
++let lastPairingCode: { code: string; issuedAt: number } | undefined;
++
++export function getLastPairingCode() {
++  return lastPairingCode;
++}
++
+ export function generatePairingCode() {
+   const chars = 'abcdefghijklmnopqrstuvwxyz'; // 26^4 (~457) possible codes
+-  return Array.from(
++  const code = Array.from(
+     { length: 4 },
+     () => chars[Math.floor(Math.random() * chars.length)],
+   ).join('');
++  lastPairingCode = { code, issuedAt: Date.now() };
++  return code;
+ }
+diff --git a/packages/apis/navigation/infra/http/handler.ts b/packages/apis/navigation/infra/http/handler.ts
+index 8842c38..3cb7f4d 100644
+--- a/packages/apis/navigation/infra/http/handler.ts
++++ b/packages/apis/navigation/infra/http/handler.ts
+@@ -1,4 +1,6 @@
+ import type { IncomingMessage, ServerResponse } from 'http';
++import { pairingCodeTtlMs } from '../../constants';
++import { getLastPairingCode } from '../../domain/pairing-code';
+ import { env } from '../../env';
+ import type { Services } from '../services';
+ 
+@@ -10,6 +12,15 @@ export function createHttpHandler({ services }: { services: Services }) {
+       return;
+     }
+ 
++    // rigbuddy-local: lets the head-unit app auto-pair on the LAN.
++    if (req.url === '/local/pairing-code') {
++      const last = getLastPairingCode();
++      const fresh = last && Date.now() - last.issuedAt < pairingCodeTtlMs;
++      res.writeHead(fresh ? 200 : 404, { 'Content-Type': 'application/json' });
++      res.end(JSON.stringify(fresh ? { code: last.code } : {}));
++      return;
++    }
++
+     if (req.url === '/metrics' && env.METRICS_ENABLED) {
+       const authHeader = req.headers.authorization;
+       if (authHeader === `Bearer ${env.METRICS_COLLECTOR_BEARER_TOKEN}`) {
+-- 
+2.43.0
+

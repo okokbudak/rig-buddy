@@ -12,7 +12,6 @@ sealed class TrayApp : ApplicationContext
 {
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     const string RunValue = "Rig Buddy";
-    const string OldRunValue = "ETS2 Nav"; // before the rename; migrated on start
 
     readonly Supervisor _sup;
     readonly TelemetryBridge _bridge;
@@ -293,18 +292,13 @@ sealed class TrayApp : ApplicationContext
         return key?.GetValue(RunValue) is string;
     }
 
-    /** Carries a "start with Windows" choice over from the old app name. */
+    /** Points an existing "start with Windows" entry at this copy. */
     static void MigrateAutostart()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
         if (key == null) return;
-        if (key.GetValue(OldRunValue) != null)
-        {
-            key.DeleteValue(OldRunValue, throwOnMissingValue: false);
-            SetAutostart(true);
-        }
         // an entry for another copy (the dev build, an older install folder) -> this one
-        else if (key.GetValue(RunValue) is string cmd && !cmd.Contains(Environment.ProcessPath!, StringComparison.OrdinalIgnoreCase))
+        if (key.GetValue(RunValue) is string cmd && !cmd.Contains(Environment.ProcessPath!, StringComparison.OrdinalIgnoreCase))
             SetAutostart(true);
     }
 
