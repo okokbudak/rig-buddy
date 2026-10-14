@@ -165,7 +165,7 @@ sealed partial class SerialHub
             }
         }
 
-        /** Opens the port, waits out the Arduino's reset, asks "?" and returns the first line (firmware: CLUSTER1 / CLUSTER2). */
+        /** Opens the port, waits out a possible board reset, asks "?" and returns the first line (Octopus firmware: "OCTOPUS-GAUGES <version> motors=6 cfg=1"). */
         object Probe(object? reqId, string port, int baud)
         {
             lock (_devices)
@@ -177,7 +177,7 @@ sealed partial class SerialHub
             {
                 using var sp = new SerialPort(port, baud) { ReadTimeout = 1500, WriteTimeout = 500, DtrEnable = true, NewLine = "\n" };
                 sp.Open();
-                Thread.Sleep(2200); // opening the port resets an Uno
+                Thread.Sleep(2200); // some Arduino-style boards reset when the port opens (the Octopus does not, the wait is harmless)
                 sp.DiscardInBuffer();
                 sp.Write("?\n");
                 string reply = sp.ReadLine().Trim();

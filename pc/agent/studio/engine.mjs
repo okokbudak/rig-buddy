@@ -1,12 +1,11 @@
 // Studio engine: holds the configuration (studio.json), evaluates the formulas
 // against live telemetry at up to 25 Hz and drives the outputs. Today the
-// outputs are serial devices (Arduino gauge clusters); the others (Nextion,
-// web dashboards) plug into the same tick.
+// outputs are serial devices (gauge boards such as the Octopus Pro) and Nextion
+// displays; others (web dashboards) plug into the same tick.
 import fs from 'node:fs';
 import path from 'node:path';
 import { compile, FormulaError } from './expr.mjs';
 import { createNextion, normalizeNextion, directFrames, tunnelLines, tunnelFrame } from './nextion.mjs';
-import { NEXTION_SEED } from './seed-nextion.mjs';
 import { read } from './props.mjs';
 import { BOARD_TYPES, normalizeMotor, motorCommand, parseCfg, parseHello, motorDiff } from './board.mjs';
 
@@ -15,33 +14,9 @@ const KEEPALIVE_MS = 500; // an unchanged line is repeated at least this often (
 const BAUDS = [9600, 19200, 38400, 57600, 115200, 230400, 250000, 500000, 1000000];
 const IDLE = ['zeros', 'hold', 'none'];
 
-// What the user's two SimHub "Custom Serial" devices sent (dashboard project): integers only,
-// `v0,v1,v2\n`. Disabled until a port is chosen: SimHub must release the COM port first.
-const SEED = {
-  version: 1,
-  serial: [
-    {
-      id: 'cluster1', name: 'Cluster 1', enabled: false, port: '', baud: 115200, hz: 25,
-      separator: ',', terminator: '\\n', idle: 'zeros',
-      channels: [
-        { name: 'RPM', expr: 'truck.engine.rpm.value', min: 0, max: 3000 },
-        { name: 'TURBO (bar x1000)', expr: 'controls.game.throttle * (truck.engine.rpm.value / max(truck.engine.rpm.max, 1)) * 3 * 1000', min: 0, max: 3000 },
-        { name: 'AIR (bar x100)', expr: 'x.airBar * 100', min: 0, max: 1200 },
-      ],
-    },
-    {
-      id: 'cluster2', name: 'Cluster 2', enabled: false, port: '', baud: 115200, hz: 25,
-      separator: ',', terminator: '\\n', idle: 'zeros',
-      channels: [
-        { name: 'SPEED (km/h x10)', expr: 'truck.speed.kph * 10', min: 0, max: 1200 },
-        { name: 'ADBLUE (% x10)', expr: 'x.adBluePercent * 10', min: 0, max: 1000 },
-        { name: 'FUEL (% x10)', expr: 'x.fuelPercent * 10', min: 0, max: 1000 },
-      ],
-    },
-  ],
-};
-
-SEED.nextion = [NEXTION_SEED];
+// A fresh install starts empty: the user adds a gauge board on the Connections page
+// ("Identify board" reads the Octopus' settings) and a display on the Display page.
+const SEED = { version: 1, serial: [], nextion: [] };
 
 const str = (v, max, fallback = '') => (typeof v === 'string' ? v.slice(0, max) : fallback);
 const numOrNull = v => (v === '' || v == null || !Number.isFinite(Number(v)) ? null : Number(v));

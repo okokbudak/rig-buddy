@@ -1,4 +1,4 @@
-// Nextion displays (the Scania cluster on COM13): what SimHub's Nextion plugin did.
+// Nextion displays: what SimHub's Nextion plugin did.
 //
 // A device has pages and bindings. A binding is `page1.tgear.txt` = formula; only the
 // bindings of the page on screen are sent, and only when their value changed (writing a

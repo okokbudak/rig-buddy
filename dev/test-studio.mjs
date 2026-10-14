@@ -86,13 +86,19 @@ const fake = {
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'studio-'));
 let current = raw;
 const engine = createEngine({ hub: fake, getRaw: () => current, dataDir: dir });
-assert.equal(engine.config.serial.length, 2); // the seeded cluster 1/2
-assert.equal(engine.config.serial[0].enabled, false);
+assert.equal(engine.config.serial.length, 0); // a fresh install starts empty
+assert.equal(engine.config.nextion.length, 0);
 const cfg = structuredClone(engine.config);
-cfg.serial[1].enabled = true;
-cfg.serial[1].port = 'COM14';
+cfg.serial.push({
+  id: 'gauges', name: 'Gauges', enabled: true, port: 'COM14', baud: 115200, hz: 25, separator: ',', terminator: '\\n', idle: 'zeros',
+  channels: [
+    { name: 'SPEED (km/h x10)', expr: 'truck.speed.kph * 10', min: 0, max: 1200 },
+    { name: 'ADBLUE (% x10)', expr: 'x.adBluePercent * 10', min: 0, max: 1000 },
+    { name: 'FUEL (% x10)', expr: 'x.fuelPercent * 10', min: 0, max: 1000 },
+  ],
+});
 engine.apply(cfg);
-assert.deepEqual(written.shift(), ['open', 'cluster2', 'COM14', 115200]);
+assert.deepEqual(written.shift(), ['open', 'gauges', 'COM14', 115200]);
 await new Promise(r => setTimeout(r, 120)); // some ticks
 const lines = written.filter(w => w[0] === 'write').map(w => w[2]);
 assert.ok(lines.length >= 1, 'a line was sent');
@@ -108,19 +114,50 @@ await new Promise(r => setTimeout(r, 150));
 assert.equal(written.filter(w => w[0] === 'write').at(-1)[2], '0,0,0\n');
 // a port change reopens, disabling closes
 const c2 = structuredClone(engine.config);
-c2.serial[1].port = 'COM15';
+c2.serial[0].port = 'COM15';
 engine.apply(c2);
-assert.deepEqual(written.filter(w => w[0] !== 'write').slice(-2), [['close', 'cluster2'], ['open', 'cluster2', 'COM15', 115200]]);
-c2.serial[1].enabled = false;
+assert.deepEqual(written.filter(w => w[0] !== 'write').slice(-2), [['close', 'gauges'], ['open', 'gauges', 'COM15', 115200]]);
+c2.serial[0].enabled = false;
 engine.apply(c2);
-assert.deepEqual(written.at(-1), ['close', 'cluster2']);
+assert.deepEqual(written.at(-1), ['close', 'gauges']);
 // the file survives a restart
 const again = createEngine({ hub: fake, getRaw: () => null, dataDir: dir });
-assert.equal(again.config.serial[1].port, 'COM15');
+assert.equal(again.config.serial[0].port, 'COM15');
 // --- Nextion ---------------------------------------------------------------------------------
+// A small test display with the mechanics a Nextion cluster needs: pages with bindings (txt / vis / val), a touch
+// strip along the bottom, an idle page and power-off while no game runs.
+const NX = {
+  id: 'scania', name: 'Test display', enabled: false, port: '', baud: 115200, width: 480, height: 272,
+  powerOffWhenIdle: true, idlePage: 'page1',
+  pages: ['page1', 'page3', 'page4', 'page5'].map(name => ({ name, rotation: true, showWhen: '' })),
+  hotspots: [{ x: 50, y: 86, w: 50, h: 14, action: 'next' }, { x: 0, y: 86, w: 50, h: 14, action: 'prev' }],
+  bindings: [
+    { target: 'page1.pblinkl.vis', expr: 'truck.lights.blinker.left.enabled' },
+    { target: 'page1.pblinkr.vis', expr: 'truck.lights.blinker.right.enabled' },
+    { target: 'page1.pr2.vis', expr: 'truck.brakes.retarder.level >= 2' },
+    { target: 'page1.pr3.vis', expr: 'truck.brakes.retarder.level >= 3' },
+    { target: 'page1.tclock.txt', expr: 'x.gameClock' },
+    { target: 'page1.j0.val', expr: 'x.fuelPercent' },
+    { target: 'page1.trange.txt', expr: 'truck.fuel.range', decimals: 0 },
+    { target: 'page1.tgear.txt', expr: 'x.gearText' },
+    { target: 'page1.tcruise.txt', expr: "truck.cruiseControl.enabled ? round(truck.cruiseControl.kph, 0) : ''", decimals: 0 },
+    { target: 'page1.tlimit.txt', expr: "navigation.speedLimit.kph > 0 ? navigation.speedLimit.kph : ''", decimals: 0 },
+    { target: 'page3.tair.txt', expr: 'x.airBar', decimals: 1 },
+    { target: 'page3.jair.val', expr: 'min(100, x.airBar / 13 * 100)' },
+    { target: 'page3.twat.txt', expr: 'truck.engine.waterTemperature.value', decimals: 0 },
+    { target: 'page3.toil.txt', expr: 'truck.engine.oilTemperature.value', decimals: 0 },
+    { target: 'page4.tdeng.txt', expr: 'truck.damage.engine * 100', decimals: 0 },
+    { target: 'page4.tdgear.txt', expr: 'truck.damage.transmission * 100', decimals: 0 },
+    { target: 'page4.tdcab.txt', expr: 'truck.damage.cabin * 100', decimals: 0 },
+    { target: 'page4.tdchas.txt', expr: 'truck.damage.chassis * 100', decimals: 0 },
+    { target: 'page5.tfromc.txt', expr: 'job.source.city.name' },
+    { target: 'page5.ttoc.txt', expr: 'job.destination.city.name' },
+    { target: 'page5.teta.txt', expr: "floor(navigation.time / 3600) + ':' + pad(floor(navigation.time % 3600 / 60), 2)" },
+    { target: 'page5.tdue.txt', expr: "floor(x.deliveryMinutes / 60) + ':' + pad(x.deliveryMinutes % 60, 2)" },
+  ],
+};
 {
   const { createNextion, normalizeNextion, parseTarget, directFrames } = await import('../pc/agent/studio/nextion.mjs');
-  const { NEXTION_SEED } = await import('../pc/agent/studio/seed-nextion.mjs');
   assert.deepEqual(parseTarget('page1.tgear.txt'), { page: 'page1', obj: 'tgear', attr: 'txt' });
   assert.equal(parseTarget('tgear.txt'), null);
   assert.equal(parseTarget('page1.t"x.txt'), null);
@@ -135,9 +172,8 @@ assert.equal(again.config.serial[1].port, 'COM15');
   live.truck.lights.blinker.left.enabled = true; live.truck.brakes.retarder.level = 2; live.truck.cruiseControl.enabled = true; live.truck.cruiseControl.kph = 84.2;
   live.job.source.city.name = 'Hamburg'; live.navigation.time = 5400 + 60; live.job.expectedDeliveryTimestamp.value = live.game.time.value + 125;
 
-  const cfg = normalize({ serial: [], nextion: [{ ...NEXTION_SEED, enabled: true, port: 'COM13' }] }).nextion[0];
-  assert.equal(cfg.bindings.length, NEXTION_SEED.bindings.length);
-  assert.equal(cfg.bindings.length, 86 - 0 > 0 ? cfg.bindings.length : 0);
+  const cfg = normalize({ serial: [], nextion: [{ ...NX, enabled: true, port: 'COM13' }] }).nextion[0];
+  assert.equal(cfg.bindings.length, NX.bindings.length);
   const sent = [];
   // createNextion hands each batch of commands to out(); on a display with its own COM port they leave as FF FF FF framed bytes
   const nxOut = { out: cmdList => sent.push(directFrames(cmdList)) };
@@ -213,7 +249,7 @@ assert.equal(again.config.serial[1].port, 'COM15');
   assert.ok(cmds().includes('tgear.txt="R"'), 'values resent after the restart');
   assert.equal(nx3.status().resets, 1);
   }
-  // every seed binding compiles and evaluates on real-shaped data, with and without a game
+  // every binding of the test display compiles and evaluates on real-shaped data, with and without a game
   const st = nx.status();
   assert.equal(st.bindings.filter(b => b.error).length, 0, JSON.stringify(st.bindings.filter(b => b.error)));
   for (const page of ['page1', 'page3', 'page4', 'page5']) {
@@ -283,7 +319,7 @@ assert.equal(again.config.serial[1].port, 'COM15');
   };
   const eng = createEngine({ hub: h, getRaw: () => null, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'studio-')) });
   const c = structuredClone(eng.config);
-  c.nextion[0].enabled = true; c.nextion[0].port = 'COM13'; c.nextion[0].powerOffWhenIdle = true;
+  c.nextion = [{ ...NX, enabled: true, port: 'COM13', powerOffWhenIdle: true }];
   eng.apply(c);
   await new Promise(r => setTimeout(r, 120));
   assert.ok(w.some(x => x[0] === 'nx:scania' && x[1].includes('bkcmd=0')), 'initialised on open');
