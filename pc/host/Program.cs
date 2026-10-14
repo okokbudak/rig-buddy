@@ -41,6 +41,16 @@ static class Program
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Console.WriteLine($"fatal: {e.ExceptionObject}");
         ApplicationConfiguration.Initialize();
 
+        // Windows can reserve our ports (Hyper-V / WSL / Docker): say so instead of crashing
+        var blocked = PortCheck.Find();
+        foreach (var p in blocked.Where(p => !p.Critical))
+            Console.WriteLine($"ports: {p.Proto} {p.Port} is not available ({p.Error}); what uses it stays off");
+        if (blocked.Any(p => p.Critical))
+        {
+            PortCheck.Explain(blocked.Where(p => p.Critical).ToList());
+            return 1;
+        }
+
         var bridge = new TelemetryBridge();
         try { bridge.Start(); }
         catch (Exception e) { Console.WriteLine($"bridge: disabled ({e.Message}); is another Rig Buddy running?"); }
@@ -52,7 +62,8 @@ static class Program
         // new map data: the server reloads it (or starts, on the first build)
         var maps = new MapBuilder(paths, onBuilt: () => sup.Restart("server"));
         var app = new TrayApp(sup, bridge, maps, quiet: args.Contains("--autostart"));
-        ControlPort.Listen(cmd => Handle(cmd, sup, app));
+        try { ControlPort.Listen(cmd => Handle(cmd, sup, app)); }
+        catch (Exception e) { Console.WriteLine($"control port: disabled ({e.Message}); RigBuddy.exe --quit and friends will not work"); }
         sup.Start();
         if (sup.SetupProblem == null) maps.Check();
         Application.Run(app);

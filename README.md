@@ -167,6 +167,7 @@ port can only be used by one program at a time.
 | "Map could not be prepared" | Click **Try again** in the window. If it keeps failing, share the map log from the **Logs** window on the [Issues](../../issues) page. At least 3 GB of free disk space is needed. |
 | The map looks empty | The map is downloaded on the first connection; wait for the download to finish. If the problem persists, pair again in Settings. |
 | Jobs or Profile is empty | This information comes from the game's save file. The screens fill up after the game's first autosave (about 3 minutes). |
+| Rig Buddy closes right after starting, or says Windows has reserved its ports | This happens on PCs with Hyper-V, WSL or Docker: Windows reserves ranges of ports at every start and can take ones Rig Buddy needs (62840-62850). Rig Buddy shows the fix and can copy it. By hand, once, in a PowerShell opened as administrator: `wsl --shutdown`, then `netsh int ipv4 add excludedportrange protocol=tcp startport=62840 numberofports=11`. If the second command fails, restart the PC and run only that command first thing. |
 | Something else | Open **Logs** in the PC window, choose the tab, click **Copy** and share it on the [Issues](../../issues) page. |
 
 ## Support
@@ -443,6 +444,7 @@ port aynı anda yalnızca tek program tarafından kullanılabilir.
 | "Harita hazırlanamadı" | Penceredeki **Tekrar dene** bağlantısına tıklayın. Sorun sürerse **Loglar** penceresindeki harita kaydını [Issues](../../issues) sayfasında paylaşın. Diskte en az 3 GB boş alan olmalıdır. |
 | Harita boş görünüyor | Harita ilk bağlantıda indirilir; indirmenin tamamlanmasını bekleyin. Sorun sürerse Ayarlar'dan yeniden eşleştirme yapın. |
 | İşler ya da Profil ekranı boş | Bu bilgiler oyunun kayıt dosyasından okunur. Oyun ilk otomatik kaydını yaptığında (yaklaşık 3 dakika) ekranlar dolacaktır. |
+| Rig Buddy açılır açılmaz kapanıyor ya da Windows'un portlarını ayırdığını söylüyor | Hyper-V, WSL ya da Docker olan bilgisayarlarda olur: Windows her başlangıçta port aralıkları ayırır ve Rig Buddy'nin ihtiyaç duyduğu portları (62840-62850) alabilir. Rig Buddy çözümü gösterir ve kopyalayabilir. Elle, bir kez, yönetici olarak açılmış PowerShell'de: `wsl --shutdown`, ardından `netsh int ipv4 add excludedportrange protocol=tcp startport=62840 numberofports=11`. İkinci komut hata verirse bilgisayarı yeniden başlatın ve açılır açılmaz yalnızca o komutu çalıştırın. |
 | Başka bir sorun | PC penceresinde **Loglar**'ı açın, ilgili sekmeyi seçip **Kopyala**'ya tıklayın ve [Issues](../../issues) sayfasında paylaşın. |
 
 ### Destek
