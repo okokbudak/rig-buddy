@@ -435,8 +435,12 @@ const NX = {
   assert.equal(normalizeMotor({ hoff: 5 }).hoff, 5);
   assert.equal(normalizeMotor({ hoff: 999 }).hoff, 180);
   assert.equal(normalizeMotor({ hoff: -3 }).hoff, 0);
-  assert.ok(motorCommand(3, normalizeMotor({ hoff: 4.5 })).endsWith(' hoff=45'));
-  assert.ok(!motorCommand(3, normalizeMotor({ hoff: 4.5 }), false).includes('hoff'), 'an older firmware gets no hoff');
+  assert.ok(motorCommand(3, normalizeMotor({ hoff: 4.5 })).endsWith(' hoff=45 smooth=15'));
+  assert.ok(!motorCommand(3, normalizeMotor({ hoff: 4.5 }), '1.2').includes('hoff'), 'an older firmware gets no hoff');
+  assert.ok(motorCommand(3, normalizeMotor({}), '1.3').endsWith(' hoff=5'), '1.3 knows hoff but not smooth');
+  assert.equal(normalizeMotor({ smooth: 0 }).smooth, 0);
+  assert.equal(normalizeMotor({ smooth: 500 }).smooth, 100);
+  assert.equal(normalizeMotor({}).smooth, 15);
   assert.equal(hasHomeOffset('1.3'), true);
   assert.equal(hasHomeOffset('1.2'), false);
   assert.equal(hasHomeOffset('2.0'), true);

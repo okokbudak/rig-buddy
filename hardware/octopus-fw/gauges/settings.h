@@ -19,11 +19,14 @@ struct MotorSettings {
   uint16_t maxDegS;        // needle speed limit, deg/s
   uint16_t accDegS2;       // acceleration, deg/s^2
   uint8_t  sgthrs;         // StallGuard threshold for homing
-  uint8_t  reserved;
+  uint8_t  smooth;         // needle smoothing, 1/s (see smoothHz): 0 = the default, 255 = off (plain trapezoid), 1..100 = that
   int16_t  homeOffset10;   // 0.1 deg from the mechanical stop to the dial's zero mark: after the stall the needle goes
                            // this far clockwise and that spot becomes 0 (was reserved[3], zero in older saved settings)
 };
 static_assert(sizeof(MotorSettings) == 24, "settings v1/v2 saved by older firmware must keep their layout");
+
+/** Smoothing gain in 1/s for a motor (0 = no smoothing). A saved 0 (older firmware) means the default. */
+static inline uint8_t smoothHz(const MotorSettings& m) { return m.smooth == 0 ? SMOOTH_DEFAULT : (m.smooth == 255 ? 0 : m.smooth); }
 
 // The LED chain on PB0: split into segments (start pixel, length, colour); pixels in no segment stay dark.
 struct LedSeg { uint8_t start, len, r, g, b, on; };

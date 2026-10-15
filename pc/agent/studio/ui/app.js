@@ -518,6 +518,7 @@ function boardPcbCard(d) {
   const numIn = (key, attrs = {}) => el('input', { type: 'number', class: 'n', value: m[key], ...attrs, onchange: e => set(key, Number(e.target.value)) });
   const testMsg = el('span', { class: 'muted small' });
   const homeMsg = el('span', { class: 'muted small' });
+  const smoothVal = el('span', { class: 'small' }, m.smooth ? String(m.smooth) : t('board.off'));
   const panel = el('div', { class: 'sockpanel' },
     el('div', { class: 'ehead' }, el('h3', {}, `${t('board.socket', { n: sel })}${c?.expr ? ` · ${c.name}` : ''}`)),
     el('div', { class: 'gaugeline' },
@@ -532,7 +533,12 @@ function boardPcbCard(d) {
       field(t('board.dir'), select([['0', t('board.dirNormal')], ['1', t('board.dirReverse')]], m.dir ? '1' : '0', v => set('dir', v === '1')), t('board.dirHint')),
       field(t('board.current'), numIn('ma', { min: 30, max: 1500, step: 10 }), t('board.currentHint')),
       field(t('board.hold'), numIn('hold', { min: 0, max: 100 }), t('board.holdHint')),
-      field(t('board.sweep'), numIn('sweep', { min: 10, max: 360, step: 0.1 }), t('board.sweepHint'))),
+      field(t('board.sweep'), numIn('sweep', { min: 10, max: 360, step: 0.1 }), t('board.sweepHint')),
+      field(t('board.smooth'), el('span', { class: 'row' }, el('input', { type: 'range', min: 0, max: 60, value: m.smooth, oninput: e => {
+        m.smooth = Number(e.target.value);
+        smoothVal.textContent = m.smooth ? String(m.smooth) : t('board.off');
+        api('POST', '/api/motor-live', { id: d.id, motor: sel, settings: m }).catch(() => {}); // the needle follows at once
+      }, onchange: () => touch() }), smoothVal), t('board.smoothHint'))),
     el('details', { class: 'adv' },
       el('summary', {}, t('gauge.advanced')),
       el('div', { class: 'fields' },

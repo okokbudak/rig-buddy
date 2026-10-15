@@ -200,6 +200,7 @@ static void applyMotor(uint8_t i, const MotorSettings& old) {
   }
   if (m.dirInvert != old.dirInvert) ax[i].lastDir = 0;  // re-set DIR before the next step
   setLimits(i, m.maxDegS, m.accDegS2);
+  ax[i].kp = smoothHz(m);
   if (m.runMa != old.runMa || m.holdPct != old.holdPct || m.microsteps != old.microsteps) tmcSetCurrent(i);
   if (m.enabled != old.enabled) setDrivers(driversEnabled);
 }
@@ -373,8 +374,8 @@ static const uint32_t NX_BAUDS[] = { 9600, 19200, 38400, 57600, 115200, 230400, 
 
 static void cfgDumpMotor(uint8_t i) {
   const MotorSettings& m = S.m[i];
-  say("CFG M%u en=%u dir=%u ms=%u ma=%u hold=%u home=%u spr=%u sweep=%u full=%lu vmax=%u acc=%u sg=%u hoff=%d", i, m.enabled, m.dirInvert,
-      m.microsteps, m.runMa, m.holdPct, m.homeOnBoot, m.stepsPerRev, m.sweepDeg10, (unsigned long)m.fullScale, m.maxDegS, m.accDegS2, m.sgthrs, m.homeOffset10);
+  say("CFG M%u en=%u dir=%u ms=%u ma=%u hold=%u home=%u spr=%u sweep=%u full=%lu vmax=%u acc=%u sg=%u hoff=%d smooth=%u", i, m.enabled, m.dirInvert,
+      m.microsteps, m.runMa, m.holdPct, m.homeOnBoot, m.stepsPerRev, m.sweepDeg10, (unsigned long)m.fullScale, m.maxDegS, m.accDegS2, m.sgthrs, m.homeOffset10, smoothHz(m));
 }
 
 static void cfgDump() {
@@ -410,6 +411,7 @@ static const char* cfgMotorPairs(char* args, MotorSettings& m) {
     else if (!strcmp(k, "acc")) { ok = v >= 1 && v <= 60000; m.accDegS2 = v; }
     else if (!strcmp(k, "sg")) { ok = v >= 0 && v <= 255; m.sgthrs = v; }
     else if (!strcmp(k, "hoff")) { ok = v >= 0 && v <= 1800; m.homeOffset10 = v; }
+    else if (!strcmp(k, "smooth")) { ok = v >= 0 && v <= 100; m.smooth = v == 0 ? 255 : v; }   // 0 = off is stored as 255
     else ok = false;
     if (!ok) { *eq = '='; return kv; }
   }

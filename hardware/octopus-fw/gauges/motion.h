@@ -9,6 +9,7 @@ struct Axis {
   float v = 0;                 // steps/s, signed (interrupt only)
   float acc = 0;               // fractional step accumulator (interrupt only)
   float vmax = 0, accel = 0;   // steps/s and steps/s^2
+  float kp = 0;                // smoothing gain 1/s: speed <= kp x remaining steps (0 = off)
   GPIO_TypeDef* stepPort = nullptr; uint32_t stepMask = 0;
   GPIO_TypeDef* dirPort = nullptr;  uint32_t dirMask = 0;
   int8_t lastDir = 0;
@@ -29,6 +30,7 @@ static void motionTick() {
     int32_t d = a.target - a.pos;
     if (d == 0) { a.v = 0; a.acc = 0; continue; }
     float want = sqrtf(2.0f * a.accel * (float)labs(d));     // fastest speed from which we can still stop in time
+    if (a.kp > 0.0f) { float soft = a.kp * (float)labs(d); if (soft < want) want = soft; }   // settle like a damped needle, no stop-and-go
     if (want > a.vmax) want = a.vmax;
     if (d < 0) want = -want;
     float dv = a.accel * dt;
@@ -60,6 +62,7 @@ static void motionInit() {
     a.dirPort = digitalPinToPort(MOTOR[i].dir);   a.dirMask = digitalPinToBitMask(MOTOR[i].dir);
     a.vmax = S.m[i].maxDegS * uPerDeg[i];
     a.accel = S.m[i].accDegS2 * uPerDeg[i];
+    a.kp = smoothHz(S.m[i]);
     a.lastDir = 0;
   }
   motionTimer = new HardwareTimer(TIM6);

@@ -14,13 +14,17 @@ const MICROSTEPS = [1, 2, 4, 8, 16, 32, 64, 128, 256];
 export const MOTOR_DEFAULTS = {
   enabled: true, dir: false, ms: 16, ma: 300, hold: 30, home: false, spr: 200, sweep: 240, full: 10000, vmax: 500, acc: 5000, sg: 40,
   hoff: 0.5, // degrees from the mechanical stop to the zero mark (firmware 1.3+)
+  smooth: 15, // needle smoothing, 1/s, 0 = off (firmware 1.4+)
 };
 
-/** true when the board's firmware knows the `hoff` setting (1.3 or newer). */
-export const hasHomeOffset = version => {
+const atLeast = (version, major, minor) => {
   const [a, b] = String(version).split('.').map(Number);
-  return a > 1 || (a === 1 && b >= 3);
+  return a > major || (a === major && b >= minor);
 };
+/** true when the board's firmware knows the `hoff` setting (1.3 or newer). */
+export const hasHomeOffset = version => atLeast(version, 1, 3);
+/** true when it knows the `smooth` setting (1.4 or newer). */
+export const hasSmooth = version => atLeast(version, 1, 4);
 
 const int = (v, lo, hi, fallback) => {
   const n = Math.round(Number(v));
@@ -44,14 +48,16 @@ export function normalizeMotor(m = {}) {
     acc: int(m.acc, 1, 60000, D.acc),
     sg: int(m.sg, 0, 255, D.sg),
     hoff: Number.isFinite(Number(m.hoff)) && m.hoff !== '' && m.hoff != null ? Math.min(180, Math.max(0, Math.round(Number(m.hoff) * 10) / 10)) : D.hoff,
+    smooth: m.smooth === '' || m.smooth == null ? D.smooth : int(m.smooth, 0, 100, D.smooth),
   };
 }
 
-/** `withHoff`: the board's firmware (1.3+) knows the home offset; older ones would refuse the line. */
-export function motorCommand(i, m, withHoff = true) {
+/** `version`: the board's firmware; an older one would refuse settings it does not know (hoff 1.3+, smooth 1.4+). */
+export function motorCommand(i, m, version = '99') {
   return `CFG M${i} en=${+m.enabled} dir=${+m.dir} ms=${m.ms} ma=${m.ma} hold=${m.hold} home=${+m.home} spr=${m.spr}` +
     ` sweep=${Math.round(m.sweep * 10)} full=${m.full} vmax=${m.vmax} acc=${m.acc} sg=${m.sg}` +
-    (withHoff ? ` hoff=${Math.round(m.hoff * 10)}` : '');
+    (hasHomeOffset(version) ? ` hoff=${Math.round(m.hoff * 10)}` : '') +
+    (hasSmooth(version) ? ` smooth=${m.smooth}` : '');
 }
 
 // --- the LED chain on PB0 (firmware 1.2+): split into segments, live like WLED ---------------------------
@@ -111,9 +117,11 @@ export function parseCfg(lines) {
       out.motors[Number(m[1])] = normalizeMotor({
         enabled: kv.en === 1, dir: kv.dir === 1, ms: kv.ms, ma: kv.ma, hold: kv.hold, home: kv.home === 1,
         spr: kv.spr, sweep: kv.sweep / 10, full: kv.full, vmax: kv.vmax, acc: kv.acc, sg: kv.sg,
-        hoff: kv.hoff == null ? undefined : kv.hoff / 10, // an older firmware has none
+        hoff: kv.hoff == null ? undefined : kv.hoff / 10, // an older firmware has none of these two
+        smooth: kv.smooth,
       });
       if (kv.hoff == null) out.motors[Number(m[1])].noHoff = true;
+      if (kv.smooth == null) out.motors[Number(m[1])].noSmooth = true;
     } else if (/^CFG LED\s/.test(line)) out.led = { count: kv.n, order: kv.order, bri: kv.bri, segs: [] };
     else if ((m = /^CFG SEG (\d+)\s/.exec(line))) (out.led ??= { segs: [] }).segs[Number(m[1])] = { start: kv.start, len: kv.len, r: kv.r, g: kv.g, b: kv.b, on: kv.on === 1 };
     else if (/^CFG NX\s/.test(line)) out.nx = { en: kv.en === 1, baud: kv.baud };
@@ -128,7 +136,7 @@ export function motorDiff(a = [], b = []) {
   const diff = [];
   for (let i = 0; i < Math.max(a.length, b.length); i++) {
     const x = a[i], y = b[i];
-    if (!x || !y || SAME_KEYS.some(k => !(k === 'hoff' && y.noHoff) && x[k] !== y[k])) diff.push(i); // an old firmware has no `hoff`
+    if (!x || !y || SAME_KEYS.some(k => !(k === 'hoff' && y.noHoff) && !(k === 'smooth' && y.noSmooth) && x[k] !== y[k])) diff.push(i); // an old firmware lacks these
   }
   return diff;
 }

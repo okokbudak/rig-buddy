@@ -4,7 +4,7 @@
 // All user-tunable settings live in this file.
 #include <Arduino.h>
 
-#define FW_VERSION "1.3"
+#define FW_VERSION "1.4"
 
 constexpr uint8_t N_MOTORS = 6;
 
@@ -40,7 +40,11 @@ uint16_t RUN_MA[N_MOTORS] = { 500, 500, 500, 500, 500, 500 };   // RMS mA while 
 constexpr float HOLD_FRACTION = 0.30f;           // holding current = this fraction of RUN_MA
 constexpr float R_SENSE = 0.11f;                 // ohm, sense resistor of the TMC2209 modules (0.11 on BTT/Watterott)
 
-constexpr float MAX_DEG_S = 500.0f;              // needle speed limit, degrees per second
+// Needle smoothing: the needle chases its target like a gauge with damping, speed = SMOOTH x remaining distance
+// (per second), so small steps in the data (25 updates a second) blend into one flowing motion instead of a
+// start-stop per update. 15 = about 65 ms of lag; higher = tighter and steppier, lower = lazier. Per motor "smooth".
+constexpr uint8_t SMOOTH_DEFAULT = 15;
+constexpr float MAX_DEG_S = 500.0f;             // needle speed limit, degrees per second
 constexpr float ACC_DEG_S2 = 5000.0f;            // acceleration, degrees per second^2
 constexpr int32_t DEADBAND_USTEPS = 2;           // ignore target changes smaller than this
 

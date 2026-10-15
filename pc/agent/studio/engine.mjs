@@ -462,8 +462,8 @@ export function createEngine({ hub, getRaw, dataDir }) {
       return withBoard(id, async d => {
         if (!d.board) throw new Error('this device is not a board with its own settings');
         const steps = [];
-        const withHoff = hasHomeOffset(rt(d.id).board?.version ?? '0'); // an older firmware would refuse the home offset
-        for (const [i, m] of d.motors.entries()) steps.push(motorCommand(i, m, withHoff));
+        const fw = rt(d.id).board?.version ?? '0'; // an older firmware would refuse settings it does not know
+        for (const [i, m] of d.motors.entries()) steps.push(motorCommand(i, m, fw));
         const nx = config.nextion.find(n => n.enabled && n.via === id);
         steps.push(`CFG NX en=${nx ? 1 : 0} baud=${nx?.baud ?? 115200}`);
         if (d.leds.enabled) steps.push(ledCommand(d.leds)); // the board keeps the LEDs too, so they light without the PC
@@ -496,6 +496,15 @@ export function createEngine({ hub, getRaw, dataDir }) {
       // try the wanted offset first (not saved on the board until "Upload to board"), so it can be tuned in a loop
       if (hasHomeOffset(rt(id).board?.version ?? '0')) hub.write(id, `CFG M${n} hoff=${Math.round(d.motors[n].hoff * 10)}\n`);
       hub.write(id, `H${n}\n`);
+      return true;
+    },
+    /** Applies one motor's wanted settings on the board at once (not saved there until "Upload to board"): tuning in a loop. */
+    motorLive(id, motor, settings) {
+      const d = config.serial.find(x => x.id === id);
+      const n = Math.round(Number(motor));
+      if (!d || !d.board || rt(id).state !== 'open' || waiters.has(id) || !(n >= 0 && n < d.motors.length)) return false;
+      // the editor sends what it shows now: its save to the config may still be on its way
+      hub.write(id, `${motorCommand(n, normalizeMotor(settings ?? d.motors[n]), rt(id).board?.version ?? '0')}\n`);
       return true;
     },
     /** Switches a board's power output on for a few seconds (wiring check), whatever the formula says. */
