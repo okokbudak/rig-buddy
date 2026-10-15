@@ -4,7 +4,7 @@
 // All user-tunable settings live in this file.
 #include <Arduino.h>
 
-#define FW_VERSION "1.2"
+#define FW_VERSION "1.3"
 
 constexpr uint8_t N_MOTORS = 6;
 
@@ -49,7 +49,7 @@ constexpr bool    HOME_ON_BOOT = false;          // false: needles are assumed t
 constexpr uint8_t SGTHRS_DEFAULT = 40;           // 0..255, higher = triggers earlier. TUNE with the G/H commands.
 constexpr float   HOME_DEG_S = 360.0f;           // speed towards the stop (StallGuard needs some speed)
 constexpr uint16_t HOME_BLANK_MS = 150;          // ignore DIAG this long after starting (acceleration)
-constexpr float   HOME_BACKOFF_DEG = 0.5f;       // after the stall, rest this far off the stop
+constexpr float   HOME_BACKOFF_DEG = 0.5f;       // default for the per-motor "hoff" setting: the needle goes this far off the stop and that is 0
 constexpr float   HOME_MAX_DEG = SWEEP_DEG + 40.0f;   // give up after this much travel without a stall
 
 // ---- power output: FAN0 switches the head unit's power ----

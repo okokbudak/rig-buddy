@@ -19,8 +19,11 @@ struct MotorSettings {
   uint16_t maxDegS;        // needle speed limit, deg/s
   uint16_t accDegS2;       // acceleration, deg/s^2
   uint8_t  sgthrs;         // StallGuard threshold for homing
-  uint8_t  reserved[3];
+  uint8_t  reserved;
+  int16_t  homeOffset10;   // 0.1 deg from the mechanical stop to the dial's zero mark: after the stall the needle goes
+                           // this far clockwise and that spot becomes 0 (was reserved[3], zero in older saved settings)
 };
+static_assert(sizeof(MotorSettings) == 24, "settings v1/v2 saved by older firmware must keep their layout");
 
 // The LED chain on PB0: split into segments (start pixel, length, colour); pixels in no segment stay dark.
 struct LedSeg { uint8_t start, len, r, g, b, on; };
@@ -108,6 +111,7 @@ static void settingsDefaults(Settings& s) {
     m.maxDegS = (uint16_t)MAX_DEG_S;
     m.accDegS2 = (uint16_t)ACC_DEG_S2;
     m.sgthrs = SGTHRS_DEFAULT;
+    m.homeOffset10 = (int16_t)(HOME_BACKOFF_DEG * 10.0f + 0.5f);
   }
   s.nxEnabled = 1;
   s.nxBaud = NEXTION_BAUD;

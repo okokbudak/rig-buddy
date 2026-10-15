@@ -517,6 +517,7 @@ function boardPcbCard(d) {
   const set = (key, v) => { m[key] = v; touch(); paintBoard(); };
   const numIn = (key, attrs = {}) => el('input', { type: 'number', class: 'n', value: m[key], ...attrs, onchange: e => set(key, Number(e.target.value)) });
   const testMsg = el('span', { class: 'muted small' });
+  const homeMsg = el('span', { class: 'muted small' });
   const panel = el('div', { class: 'sockpanel' },
     el('div', { class: 'ehead' }, el('h3', {}, `${t('board.socket', { n: sel })}${c?.expr ? ` · ${c.name}` : ''}`)),
     el('div', { class: 'gaugeline' },
@@ -540,7 +541,14 @@ function boardPcbCard(d) {
         field(t('board.speed'), numIn('vmax', { min: 1, max: 3000 })),
         field(t('board.accel'), numIn('acc', { min: 1, max: 60000, step: 100 })),
         field(t('board.sg'), numIn('sg', { min: 0, max: 255 }))),
-      el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: m.home, onchange: e => set('home', e.target.checked) }), el('span', {}, t('board.homeOnBoot')))));
+      el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: m.home, onchange: e => set('home', e.target.checked) }), el('span', {}, t('board.homeOnBoot'))),
+      el('div', { class: 'fields' },
+        field(t('board.homeOffset'), numIn('hoff', { min: 0, max: 180, step: 0.1 }), t('board.homeOffsetHint')),
+        el('div', { class: 'field' }, el('span', { class: 'flabel' }, t('board.homeNow')),
+          el('button', { class: 'btn', onclick: async () => {
+            try { const r = await api('POST', '/api/home', { id: d.id, motor: sel }); homeMsg.textContent = r.ok ? t('board.homing') : t('board.notConnected'); } catch (e) { homeMsg.textContent = e.message; }
+            setTimeout(() => { homeMsg.textContent = ''; }, 4000);
+          } }, icon('refresh'), t('board.homeNowBtn')), homeMsg))));
 
   // the power output (FAN0): switches the head unit with the ignition
   const pw = d.power;

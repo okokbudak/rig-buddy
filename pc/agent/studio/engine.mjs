@@ -7,7 +7,7 @@ import path from 'node:path';
 import { compile, FormulaError } from './expr.mjs';
 import { createNextion, normalizeNextion, directFrames, tunnelLines, tunnelFrame } from './nextion.mjs';
 import { read } from './props.mjs';
-import { BOARD_TYPES, normalizeLeds, ledCommand, normalizeMotor, motorCommand, parseCfg, parseHello, motorDiff } from './board.mjs';
+import { BOARD_TYPES, hasHomeOffset, normalizeLeds, ledCommand, normalizeMotor, motorCommand, parseCfg, parseHello, motorDiff } from './board.mjs';
 
 const TICK_MS = 40; // 25 Hz, what the gauge firmware parses at most
 const KEEPALIVE_MS = 500; // an unchanged line is repeated at least this often (gauges park without data)
@@ -462,7 +462,8 @@ export function createEngine({ hub, getRaw, dataDir }) {
       return withBoard(id, async d => {
         if (!d.board) throw new Error('this device is not a board with its own settings');
         const steps = [];
-        for (const [i, m] of d.motors.entries()) steps.push(motorCommand(i, m));
+        const withHoff = hasHomeOffset(rt(d.id).board?.version ?? '0'); // an older firmware would refuse the home offset
+        for (const [i, m] of d.motors.entries()) steps.push(motorCommand(i, m, withHoff));
         const nx = config.nextion.find(n => n.enabled && n.via === id);
         steps.push(`CFG NX en=${nx ? 1 : 0} baud=${nx?.baud ?? 115200}`);
         if (d.leds.enabled) steps.push(ledCommand(d.leds)); // the board keeps the LEDs too, so they light without the PC
@@ -485,6 +486,16 @@ export function createEngine({ hub, getRaw, dataDir }) {
       if (!d || !d.channels[ch]) return false;
       const now = Date.now();
       rt(id).test = { ch, from: now, until: now + Math.min(10000, Math.max(500, ms)) };
+      return true;
+    },
+    /** The editor's "home now": the motor finds its stop again and goes to the zero mark (uses the board's saved offset). */
+    homeMotor(id, motor) {
+      const d = config.serial.find(x => x.id === id);
+      const n = Math.round(Number(motor));
+      if (!d || !d.board || rt(id).state !== 'open' || !(n >= 0 && n < d.motors.length)) return false;
+      // try the wanted offset first (not saved on the board until "Upload to board"), so it can be tuned in a loop
+      if (hasHomeOffset(rt(id).board?.version ?? '0')) hub.write(id, `CFG M${n} hoff=${Math.round(d.motors[n].hoff * 10)}\n`);
+      hub.write(id, `H${n}\n`);
       return true;
     },
     /** Switches a board's power output on for a few seconds (wiring check), whatever the formula says. */

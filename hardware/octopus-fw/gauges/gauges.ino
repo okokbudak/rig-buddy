@@ -173,7 +173,7 @@ static void homeUpdate(uint8_t i) {
   if (hstate[i] != H_RUN) return;
   if (millis() - hT0[i] > HOME_BLANK_MS && digitalRead(MOTOR[i].diag)) {        // DIAG high = stall
     haltAxis(i);
-    setPosition(i, -(int32_t)(HOME_BACKOFF_DEG * uPerDeg[i]));                   // the stop sits this far below 0
+    setPosition(i, -(int32_t)(S.m[i].homeOffset10 / 10.0f * uPerDeg[i] + 0.5f));   // the stop sits this far below 0 (the setting)
     setTarget(i, 0);
     homeFinish(i);
     hstate[i] = H_DONE;
@@ -373,8 +373,8 @@ static const uint32_t NX_BAUDS[] = { 9600, 19200, 38400, 57600, 115200, 230400, 
 
 static void cfgDumpMotor(uint8_t i) {
   const MotorSettings& m = S.m[i];
-  say("CFG M%u en=%u dir=%u ms=%u ma=%u hold=%u home=%u spr=%u sweep=%u full=%lu vmax=%u acc=%u sg=%u", i, m.enabled, m.dirInvert,
-      m.microsteps, m.runMa, m.holdPct, m.homeOnBoot, m.stepsPerRev, m.sweepDeg10, (unsigned long)m.fullScale, m.maxDegS, m.accDegS2, m.sgthrs);
+  say("CFG M%u en=%u dir=%u ms=%u ma=%u hold=%u home=%u spr=%u sweep=%u full=%lu vmax=%u acc=%u sg=%u hoff=%d", i, m.enabled, m.dirInvert,
+      m.microsteps, m.runMa, m.holdPct, m.homeOnBoot, m.stepsPerRev, m.sweepDeg10, (unsigned long)m.fullScale, m.maxDegS, m.accDegS2, m.sgthrs, m.homeOffset10);
 }
 
 static void cfgDump() {
@@ -409,6 +409,7 @@ static const char* cfgMotorPairs(char* args, MotorSettings& m) {
     else if (!strcmp(k, "vmax")) { ok = v >= 1 && v <= 3000; m.maxDegS = v; }
     else if (!strcmp(k, "acc")) { ok = v >= 1 && v <= 60000; m.accDegS2 = v; }
     else if (!strcmp(k, "sg")) { ok = v >= 0 && v <= 255; m.sgthrs = v; }
+    else if (!strcmp(k, "hoff")) { ok = v >= 0 && v <= 1800; m.homeOffset10 = v; }
     else ok = false;
     if (!ok) { *eq = '='; return kv; }
   }

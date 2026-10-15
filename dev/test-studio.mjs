@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createEngine, normalize } from '../pc/agent/studio/engine.mjs';
-import { normalizeLeds, ledCommand, parseCfg } from '../pc/agent/studio/board.mjs';
+import { normalizeLeds, ledCommand, parseCfg, normalizeMotor, motorCommand, motorDiff, hasHomeOffset } from '../pc/agent/studio/board.mjs';
 import { compile, FormulaError } from '../pc/agent/studio/expr.mjs';
 import { catalog, read } from '../pc/agent/studio/props.mjs';
 
@@ -427,6 +427,26 @@ const NX = {
   assert.equal(eng.ledLive('oct', { count: 3, segments: [{ start: 0, len: 3, color: '#ffffff' }] }), true);
   assert.equal(w.at(-1), 'LED n=3 order=2 bri=255 seg=0,3,255,255,255,1\n');
   assert.equal(eng.ledLive('nope', {}), false);
+}
+
+// the zero offset after homing (firmware 1.3 "hoff", degrees in Studio, 0.1 deg on the wire)
+{
+  assert.equal(normalizeMotor({}).hoff, 0.5);
+  assert.equal(normalizeMotor({ hoff: 5 }).hoff, 5);
+  assert.equal(normalizeMotor({ hoff: 999 }).hoff, 180);
+  assert.equal(normalizeMotor({ hoff: -3 }).hoff, 0);
+  assert.ok(motorCommand(3, normalizeMotor({ hoff: 4.5 })).endsWith(' hoff=45'));
+  assert.ok(!motorCommand(3, normalizeMotor({ hoff: 4.5 }), false).includes('hoff'), 'an older firmware gets no hoff');
+  assert.equal(hasHomeOffset('1.3'), true);
+  assert.equal(hasHomeOffset('1.2'), false);
+  assert.equal(hasHomeOffset('2.0'), true);
+  const line = 'CFG M3 en=1 dir=1 ms=16 ma=500 hold=30 home=1 spr=200 sweep=2400 full=1200 vmax=500 acc=5000 sg=40 hoff=50';
+  assert.equal(parseCfg([line]).motors[3].hoff, 5);
+  const old = parseCfg([line.replace(' hoff=50', '')]).motors[3];
+  assert.equal(old.noHoff, true);
+  const wanted = parseCfg([line]).motors[3];
+  assert.deepEqual(motorDiff([{ ...wanted, hoff: 7 }], [old]), [], 'a firmware without hoff is not reported as different for it');
+  assert.deepEqual(motorDiff([{ ...wanted, hoff: 4 }], [wanted]), [0]);
 }
 
 console.log('studio: all tests passed');
