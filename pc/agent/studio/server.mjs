@@ -9,7 +9,7 @@ import { WebSocketServer } from 'ws';
 import { catalog, read } from './props.mjs';
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
-const MAX_BODY = 256 * 1024;
+const MAX_BODY = 1024 * 1024; // a configuration with many LED presets is a few hundred KB
 
 export function startStudio({ engine, hub, port = Number(process.env.RIGBUDDY_STUDIO_PORT || 62850) }) {
   const uiDir = path.join(import.meta.dirname, 'ui');

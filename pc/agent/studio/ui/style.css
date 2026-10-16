@@ -179,6 +179,25 @@ details.adv[open] > summary { margin-bottom: 6px; }
 .ledcell.dark { background: #1b2027; box-shadow: none; }
 .ledcell.first { margin-left: 6px; }
 .ledcell.first:first-child { margin-left: 0; }
+.ledcell.sel { outline: 2px solid #ffd36b; outline-offset: 1px; }
+.row { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.field.wide { flex-basis: 100%; }
+.err { color: #ff8a80; min-height: 1em; }
+.segs { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.segcard { border: 1px solid var(--line); border-radius: 12px; background: var(--card2); }
+.segcard.open { border-color: #5fb08a; }
+.seghead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 12px; cursor: pointer; }
+.seghead .ledname { flex: 1 1 140px; min-width: 100px; }
+.seghead .ledn { display: flex; align-items: center; gap: 6px; font-size: .85em; }
+.seghead .ledn input { width: 64px; }
+.segswatch { width: 22px; height: 22px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .25); flex: none; }
+.segbody { padding: 4px 14px 14px; border-top: 1px solid var(--line); }
+.segbody input[type=color], .row input[type=color] { width: 44px; height: 32px; padding: 2px; border-radius: 8px; border: 1px solid var(--line); background: transparent; cursor: pointer; }
+.rules { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.rule { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; margin: 8px 0; }
+.stoprow input.n { width: 70px; }
+.chdot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.presets .row { margin: 4px 0; }
 .ledrows { display: flex; flex-direction: column; gap: 8px; }
 .ledrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .ledrow input[type=color] { width: 44px; height: 34px; padding: 2px; border-radius: 8px; border: 1px solid var(--line); background: transparent; cursor: pointer; }
