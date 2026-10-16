@@ -223,4 +223,15 @@
     <string name="veh_limit">Лимит %1$d</string>
     <string name="veh_cruise_on">Круиз-контроль  %1$d %2$s</string>
     <string name="veh_cruise_off">Круиз-контроль выключен</string>
+    <string name="rail_led">LED</string>
+    <string name="led_title">Светодиодные ленты</string>
+    <string name="led_sync">Studio управляет подсветкой (синхронизация с игрой)</string>
+    <string name="led_brightness">Яркость</string>
+    <string name="led_sleep">Выключена, когда нет игры</string>
+    <string name="led_presets">ПРЕСЕТЫ</string>
+    <string name="led_no_presets">Пресетов пока нет. Сохраните их на вкладке LED в Studio.</string>
+    <string name="led_none">В Studio не настроена плата со светодиодами.</string>
+    <string name="led_offline">Плата не подключена</string>
+    <string name="led_lit">Горит</string>
+    <string name="led_dark">Выключена</string>
 </resources>

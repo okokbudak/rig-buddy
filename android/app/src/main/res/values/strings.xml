@@ -231,4 +231,15 @@
     <string name="veh_limit">Limit %1$d</string>
     <string name="veh_cruise_on">Cruise control  %1$d %2$s</string>
     <string name="veh_cruise_off">Cruise control off</string>
+    <string name="rail_led">LED</string>
+    <string name="led_title">LED strips</string>
+    <string name="led_sync">Studio drives the LEDs (game sync)</string>
+    <string name="led_brightness">Brightness</string>
+    <string name="led_sleep">Dark when there is no game</string>
+    <string name="led_presets">PRESETS</string>
+    <string name="led_no_presets">No presets yet. Save some on Studio\'s LED tab.</string>
+    <string name="led_none">No LED board is set up in Studio.</string>
+    <string name="led_offline">Board not connected</string>
+    <string name="led_lit">Lit</string>
+    <string name="led_dark">Dark</string>
 </resources>

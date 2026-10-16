@@ -72,6 +72,7 @@ import tr.rigbuddy.nav.Route;
 import tr.rigbuddy.nav.TruckTracker;
 import tr.rigbuddy.ui.HomeScreen;
 import tr.rigbuddy.ui.JobsScreen;
+import tr.rigbuddy.ui.LedScreen;
 import tr.rigbuddy.ui.ManeuverIconView;
 import tr.rigbuddy.ui.ProfileScreen;
 import tr.rigbuddy.ui.RadioScreen;
@@ -123,6 +124,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private JobsScreen jobs;
   private ProfileScreen profile;
   private RadioScreen radioScreen;
+  private LedScreen ledScreen;
   private FrameLayout screenHost;
   private String screen = "home";
   private final Map<String, View> screenViews = new HashMap<>();
@@ -345,11 +347,13 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     jobs = new JobsScreen(this, agent, this::routeJob);
     profile = new ProfileScreen(this, agent, (p, err) -> home.setProfile(p, err));
     radioScreen = new RadioScreen(this);
+    ledScreen = new LedScreen(this, agent);
     addScreen("home", home.view());
     addScreen("radio", radioScreen.view());
     addScreen("vehicle", vehicle.view());
     addScreen("jobs", jobs.view());
     addScreen("profile", profile.view());
+    addScreen("led", ledScreen.view());
     screenViews.put("map", findViewById(R.id.root));
 
     LinearLayout rail = findViewById(R.id.rail);
@@ -359,6 +363,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     addRailButton(rail, "vehicle", R.drawable.ic_truck, Ui.s(R.string.rail_vehicle));
     addRailButton(rail, "jobs", R.drawable.ic_work, Ui.s(R.string.rail_jobs));
     addRailButton(rail, "profile", R.drawable.ic_person, Ui.s(R.string.rail_profile));
+    addRailButton(rail, "led", R.drawable.ic_bulb, Ui.s(R.string.rail_led));
     rail.addView(Ui.spacer(this), Ui.hweight(1));
     // no settings button: the clock and the NAV / PC lights at the bottom open the settings
     LinearLayout footer = Ui.column(this);
@@ -459,7 +464,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   }
 
   // --- swiping between the screens, with one dot per screen under them -------------
-  private static final String[] SCREEN_ORDER = {"home", "map", "radio", "vehicle", "jobs", "profile"};
+  private static final String[] SCREEN_ORDER = {"home", "map", "radio", "vehicle", "jobs", "profile", "led"};
   private GestureDetector swipeDetector;
   private LinearLayout pageDots;
 
@@ -609,6 +614,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
       jobs.onShown();
     }
     if ("profile".equals(name)) profile.onShown();
+    if ("led".equals(name)) ledScreen.onShown();
     if (isMap) hideSystemUi();
   }
 

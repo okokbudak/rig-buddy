@@ -223,4 +223,15 @@
     <string name="veh_limit">Limit %1$d</string>
     <string name="veh_cruise_on">Tempomat  %1$d %2$s</string>
     <string name="veh_cruise_off">Tempomat aus</string>
+    <string name="rail_led">LED</string>
+    <string name="led_title">LED-Streifen</string>
+    <string name="led_sync">Studio steuert die LEDs (Spiel-Sync)</string>
+    <string name="led_brightness">Helligkeit</string>
+    <string name="led_sleep">Dunkel, wenn kein Spiel läuft</string>
+    <string name="led_presets">VOREINSTELLUNGEN</string>
+    <string name="led_no_presets">Noch keine Voreinstellungen. Speichere welche im LED-Tab von Studio.</string>
+    <string name="led_none">In Studio ist keine LED-Platine eingerichtet.</string>
+    <string name="led_offline">Platine nicht verbunden</string>
+    <string name="led_lit">Leuchtet</string>
+    <string name="led_dark">Dunkel</string>
 </resources>

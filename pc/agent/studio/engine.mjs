@@ -602,6 +602,40 @@ export function createEngine({ hub, getRaw, dataDir }) {
       }
       return out;
     },
+    /** For the Android app's LED menu (GET /leds on the agent): what each board's chain is doing. */
+    ledState() {
+      return {
+        game: lastRaw != null,
+        boards: config.serial.filter(d => d.board).map(d => {
+          const r = rt(d.id);
+          return {
+            id: d.id, name: d.name, connected: r.state === 'open', enabled: d.leds.enabled, bri: d.leds.bri,
+            sleep: d.sleep.leds, active: d.leds.active, presets: d.leds.presets.map(p => p.name), lit: !!r.ledAwake && !!r.ledFrame,
+          };
+        }),
+      };
+    },
+    /**
+     * The app's controls (POST /leds): {id, enabled?, bri?, sleep?, preset?}. Saved like an edit in Studio.
+     * Returns false for an unknown board or preset.
+     */
+    ledControl(id, p = {}) {
+      const d = config.serial.find(x => x.id === id && x.board);
+      if (!d) return false;
+      const next = structuredClone(config);
+      const nd = next.serial.find(x => x.id === id);
+      if (typeof p.enabled === 'boolean') nd.leds.enabled = p.enabled;
+      if (p.bri != null && Number.isFinite(Number(p.bri))) nd.leds.bri = Math.min(255, Math.max(0, Math.round(Number(p.bri))));
+      if (typeof p.sleep === 'boolean') nd.sleep.leds = p.sleep;
+      if (typeof p.preset === 'string') {
+        const preset = nd.leds.presets.find(x => x.name === p.preset);
+        if (!preset) return false;
+        nd.leds.segments = structuredClone(preset.segments);
+        nd.leds.active = preset.name;
+      }
+      apply(next);
+      return true;
+    },
     /** What the editor needs to build its menus. */
     ledCatalog() { return { effects: EFFECTS, palettes: PALETTE_IDS }; },
     /** Next/previous page of a Nextion display (the editor's test buttons). */

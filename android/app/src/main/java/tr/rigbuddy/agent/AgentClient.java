@@ -11,8 +11,10 @@ import java.util.concurrent.TimeUnit;
 
 import okhttp3.Call;
 import okhttp3.Callback;
+import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
@@ -136,7 +138,16 @@ public final class AgentClient {
   }
 
   public void get(String path, JsonCallback cb) {
-    Request req = new Request.Builder().url("http://" + host + ":" + PORT + path).build();
+    call(new Request.Builder().url("http://" + host + ":" + PORT + path).build(), cb);
+  }
+
+  /** POST with a JSON body (the LED menu); the answer is handled like get(). */
+  public void post(String path, JSONObject body, JsonCallback cb) {
+    call(new Request.Builder().url("http://" + host + ":" + PORT + path)
+        .post(RequestBody.create(body.toString(), MediaType.parse("application/json; charset=utf-8"))).build(), cb);
+  }
+
+  private void call(Request req, JsonCallback cb) {
     http.newCall(req).enqueue(new Callback() {
       @Override
       public void onFailure(Call call, IOException e) {

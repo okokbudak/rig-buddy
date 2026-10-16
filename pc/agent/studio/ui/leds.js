@@ -356,7 +356,7 @@ function ledCard(d) {
     el('summary', {}, t('leds.presets')),
     L.presets.length ? el('div', { class: 'presets' }, L.presets.map((p, i) => el('div', { class: 'row' },
       el('strong', {}, p.name),
-      el('button', { class: 'btn', onclick: () => { L.segments = structuredClone(p.segments); LED.open[d.id] = null; rebuild(); } }, t('leds.presetLoad')),
+      el('button', { class: 'btn', onclick: () => { L.segments = structuredClone(p.segments); L.active = p.name; LED.open[d.id] = null; rebuild(); } }, t('leds.presetLoad')),
       el('button', { class: 'btn', onclick: () => { L.presets.splice(i, 1); rebuild(); } }, icon('trash')))))
       : el('p', { class: 'muted small' }, t('leds.presetNone')),
     el('div', { class: 'actions' }, nameIn, el('button', { class: 'btn', onclick: () => {

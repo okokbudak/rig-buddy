@@ -340,6 +340,7 @@ export function normalizeLeds(l = {}) {
     sat: int(l.sat, 0, 200, 100),
     rgb: [0, 1, 2].map(i => int(l.rgb?.[i], 0, 100, 100)), // channel scale, %
     smooth: int(l.smooth, 0, 2000, 0), // ms of crossfade between frames (0 = none)
+    active: str(l.active, 24), // name of the preset loaded last (shown in the app's LED menu)
     segments: segs,
     presets,
     playlist: {

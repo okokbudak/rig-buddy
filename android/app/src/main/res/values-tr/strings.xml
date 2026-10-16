@@ -229,4 +229,15 @@
     <string name="veh_limit">Limit %1$d</string>
     <string name="veh_cruise_on">Hız sabitleyici  %1$d %2$s</string>
     <string name="veh_cruise_off">Hız sabitleyici kapalı</string>
+    <string name="rail_led">LED</string>
+    <string name="led_title">LED şeritler</string>
+    <string name="led_sync">Studio sürsün (oyunla senkron)</string>
+    <string name="led_brightness">Parlaklık</string>
+    <string name="led_sleep">Oyun yokken söndür</string>
+    <string name="led_presets">HAZIR AYARLAR</string>
+    <string name="led_no_presets">Henüz hazır ayar yok. Studio\'nun LED sekmesinde kaydet.</string>
+    <string name="led_none">Studio\'da kurulu bir LED kartı yok.</string>
+    <string name="led_offline">Kart bağlı değil</string>
+    <string name="led_lit">Yanıyor</string>
+    <string name="led_dark">Sönük</string>
 </resources>

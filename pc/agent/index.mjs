@@ -7,6 +7,8 @@
 //   GET  /tiles           -> {"ets2": {size, version}}: map files the app can download
 //   GET  /tiles/ets2.mbtiles -> the map file itself
 //   GET  /tiles/sprites.json|png -> the map's POI icons ("sprites" in /tiles)
+//   GET  /leds            -> the LED chains of the Octopus boards: on/off, brightness, presets, which one is active
+//   POST /leds {id, enabled?, bri?, sleep?, preset?} -> the app's LED menu changes them (saved like an edit in Studio)
 //   POST /key {"action"}  -> (reserved) key emulation via RigBuddy.exe
 //   Rig Buddy Studio (formulas -> serial gauges): studio/, page on http://127.0.0.1:62850/
 // Clients are the app and RigBuddy.exe, never a browser: see fromWebPage().
@@ -265,6 +267,26 @@ const server = http.createServer((req, res) => {
     res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(body));
   };
+  if (url.pathname === '/leds') {
+    // the app's LED menu: GET the state of the boards' LED chains, POST {id, enabled?, bri?, sleep?, preset?}
+    if (req.method === 'GET') return send(200, studio.ledState());
+    if (req.method === 'POST') {
+      let size = 0;
+      const chunks = [];
+      req.on('data', c => { size += c.length; if (size > 4096) req.destroy(); else chunks.push(c); });
+      req.on('end', () => {
+        try {
+          const b = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          if (!studio.ledControl(String(b.id), b)) return send(404, { error: 'no such board or preset' });
+          return send(200, studio.ledState());
+        } catch (e) {
+          return send(400, { error: 'bad request' });
+        }
+      });
+      return;
+    }
+    return send(405, { error: 'method' });
+  }
   if (url.pathname === '/health') {
     // clients: connected apps (head units / phones), shown in the PC app's window
     return send(200, { ok: true, telemetry: latest !== null, save: !!save, clients: wss.clients.size });

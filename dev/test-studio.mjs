@@ -601,6 +601,26 @@ const NX = {
   assert.equal(eng.ledLive('oct', { count: 2, segments: [{ start: 0, len: 2, look: { fx: 'solid', c1: '#ffffff' } }] }), true);
   await until(() => frames().at(-1) === `LEDF ${'ffffff'.repeat(2)}\n`, 'live colours reach the strip at once (and wake it)');
   assert.equal(eng.ledLive('nope', {}), false);
+
+  // the app's LED menu
+  const st0 = eng.ledState();
+  assert.equal(st0.boards.length, 1);
+  assert.equal(st0.boards[0].id, 'oct');
+  assert.equal(st0.boards[0].enabled, true);
+  assert.deepEqual(st0.boards[0].presets, []);
+  assert.equal(eng.ledControl('oct', { bri: 100, sleep: false }), true);
+  assert.equal(eng.config.serial[0].leds.bri, 100);
+  assert.equal(eng.config.serial[0].sleep.leds, false);
+  assert.equal(eng.ledControl('oct', { preset: 'nothing' }), false, 'an unknown preset');
+  assert.equal(eng.ledControl('nope', { enabled: false }), false);
+  const cp = structuredClone(eng.config);
+  cp.serial[0].leds.presets = [{ name: 'Night', segments: [{ start: 0, len: 24, look: { fx: 'solid', c1: '#0000ff' } }] }];
+  eng.apply(cp);
+  assert.equal(eng.ledControl('oct', { preset: 'Night', enabled: true }), true);
+  assert.equal(eng.config.serial[0].leds.segments.length, 1);
+  assert.equal(eng.config.serial[0].leds.active, 'Night');
+  assert.equal(eng.ledState().boards[0].active, 'Night');
+  assert.deepEqual(eng.ledState().boards[0].presets, ['Night']);
 }
 
 // the zero offset after homing (firmware 1.3 "hoff", degrees in Studio, 0.1 deg on the wire)
