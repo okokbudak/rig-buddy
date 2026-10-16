@@ -45,6 +45,7 @@ function normalizePower(p = {}) {
     enabled: !!p.enabled,
     expr: str(p.expr, 500).trim() ? str(p.expr, 500) : 'truck.electric.enabled', // the ignition
     offDelay: Number.isFinite(delay) ? Math.min(3600, Math.max(0, delay)) : 60,
+    manual: !!p.manual, // the editor's on/off switch: on = the output stays on, whatever the telemetry says
   };
 }
 
@@ -370,7 +371,8 @@ export function createEngine({ hub, getRaw, dataDir }) {
     const p = compiledPower.get(d.id);
     let want = false;
     r.powerError = null;
-    if (!p || p.error) r.powerError = p?.error ?? 'error';
+    if (!d.power.enabled) { /* only the manual switch (or a last "off" after the switch was turned off) */ }
+    else if (!p || p.error) r.powerError = p?.error ?? 'error';
     else if (raw != null) {
       try {
         want = !!Number(p.fn(path => read(raw, path)));
@@ -380,8 +382,10 @@ export function createEngine({ hub, getRaw, dataDir }) {
     }
     if (want) r.powerHoldUntil = now + d.power.offDelay * 1000;
     r.powerWant = want;
-    // a "Test" keeps it on for a few seconds, without the off delay
-    r.powerOn = want || now < (r.powerHoldUntil ?? 0) || now < (r.powerTest ?? 0);
+    // the manual switch keeps it on for good (no telemetry, no off delay); a "Test" keeps it on for a few seconds
+    r.powerManual = !!d.power.manual;
+    r.powerOn = d.power.manual || want || now < (r.powerHoldUntil ?? 0) || now < (r.powerTest ?? 0);
+    r.powerSentOn = r.powerOn; // remembered so that turning the switch off still sends one last "0" to the board
     return r.powerOn ? 1 : 0;
   }
 
@@ -396,12 +400,14 @@ export function createEngine({ hub, getRaw, dataDir }) {
       const r = rt(d.id);
       let values;
       const testing = r.test && now < r.test.until;
-      if (raw == null && d.idle === 'none' && !testing) continue;
+      // (the manual power switch needs the line even without the game: the board cuts the output after 5 minutes of silence)
+      const powerLine = d.board && (d.power.enabled || d.power.manual || r.powerSentOn); // a last "off" after the switch went off
+      if (raw == null && d.idle === 'none' && !testing && !(d.board && (d.power.manual || r.powerSentOn))) continue;
       if (raw == null && d.idle === 'zeros' && !testing) values = d.channels.map(() => 0);
       else if (raw == null && d.idle === 'hold' && r.values.length && !testing) values = r.values;
       else values = evalDevice(d, raw);
       r.values = values;
-      const sendVals = d.board && d.power.enabled ? [...values, evalPower(d, raw, now)] : values;
+      const sendVals = powerLine ? [...values, evalPower(d, raw, now)] : values;
       const line = sendVals.join(d.separator) + d.terminator.replace('\\n', '\n').replace('\\r', '\r');
       r.line = line;
       if (r.state !== 'open') continue;
@@ -437,7 +443,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
             ? { version: r.board.version, saved: r.board.saved, readAt: r.board.readAt, power: !!r.board.power, differs: motorDiff(d.motors, r.board.motors.slice(0, d.motors.length)) }
             : null;
           return { id: d.id, state: r.state, msg: r.msg, line: r.line, values: r.values, errors: r.errors, sent: r.sent, rx: r.rx ?? '', board,
-            power: d.board && d.power.enabled ? { on: !!r.powerOn, want: !!r.powerWant, error: r.powerError ?? null, holdLeft: Math.max(0, Math.round(((r.powerHoldUntil ?? 0) - Date.now()) / 1000)) } : null };
+            power: d.board && (d.power.enabled || d.power.manual) ? { on: !!r.powerOn, want: !!r.powerWant, manual: !!d.power.manual, error: r.powerError ?? null, holdLeft: Math.max(0, Math.round(((r.powerHoldUntil ?? 0) - Date.now()) / 1000)) } : null };
         }),
       };
     },
@@ -510,7 +516,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
     /** Switches a board's power output on for a few seconds (wiring check), whatever the formula says. */
     testPower(id, ms = 5000) {
       const d = config.serial.find(x => x.id === id);
-      if (!d || !d.board || !d.power.enabled) return false;
+      if (!d || !d.board || !(d.power.enabled || d.power.manual)) return false;
       rt(id).powerTest = Date.now() + Math.min(30000, Math.max(1000, ms));
       return true;
     },

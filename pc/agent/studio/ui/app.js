@@ -562,6 +562,8 @@ function boardPcbCard(d) {
   const powerPanel = el('div', { class: 'sockpanel' },
     el('div', { class: 'ehead' }, el('h3', {}, t('power.title')), el('span', { class: 'pill off', 'data-role': 'powerstate' })),
     el('p', { class: 'muted small' }, t('power.lead')),
+    el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: pw.manual, onchange: e => { pw.manual = e.target.checked; touch(); paintBoard(); } }), el('span', {}, t('power.manual'))),
+    el('p', { class: 'muted small' }, t('power.manualHint')),
     el('div', { class: 'fields' },
       el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: pw.enabled, onchange: e => { pw.enabled = e.target.checked; touch(); renderBoard(); paint(); } }), el('span', {}, t('power.on'))),
       pw.enabled ? field(t('power.expr'), el('input', { type: 'text', class: 'mono', value: pw.expr, onchange: e => { pw.expr = e.target.value; touch(); } }), t('power.exprHint')) : null,
@@ -699,12 +701,13 @@ function paintBoard() {
     } else { sync.className = 'pill ok'; sync.textContent = t('board.syncOk'); }
     const ps = card.querySelector('[data-role=powerstate]');
     const p = st?.power;
-    if (!d.power.enabled) ps.textContent = '';
+    if (!d.power.enabled && !d.power.manual) ps.textContent = '';
+    else if (d.power.manual) { ps.className = 'pill ok'; ps.textContent = t('power.stateManual'); }
     else if (p?.error) { ps.className = 'pill warn'; ps.textContent = t('power.error', { msg: p.error }); }
     else if (!p) { ps.className = 'pill off'; ps.textContent = t('power.waiting'); }
     else if (p.on) { ps.className = 'pill ok'; ps.textContent = p.want ? t('power.stateOn') : t('power.stateHold', { s: p.holdLeft }); }
     else { ps.className = 'pill off'; ps.textContent = t('power.stateOff'); }
-    if (d.power.enabled && b && !b.power) { ps.className = 'pill warn'; ps.textContent = t('power.oldFw'); }
+    if ((d.power.enabled || d.power.manual) && b && !b.power) { ps.className = 'pill warn'; ps.textContent = t('power.oldFw'); }
     for (const btn of card.querySelectorAll('[data-sock]')) {
       const i = Number(btn.dataset.sock), c = d.channels[i];
       const v = st?.values?.[i];

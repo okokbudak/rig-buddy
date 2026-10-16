@@ -382,6 +382,39 @@ const NX = {
   await until(() => field7() === '0', 'a broken formula keeps the output off', 4000); // after the test window ran out
 }
 
+// the manual power switch: on = the output stays on without the game, without the formula, without the "enabled" box
+{
+  const w = [];
+  const ev = new EventEmitter();
+  const h = {
+    events: ev, connected: true,
+    open: id => { queueMicrotask(() => ev.emit('state', { id, state: 'open' })); return true; },
+    close: () => {}, write: (id, data) => { if (id === 'oct') w.push(String(data)); },
+    ports: async () => ({ ports: [] }), probe: async () => ({}),
+  };
+  const eng = createEngine({ hub: h, getRaw: () => null, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'studio-')) });
+  const c = structuredClone(eng.config);
+  c.serial = [{ id: 'oct', name: 'Octopus', enabled: true, port: 'COM9', board: 'octopus', idle: 'none', power: { enabled: false, manual: true } }];
+  eng.apply(c);
+  assert.equal(eng.config.serial[0].power.manual, true);
+  const until = async (fn, what, ms = 3000) => {
+    const t0 = Date.now();
+    while (!fn()) {
+      if (Date.now() - t0 > ms) assert.fail(`${what} (last line: ${JSON.stringify(w.at(-1))})`);
+      await new Promise(r => setTimeout(r, 20));
+    }
+  };
+  const field7 = () => w.at(-1)?.trim().split(',')[6];
+  await until(() => field7() === '1', 'manual on: seventh field 1 even with no game and idle=none');
+  assert.equal(eng.status().devices[0].power.manual, true);
+  const n = w.length;
+  await until(() => w.length > n + 2, 'the line is repeated (keep-alive) so the board does not time out');
+  const c2 = structuredClone(eng.config);
+  c2.serial[0].power.manual = false;
+  eng.apply(c2);
+  await until(() => w.at(-1)?.trim().split(',').length !== 7 || field7() === '0', 'manual off: output off again');
+}
+
 // the LED chain: normalising, the firmware command, the push on connect / edit, live colours
 {
   const l = normalizeLeds({});
