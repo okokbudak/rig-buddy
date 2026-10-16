@@ -27,6 +27,8 @@ export const hasHomeOffset = version => atLeast(version, 1, 3);
 export const hasSmooth = version => atLeast(version, 1, 4);
 /** true when it can keep the motors unpowered while there is no data (`CFG IDLE`, 1.5 or newer). */
 export const hasIdle = version => atLeast(version, 1, 5);
+/** true when it has the free pins (`CFG PIN`, `PIN`, 1.5 or newer). */
+export const hasPins = version => atLeast(version, 1, 5);
 
 /**
  * "Sleep" settings of a board: motors without current while there is no game, LEDs dark while there is no game.
@@ -83,7 +85,7 @@ export function parseHello(text) {
   const m = /^OCTOPUS-GAUGES\s+(\S+)(.*)$/.exec(String(text).trim());
   if (!m) return null;
   const kv = Object.fromEntries([...m[2].matchAll(/(\w+)=(\S+)/g)].map(x => [x[1], x[2]]));
-  return { type: 'octopus', version: m[1], motors: Number(kv.motors) || 6, cfg: kv.cfg === '1', power: kv.power === '1', idle: kv.idle === '1' };
+  return { type: 'octopus', version: m[1], motors: Number(kv.motors) || 6, cfg: kv.cfg === '1', power: kv.power === '1', idle: kv.idle === '1', pins: Number(kv.pins) || 0 };
 }
 
 /** The lines of a "CFG?" answer -> {motors: [...], nx: {en, baud}, saved, count}. */
@@ -105,6 +107,7 @@ export function parseCfg(lines) {
     } else if (/^CFG LED\s/.test(line)) out.led = { count: kv.n, order: kv.order, bri: kv.bri, segs: [] };
     else if ((m = /^CFG SEG (\d+)\s/.exec(line))) (out.led ??= { segs: [] }).segs[Number(m[1])] = { start: kv.start, len: kv.len, r: kv.r, g: kv.g, b: kv.b, on: kv.on === 1 };
     else if (/^CFG IDLE\s/.test(line)) out.idle = { off: kv.off === 1, sec: kv.sec };
+    else if ((m = /^CFG PIN (\w+)\s/.exec(line))) (out.pins ??= {})[m[1]] = { mode: kv.mode, inv: kv.inv === 1, safe: kv.safe === 1 };
     else if (/^CFG NX\s/.test(line)) out.nx = { en: kv.en === 1, baud: kv.baud };
     else if (/^CFG END/.test(line)) { out.saved = kv.saved === 1; out.count = kv.motors ?? out.motors.length; }
   }

@@ -232,6 +232,76 @@ static void setPower(bool on) {
   digitalWrite(POWER_PIN, on ? HIGH : LOW);
 }
 
+// ---- free pins: the Octopus' fans, heaters, stops, probe, thermistors, servo ----
+// What each pin does is a setting (CFG PIN, kept with CFG SAVE): off, digital output, PWM output, input, input with
+// pull-up, analog input. Outputs follow `PIN <NAME> v=<0..255>` from Studio and fall back to their safe level when
+// Studio stops talking (PIN_TIMEOUT_MS). The pins the firmware itself uses (motors, FAN0 = the power output, PB0 =
+// the LED chain, USART1 = the Nextion) are not in this table. HE0..HE3 and BED are 24 V outputs.
+constexpr uint8_t CAP_OUT = 1, CAP_PWM = 2, CAP_IN = 4, CAP_ADC = 8;
+struct PinDef { const char* name; const char* mcu; uint32_t pin; uint8_t caps; };
+static const PinDef PINDEFS[] = {
+  { "FAN1", "PE5", PE5, CAP_OUT | CAP_PWM }, { "FAN2", "PD12", PD12, CAP_OUT | CAP_PWM }, { "FAN3", "PD13", PD13, CAP_OUT | CAP_PWM },
+  { "FAN4", "PD14", PD14, CAP_OUT | CAP_PWM }, { "FAN5", "PD15", PD15, CAP_OUT | CAP_PWM },
+  { "HE0", "PA2", PA2, CAP_OUT | CAP_PWM }, { "HE1", "PA3", PA3, CAP_OUT | CAP_PWM },
+  { "HE2", "PB10", PB10, CAP_OUT | CAP_PWM }, { "HE3", "PB11", PB11, CAP_OUT | CAP_PWM },
+  { "BED", "PA1", PA1, CAP_OUT | CAP_PWM }, { "SERVO", "PB6", PB6, CAP_OUT | CAP_PWM },
+  { "PSON", "PE11", PE11, CAP_OUT | CAP_IN },
+  { "STOP6", "PG14", PG14, CAP_IN }, { "STOP7", "PG15", PG15, CAP_IN }, { "PROBE", "PB7", PB7, CAP_IN },
+  { "PWRDET", "PC0", PC0, CAP_IN },
+  { "TB", "PF3", PF3, CAP_IN | CAP_ADC }, { "T0", "PF4", PF4, CAP_IN | CAP_ADC }, { "T1", "PF5", PF5, CAP_IN | CAP_ADC },
+  { "T2", "PF6", PF6, CAP_IN | CAP_ADC }, { "T3", "PF7", PF7, CAP_IN | CAP_ADC },
+};
+constexpr uint8_t N_PINS = sizeof(PINDEFS) / sizeof(PINDEFS[0]);
+static_assert(N_PINS <= PIN_MAX, "the pin table must fit the settings");
+enum { PM_OFF = 0, PM_OUT, PM_PWM, PM_IN, PM_PULLUP, PM_ADC };
+static const char* const PM_WORDS[] = { "off", "out", "pwm", "in", "pullup", "adc" };
+static uint8_t pinVal[N_PINS];                         // the logical value of an output (0..255)
+static uint32_t pinAt[N_PINS];                         // when Studio last wrote it
+
+static inline uint8_t pmMode(uint8_t b) { return b & 7; }
+static inline bool pmInv(uint8_t b) { return (b >> 3) & 1; }
+static inline bool pmSafe(uint8_t b) { return (b >> 4) & 1; }
+static bool pinModeOk(uint8_t caps, uint8_t m) {      // (no struct in the signature: the Arduino prototypes come before the struct)
+  switch (m) {
+    case PM_OFF: return true;
+    case PM_OUT: return caps & CAP_OUT;
+    case PM_PWM: return caps & CAP_PWM;
+    case PM_IN: case PM_PULLUP: return caps & CAP_IN;
+    case PM_ADC: return caps & CAP_ADC;
+  }
+  return false;
+}
+
+static void pinWrite(uint8_t i, uint8_t v) {           // logical value -> pin (inverted outputs flip it)
+  const uint8_t b = S.pins.mode[i], m = pmMode(b);
+  pinVal[i] = v;
+  if (m == PM_OUT) digitalWrite(PINDEFS[i].pin, ((v != 0) != pmInv(b)) ? HIGH : LOW);
+  else if (m == PM_PWM) analogWrite(PINDEFS[i].pin, pmInv(b) ? 255 - v : v);
+}
+
+static void pinApply(uint8_t i) {                      // (re)configure one pin from its setting
+  const PinDef& d = PINDEFS[i];
+  const uint8_t b = S.pins.mode[i], m = pmMode(b);
+  pinAt[i] = millis();
+  if (m == PM_OUT || m == PM_PWM) { pinMode(d.pin, OUTPUT); pinWrite(i, pmSafe(b) ? 255 : 0); }
+  else if (m == PM_IN || m == PM_ADC) pinMode(d.pin, INPUT);
+  else if (m == PM_PULLUP) pinMode(d.pin, INPUT_PULLUP);
+  else if (d.caps & CAP_OUT) { pinMode(d.pin, OUTPUT); digitalWrite(d.pin, LOW); pinVal[i] = 0; }   // off: a MOSFET stays closed
+  else pinMode(d.pin, INPUT);
+}
+static void pinsApplyAll() { for (uint8_t i = 0; i < N_PINS; i++) pinApply(i); }
+
+static void pinWatchdog() {                            // Studio went away: outputs return to their safe level
+  const uint32_t now = millis();
+  for (uint8_t i = 0; i < N_PINS; i++) {
+    const uint8_t b = S.pins.mode[i], m = pmMode(b);
+    if ((m == PM_OUT || m == PM_PWM) && now - pinAt[i] > PIN_TIMEOUT_MS) {
+      const uint8_t safe = pmSafe(b) ? 255 : 0;
+      if (pinVal[i] != safe) pinWrite(i, safe);
+    }
+  }
+}
+
 // ---- LED strips (WS2811 protocol, 800 kHz) on PB0, bit-banged with the cycle counter ----
 // A frame of 24 ICs takes ~0.7 ms with interrupts off, so it is sent at power-up and then only every
 // LED_REFRESH_MS, and not while a needle is moving.
@@ -361,6 +431,74 @@ static void say(const char* fmt, ...) {
   Serial.println(b);
 }
 
+// ---- pin commands ----
+//   PIN? [in]                         every pin: "PIN <NAME> mcu=PE5 caps=3 mode=2 inv=0 safe=0 val=128" ... "PIN END" (in: only inputs)
+//   PIN <NAME> v=<0..255>             an output's value (digital: any non-zero = on; pwm: duty), also keeps it from timing out
+//   CFG PIN <NAME> mode=<0..5|word> [inv=0|1] [safe=0|1]    what a pin does (kept by CFG SAVE)
+static int pinFind(const char* name) {
+  for (uint8_t i = 0; i < N_PINS; i++) if (!strcasecmp(PINDEFS[i].name, name)) return i;
+  return -1;
+}
+
+static void pinDump(bool inputsOnly) {
+  for (uint8_t i = 0; i < N_PINS; i++) {
+    const uint8_t b = S.pins.mode[i], m = pmMode(b);
+    const bool isIn = m == PM_IN || m == PM_PULLUP || m == PM_ADC;
+    if (inputsOnly && !isIn) continue;
+    long v = pinVal[i];
+    if (m == PM_IN || m == PM_PULLUP) v = (digitalRead(PINDEFS[i].pin) != 0) != pmInv(b);
+    else if (m == PM_ADC) v = analogRead(PINDEFS[i].pin);
+    say("PIN %s mcu=%s caps=%u mode=%u inv=%u safe=%u val=%ld", PINDEFS[i].name, PINDEFS[i].mcu, PINDEFS[i].caps, m, pmInv(b), pmSafe(b), v);
+  }
+  say("PIN END");
+}
+
+static void pinCommand(char* s) {
+  char* p = s + 3;
+  if (*p == '?') { while (*p == '?' || *p == ' ') p++; pinDump(!strncmp(p, "in", 2)); return; }
+  while (*p == ' ') p++;
+  char* sp = strchr(p, ' ');
+  if (!sp) { say("ERR usage: PIN <NAME> v=<0..255>  |  PIN? [in]"); return; }
+  *sp = 0;
+  const int i = pinFind(p);
+  if (i < 0) { say("ERR PIN no such pin: %s", p); return; }
+  char* q = sp + 1;
+  while (*q == ' ') q++;
+  if (strncmp(q, "v=", 2)) { say("ERR usage: PIN %s v=<0..255>", PINDEFS[i].name); return; }
+  const uint8_t m = pmMode(S.pins.mode[i]);
+  if (m != PM_OUT && m != PM_PWM) { say("ERR PIN %s is not an output (mode %u)", PINDEFS[i].name, m); return; }
+  const long v = atol(q + 2);
+  pinAt[i] = millis();
+  pinWrite(i, (uint8_t)constrain(v, 0L, 255L));
+}
+
+// CFG PIN <NAME> mode=.. inv=.. safe=..: checked first, nothing changes on an error.
+static void pinCfgCommand(char* args) {
+  char* sp = strchr(args, ' ');
+  if (sp) *sp = 0;
+  const int i = pinFind(args);
+  if (i < 0) { say("ERR CFG no such pin: %s", args); return; }
+  uint8_t b = S.pins.mode[i], mode = pmMode(b), inv = pmInv(b), safe = pmSafe(b);
+  for (char* kv = sp ? strtok(sp + 1, " ") : nullptr; kv; kv = strtok(NULL, " ")) {
+    char* eq = strchr(kv, '=');
+    if (!eq) { say("ERR CFG bad setting: %s", kv); return; }
+    *eq = 0;
+    const char* val = eq + 1;
+    if (!strcmp(kv, "mode")) {
+      int m = -1;
+      if (*val >= '0' && *val <= '9') m = atoi(val);
+      else for (uint8_t k = 0; k < 6; k++) if (!strcmp(val, PM_WORDS[k])) m = k;
+      if (m < 0 || m > PM_ADC || !pinModeOk(PINDEFS[i].caps, m)) { say("ERR CFG %s cannot be mode %s", PINDEFS[i].name, val); return; }
+      mode = m;
+    } else if (!strcmp(kv, "inv") && (*val == '0' || *val == '1')) inv = *val - '0';
+    else if (!strcmp(kv, "safe") && (*val == '0' || *val == '1')) safe = *val - '0';
+    else { say("ERR CFG bad setting: %s=%s", kv, val); return; }
+  }
+  S.pins.mode[i] = mode | (inv << 3) | (safe << 4);
+  pinApply(i);
+  say("OK CFG PIN");
+}
+
 // ---- Nextion tunnel (display on the TFT connector, USART1) ----
 // PC -> display:  "@<command>\n"  is sent as <command> FF FF FF (an empty command just ends a half-written one).
 // display -> PC:  every frame the display sends (bytes before FF FF FF) comes back as "@<hex>\n".
@@ -423,6 +561,10 @@ static void cfgDump() {
   for (uint8_t i = 0; i < N_MOTORS; i++) cfgDumpMotor(i);
   say("CFG NX en=%u baud=%lu", S.nxEnabled, (unsigned long)S.nxBaud);
   say("CFG IDLE off=%u sec=%u", S.idleOff, (unsigned)idleSeconds(S.idleSec));
+  for (uint8_t i = 0; i < N_PINS; i++) {
+    const uint8_t b = S.pins.mode[i];
+    say("CFG PIN %s mode=%u inv=%u safe=%u", PINDEFS[i].name, pmMode(b), pmInv(b), pmSafe(b));
+  }
   say("CFG LED n=%u order=%u bri=%u segs=%u", S.led.count, S.led.order, S.led.bri, S.led.nseg);
   for (uint8_t i = 0; i < S.led.nseg; i++)
     say("CFG SEG %u start=%u len=%u r=%u g=%u b=%u on=%u", i, S.led.seg[i].start, S.led.seg[i].len, S.led.seg[i].r, S.led.seg[i].g, S.led.seg[i].b, S.led.seg[i].on);
@@ -476,6 +618,7 @@ static void cfgCommand(char* s) {
     for (uint8_t i = 0; i < N_MOTORS; i++) applyMotor(i, old.m[i]);
     if (S.nxEnabled != old.nxEnabled || S.nxBaud != old.nxBaud) nextionStart();
     ledColorsChanged = true;
+    pinsApplyAll();
     say("OK CFG %s", p);
     return;
   }
@@ -519,6 +662,7 @@ static void cfgCommand(char* s) {
     say("OK CFG NX");
     return;
   }
+  if (!strncmp(p, "PIN ", 4)) { pinCfgCommand(p + 4); return; }
   if (!strncmp(p, "IDLE", 4)) {                        // CFG IDLE off=0|1 sec=1..255 (0 = default)
     uint8_t off = S.idleOff, sec = S.idleSec;
     for (char* kv = strtok(p + 4, " "); kv; kv = strtok(NULL, " ")) {
@@ -601,6 +745,7 @@ static void ledFrame(char* s) {
 
 static void command(char* s) {
   if (!strncmp(s, "CFG", 3)) { cfgCommand(s); return; }
+  if (!strncmp(s, "PIN", 3)) { pinCommand(s); return; }
   if (!strncmp(s, "LEDF", 4)) { ledFrame(s); return; }
   if (!strncmp(s, "LED", 3)) { ledCommand(s); return; }
   const char* p = s + 1;
@@ -703,8 +848,8 @@ static void command(char* s) {
       say("OK entering DFU"); Serial.flush(); delay(100);
       jumpToDfu();
       break;
-    case '?': say("OCTOPUS-GAUGES %s motors=%u cfg=1 power=1 leds=%u idle=1 ledf=1", FW_VERSION, N_MOTORS, S.led.count); break;
-    default: say("ERR unknown command. I E Z P D C S G H T U W LED LEDF CFG BOOTLOADER ?"); break;
+    case '?': say("OCTOPUS-GAUGES %s motors=%u cfg=1 power=1 leds=%u idle=1 ledf=1 pins=%u", FW_VERSION, N_MOTORS, S.led.count, N_PINS); break;
+    default: say("ERR unknown command. I E Z P D C S G H T U W LED LEDF PIN CFG BOOTLOADER ?"); break;
   }
 }
 
@@ -723,6 +868,7 @@ void setup() {
   pinMode(POWER_PIN, OUTPUT); setPower(false);         // the head unit stays off until Studio asks for power
   Serial.begin(115200);                                // USB CDC, baud is ignored
   settingsLoad();
+  pinsApplyAll();                                      // the free pins take their saved roles (outputs start at their safe level)
   for (uint8_t i = 0; i < N_MOTORS; i++) settingsDerive(i);
   nextionStart();
   for (uint8_t i = 0; i < N_MOTORS; i++) {             // drivers off until they are configured
@@ -763,6 +909,7 @@ void loop() {
     setDrivers(false);
     say("drivers off: no data for %u s", (unsigned)idleSeconds(S.idleSec));
   }
+  pinWatchdog();
   if (frameOn && millis() - frameAt >= LED_FRAME_TIMEOUT_MS) { frameOn = false; ledColorsChanged = true; }   // the PC stopped: stored segments again
   if (frameDirty && millis() - ledAt >= 12) ledShow();       // frames from the PC: also while needles move (a frame costs ~0.7 ms)
   else if ((ledColorsChanged || millis() - ledAt >= LED_REFRESH_MS) && !anyNeedleMoving()) ledShow();

@@ -198,6 +198,14 @@ details.adv[open] > summary { margin-bottom: 6px; }
 .stoprow input.n { width: 70px; }
 .chdot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
 .presets .row { margin: 4px 0; }
+.pingroup { margin-top: 12px; }
+.pingroup h4 { margin: 0 0 6px; font-size: 14px; color: var(--muted); }
+.pinrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 6px 8px; border-radius: 10px; }
+.pinrow.on { background: rgba(95, 176, 138, .08); }
+.pinname { width: 96px; flex: none; }
+.pinrow select { min-width: 150px; }
+.pinlabel { width: 130px; }
+.pinexpr { flex: 1 1 220px; min-width: 160px; }
 .ledrows { display: flex; flex-direction: column; gap: 8px; }
 .ledrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .ledrow input[type=color] { width: 44px; height: 34px; padding: 2px; border-radius: 8px; border: 1px solid var(--line); background: transparent; cursor: pointer; }

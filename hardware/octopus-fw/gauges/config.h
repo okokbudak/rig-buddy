@@ -64,6 +64,7 @@ constexpr float   HOME_MAX_DEG = SWEEP_DEG + 40.0f;   // give up after this much
 // pin to GND, so with the header's 12 V jumper set, 1 gives the head unit its 12 V. Off at power-up and at reset.
 constexpr uint32_t POWER_PIN = PA8;                      // FAN0 on the Octopus Pro V1.0/V1.0.1
 constexpr uint32_t POWER_TIMEOUT_MS = 5UL * 60UL * 1000UL;   // no data line with that field for this long -> off
+constexpr uint32_t PIN_TIMEOUT_MS = 5000;                    // an output pin Studio stops writing returns to its safe level after this
 
 // ---- LED strips: one chain of 12 V WS2811-type strips (3 LEDs per IC) on the NEOPIXEL header, data on PB0 ----
 // All strips are wired one after the other (DO of a strip -> DI of the next). A "pixel" is one IC (3 LEDs).

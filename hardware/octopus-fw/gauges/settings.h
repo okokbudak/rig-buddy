@@ -41,6 +41,12 @@ struct LedSettings {
   LedSeg  seg[LED_MAX_SEGS];   // later segments paint over earlier ones
 };
 
+// The free pins (fans, heaters, stops, probe, thermistors, servo ...): what each one does. One byte per pin of the
+// table in gauges.ino: bits 0-2 mode (0 off, 1 out, 2 pwm, 3 in, 4 in with pull-up, 5 analog in), bit 3 inverted,
+// bit 4 safe level (an output that Studio stops talking to goes to it). All zero = every pin off.
+constexpr uint8_t PIN_MAX = 24;
+struct PinSettings { uint8_t mode[PIN_MAX]; };
+
 struct Settings {
   uint32_t magic;
   uint16_t version;
@@ -52,8 +58,25 @@ struct Settings {
   uint8_t  reserved;       // (idleOff/idleSec were reserved[3]: zero in settings saved by firmware before 1.5 = feature off)
   uint32_t nxBaud;
   LedSettings led;         // since settings version 2
+  PinSettings pins;        // since settings version 3
   uint32_t crc;            // CRC-32 of everything above
 };
+
+// Version 2 had no pin block. Firmware 1.5 still reads it (every pin then stays off).
+struct SettingsV2 {
+  uint32_t magic;
+  uint16_t version;
+  uint16_t size;
+  MotorSettings m[N_MOTORS];
+  uint8_t  nxEnabled;
+  uint8_t  idleOff;
+  uint8_t  idleSec;
+  uint8_t  reserved;
+  uint32_t nxBaud;
+  LedSettings led;
+  uint32_t crc;
+};
+static_assert(offsetof(SettingsV2, crc) == offsetof(Settings, pins), "version 3 only appends the pin block");
 
 // Version 1 had no LED block. Firmware 1.2 still reads it (the LED settings then start from the defaults).
 struct SettingsV1 {
@@ -69,7 +92,7 @@ struct SettingsV1 {
 static_assert(offsetof(SettingsV1, crc) == offsetof(Settings, led), "version 2 only appends the LED block");
 
 constexpr uint32_t SETTINGS_MAGIC = 0x4F435447;  // "OCTG"
-constexpr uint16_t SETTINGS_VERSION = 2;
+constexpr uint16_t SETTINGS_VERSION = 3;
 constexpr uint32_t SETTINGS_ADDR = 0x08060000;   // flash sector 7 of the STM32F446ZE
 constexpr uint32_t SETTINGS_SECTOR = FLASH_SECTOR_7;
 
@@ -136,6 +159,16 @@ static bool settingsFromFlash(Settings& out) {
   const Settings* f = (const Settings*)SETTINGS_ADDR;
   if (settingsValid(*f)) {
     memcpy(&out, f, sizeof(Settings));
+    return true;
+  }
+  const SettingsV2* o2 = (const SettingsV2*)SETTINGS_ADDR;   // saved by firmware 1.2 .. 1.4: take it over (every pin off)
+  if (o2->magic == SETTINGS_MAGIC && o2->version == 2 && o2->size == sizeof(SettingsV2) &&
+      o2->crc == crc32((const uint8_t*)o2, offsetof(SettingsV2, crc))) {
+    settingsDefaults(out);
+    memcpy(&out, o2, offsetof(SettingsV2, crc));
+    out.version = SETTINGS_VERSION;
+    out.size = sizeof(Settings);
+    out.crc = settingsCrc(out);
     return true;
   }
   const SettingsV1* o = (const SettingsV1*)SETTINGS_ADDR;   // saved by firmware 1.0 / 1.1: take it over

@@ -7,8 +7,9 @@ import path from 'node:path';
 import { compile, FormulaError } from './expr.mjs';
 import { createNextion, normalizeNextion, directFrames, tunnelLines, tunnelFrame } from './nextion.mjs';
 import { read } from './props.mjs';
-import { BOARD_TYPES, hasHomeOffset, hasIdle, normalizeSleep, idleCommand, normalizeLeds, ledCommand, normalizeMotor, motorCommand, parseCfg, parseHello, motorDiff } from './board.mjs';
+import { BOARD_TYPES, hasHomeOffset, hasIdle, hasPins, normalizeSleep, idleCommand, normalizeLeds, ledCommand, normalizeMotor, motorCommand, parseCfg, parseHello, motorDiff } from './board.mjs';
 import { createRenderer, frameHex, EFFECTS, PALETTE_IDS } from './leds.mjs';
+import { PINS, normalizePins, pinConfigCommand, pinOutputValue, isOutputMode, isInputMode } from './pins.mjs';
 
 const TICK_MS = 40; // 25 Hz, what the gauge firmware parses at most
 const KEEPALIVE_MS = 500; // an unchanged line is repeated at least this often (gauges park without data)
@@ -76,6 +77,7 @@ export function normalize(cfg) {
       power: normalizePower(d.power ?? {}),
       leds: normalizeLeds(d.leds ?? {}),
       sleep: normalizeSleep(d.sleep ?? {}),
+      pins: board ? normalizePins(d.pins ?? []) : [],
     };
     if (!board) dev.power.enabled = dev.power.manual = dev.leds.enabled = dev.sleep.motors = dev.sleep.leds = false; // only a board with the matching firmware has these
     if (board) {
@@ -128,6 +130,22 @@ export function createEngine({ hub, getRaw, dataDir }) {
   function rt(id) {
     if (!runtime.has(id)) runtime.set(id, { state: 'off', msg: '', line: '', values: [], errors: [], lastLine: null, lastSent: 0, sent: 0 });
     return runtime.get(id);
+  }
+
+  /** The getter a device's formulas read through: `pin.<NAME>` is one of the board's input pins, everything else the game. */
+  function getFor(d, raw) {
+    return p => (p.startsWith('pin.') ? (rt(d.id).pinVals?.[p.slice(4).toUpperCase()] ?? 0) : read(raw, p));
+  }
+
+  const pinFns = new Map(); // formula text -> {fn} | {error}
+  function pinFn(expr) {
+    let f = pinFns.get(expr);
+    if (!f) {
+      try { f = { fn: compile(expr) }; } catch (e) { f = { error: e.message }; }
+      if (pinFns.size > 200) pinFns.clear();
+      pinFns.set(expr, f);
+    }
+    return f;
   }
 
   function compileAll() {
@@ -237,7 +255,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
     if (!d.board || (!cfg.enabled && !live && !watched)) { r.ledFrame = null; return; }
     const awake = raw != null || now < (r.ledAwakeUntil ?? 0) || !d.sleep.leds;
     r.ledRenderer ??= createRenderer();
-    r.ledFrame = r.ledRenderer.render(cfg, now, p => read(raw, p), { awake });
+    r.ledFrame = r.ledRenderer.render(cfg, now, getFor(d, raw), { awake });
     r.ledErrors = r.ledRenderer.errors;
     r.ledAwake = awake;
     r.ledCount = cfg.count;
@@ -247,6 +265,53 @@ export function createEngine({ hub, getRaw, dataDir }) {
       hub.write(d.id, `LEDF ${hex}\n`);
       r.ledHex = hex;
       r.ledSentAt = now;
+    }
+  }
+
+  /** Gives a connected board the roles of its pins (CFG PIN ...): all of them, or only those in `names`. */
+  function pushPins(d, names = null) {
+    if (!d.board || rt(d.id).state !== 'open' || waiters.has(d.id)) return;
+    for (const p of PINS) {
+      if (names && !names.has(p.name)) continue;
+      hub.write(d.id, `${pinConfigCommand(p.name, d.pins.find(e => e.pin === p.name))}\n`);
+    }
+  }
+
+  /**
+   * The outputs: every defined output pin follows its formula (sent when it changes and every second, the board puts
+   * an output back to its safe level after 5 s of silence); the inputs are asked for twice a second.
+   */
+  function pinTick(d, raw, now) {
+    if (!d.board || !d.pins.length) return;
+    const r = rt(d.id);
+    r.pinOut ??= {};
+    r.pinSent ??= {};
+    r.pinErrors = {};
+    const get = getFor(d, raw);
+    const test = r.pinTest && now < r.pinTest.until ? r.pinTest : null;
+    for (const e of d.pins) {
+      if (!isOutputMode(e.mode)) continue;
+      let v = null;
+      if (test && test.pin === e.pin) v = test.value;
+      else if (e.expr.trim()) {
+        const f = pinFn(e.expr);
+        if (f.error) { r.pinErrors[e.pin] = f.error; v = 0; }
+        else {
+          try { v = pinOutputValue(e.mode, f.fn(get)); } catch (err) { r.pinErrors[e.pin] = err.message; v = 0; }
+        }
+      }
+      if (v == null) continue;
+      r.pinOut[e.pin] = v;
+      if (r.state !== 'open' || waiters.has(d.id)) continue;
+      const last = r.pinSent[e.pin];
+      if (!last || last.v !== v || now - last.at >= 1000) {
+        hub.write(d.id, `PIN ${e.pin} v=${v}\n`);
+        r.pinSent[e.pin] = { v, at: now };
+      }
+    }
+    if (d.pins.some(e => isInputMode(e.mode)) && r.state === 'open' && !waiters.has(d.id) && now - (r.pinPollAt ?? 0) >= 500) {
+      hub.write(d.id, 'PIN? in\n');
+      r.pinPollAt = now;
     }
   }
 
@@ -260,7 +325,14 @@ export function createEngine({ hub, getRaw, dataDir }) {
     revCount++;
     const before = new Map(config.serial.map(d => [d.id, JSON.stringify(d.leds)]));
     const beforeSleep = new Map(config.serial.map(d => [d.id, JSON.stringify(d.sleep)]));
+    const beforePins = new Map(config.serial.map(d => [d.id, new Map(d.pins.map(e => [e.pin, JSON.stringify(e)]))]));
     config = normalize(next);
+    for (const d of config.serial) { // only the pins whose definition changed go to the board
+      const was = beforePins.get(d.id) ?? new Map();
+      const now = new Map(d.pins.map(e => [e.pin, JSON.stringify(e)]));
+      const changed = new Set([...now.keys(), ...was.keys()].filter(k => now.get(k) !== was.get(k)));
+      if (changed.size) { rt(d.id).pinSent = {}; pushPins(d, changed); }
+    }
     for (const d of config.serial) {
       const sleepChanged = beforeSleep.get(d.id) !== JSON.stringify(d.sleep);
       if (before.get(d.id) !== JSON.stringify(d.leds)) rt(d.id).ledLive = null; // what the editor showed live is now the saved configuration
@@ -309,9 +381,11 @@ export function createEngine({ hub, getRaw, dataDir }) {
     } else {
       const d = config.serial.find(x => x.id === m.id);
       if (d) { // the board may still be starting: say it twice
+        r.pinSent = {};
         pushLeds(d);
         pushIdle(d);
-        setTimeout(() => { const cur = config.serial.find(x => x.id === m.id); if (cur) { pushLeds(cur); pushIdle(cur); } }, 1500).unref();
+        if (d.pins.length) pushPins(d);
+        setTimeout(() => { const cur = config.serial.find(x => x.id === m.id); if (cur) { pushLeds(cur); pushIdle(cur); if (cur.pins.length) pushPins(cur); } }, 1500).unref();
       }
     }
     followVia(m.id);
@@ -326,6 +400,11 @@ export function createEngine({ hub, getRaw, dataDir }) {
     }
     const r = rt(m.id);
     r.rx = String(m.text).slice(0, 200);
+    if (String(m.text).startsWith('PIN ')) { // an answer of "PIN? in": the input values (not meant for an exchange waiting for OK)
+      const pm = /^PIN (\w+) mcu=\w+ caps=\d+ mode=\d+ inv=\d+ safe=\d+ val=(-?\d+)/.exec(String(m.text));
+      if (pm) (r.pinVals ??= {})[pm[1].toUpperCase()] = Number(pm[2]);
+      return;
+    }
     waiters.get(m.id)?.feed(String(m.text).trim()); // an upload/read waiting for this board's answer
   });
 
@@ -373,7 +452,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
   function evalDevice(d, raw) {
     const r = rt(d.id);
     const cs = compiled.get(d.id) ?? [];
-    const get = p => read(raw, p);
+    const get = getFor(d, raw);
     const values = [];
     r.errors = [];
     d.channels.forEach((c, i) => {
@@ -414,9 +493,9 @@ export function createEngine({ hub, getRaw, dataDir }) {
     r.powerError = null;
     if (!d.power.enabled) { /* only the manual switch (or a last "off" after the switch was turned off) */ }
     else if (!p || p.error) r.powerError = p?.error ?? 'error';
-    else if (raw != null) {
+    else if (raw != null || /\bpin\./.test(d.power.expr)) { // (a formula on an input pin works without a game)
       try {
-        want = !!Number(p.fn(path => read(raw, path)));
+        want = !!Number(p.fn(getFor(d, raw)));
       } catch (e) {
         r.powerError = e.message;
       }
@@ -471,7 +550,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
       r.lastSent = now;
       r.sent++;
     }
-    for (const d of config.serial) ledTick(d, raw, now);
+    for (const d of config.serial) { ledTick(d, raw, now); pinTick(d, raw, now); }
   }
 
   compileAll();
@@ -496,7 +575,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
           const board = r.board && d.board
             ? { version: r.board.version, saved: r.board.saved, readAt: r.board.readAt, power: !!r.board.power, idle: !!r.board.idle, differs: motorDiff(d.motors, r.board.motors.slice(0, d.motors.length)) }
             : null;
-          return { id: d.id, state: r.state, msg: r.msg, line: r.line, values: r.values, errors: r.errors, sent: r.sent, rx: r.rx ?? '', board, asleep: !!r.asleep,
+          return { id: d.id, state: r.state, msg: r.msg, line: r.line, values: r.values, errors: r.errors, sent: r.sent, rx: r.rx ?? '', board, asleep: !!r.asleep, pins: { values: r.pinVals ?? {}, out: r.pinOut ?? {}, errors: r.pinErrors ?? {} },
             power: d.board && (d.power.enabled || d.power.manual) ? { on: !!r.powerOn, want: !!r.powerWant, manual: !!d.power.manual, error: r.powerError ?? null, holdLeft: Math.max(0, Math.round(((r.powerHoldUntil ?? 0) - Date.now()) / 1000)) } : null };
         }),
       };
@@ -528,6 +607,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
         steps.push(`CFG NX en=${nx ? 1 : 0} baud=${nx?.baud ?? 115200}`);
         if (d.leds.enabled) steps.push(ledCommand(d.leds)); // the board keeps the LEDs too, so they light without the PC
         if (hasIdle(fw)) steps.push(idleCommand(d.sleep)); // and whether its motors sleep without data
+        if (hasPins(fw)) for (const p of PINS) steps.push(pinConfigCommand(p.name, d.pins.find(e => e.pin === p.name))); // and what its free pins do
         for (const line of steps) {
           const reply = (await exchange(d.id, line, isReply)).at(-1);
           if (!reply.startsWith('OK')) throw new Error(`${reply} (${line.split(' ').slice(0, 2).join(' ')})`);
@@ -582,6 +662,14 @@ export function createEngine({ hub, getRaw, dataDir }) {
       const r = rt(id), now = Date.now();
       r.ledLive = { cfg: normalizeLeds(leds), until: now + 10000 }; // shown on the strip at once; the saved config follows
       r.ledAwakeUntil = now + 60000; // an editor at work sees the LEDs even without a game
+      return true;
+    },
+    /** Switches an output pin on for a few seconds, whatever its formula says (the editor's test button). */
+    pinTest(id, pin, ms = 3000) {
+      const d = config.serial.find(x => x.id === id);
+      const e = d?.pins.find(x => x.pin === String(pin).toUpperCase() && isOutputMode(x.mode));
+      if (!e) return false;
+      rt(id).pinTest = { pin: e.pin, value: e.mode === 'pwm' ? 255 : 1, until: Date.now() + Math.min(10000, Math.max(500, ms)) };
       return true;
     },
     /** Keeps the LEDs lit for `sec` seconds without a game (the editor's test button; 0 ends it). */
@@ -645,7 +733,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
     /** One-off evaluation for the editor's "try it". */
     evaluate(expr) {
       try {
-        const v = compile(String(expr))(p => read(lastRaw, p));
+        const v = compile(String(expr))(getFor(config.serial.find(x => x.board) ?? { id: '' }, lastRaw));
         return { value: typeof v === 'boolean' ? +v : v };
       } catch (e) {
         return { error: e.message };

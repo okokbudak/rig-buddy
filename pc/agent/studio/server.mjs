@@ -7,6 +7,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { WebSocketServer } from 'ws';
 import { catalog, read } from './props.mjs';
+import { PINS } from './pins.mjs';
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
 const MAX_BODY = 1024 * 1024; // a configuration with many LED presets is a few hundred KB
@@ -84,6 +85,11 @@ export function startStudio({ engine, hub, port = Number(process.env.RIGBUDDY_ST
             return send(200, { ok: engine.homeMotor(String(b.id), b.motor) });
           }
           case 'GET /api/led-catalog': return send(200, engine.ledCatalog());
+          case 'GET /api/pins': return send(200, { pins: PINS });
+          case 'POST /api/pin-test': {
+            const b = JSON.parse(await readBody(req));
+            return send(200, { ok: engine.pinTest(String(b.id), String(b.pin), Number(b.ms) || 3000) });
+          }
           case 'POST /api/led-test': {
             const b = JSON.parse(await readBody(req));
             return send(200, { ok: engine.ledTest(String(b.id), Number(b.sec) || 0) });

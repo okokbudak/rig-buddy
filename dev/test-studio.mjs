@@ -7,7 +7,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { createEngine, normalize } from '../pc/agent/studio/engine.mjs';
 import { createRenderer, EFFECTS } from '../pc/agent/studio/leds.mjs';
-import { hasLedFrames, normalizeLeds, ledCommand, parseCfg, parseHello, normalizeMotor, motorCommand, motorDiff, hasHomeOffset, hasIdle, normalizeSleep, idleCommand } from '../pc/agent/studio/board.mjs';
+import { PINS, normalizePins, pinConfigCommand, pinOutputValue } from '../pc/agent/studio/pins.mjs';
+import { hasPins, hasLedFrames, normalizeLeds, ledCommand, parseCfg, parseHello, normalizeMotor, motorCommand, motorDiff, hasHomeOffset, hasIdle, normalizeSleep, idleCommand } from '../pc/agent/studio/board.mjs';
 import { compile, FormulaError } from '../pc/agent/studio/expr.mjs';
 import { catalog, read } from '../pc/agent/studio/props.mjs';
 
@@ -621,6 +622,85 @@ const NX = {
   assert.equal(eng.config.serial[0].leds.active, 'Night');
   assert.equal(eng.ledState().boards[0].active, 'Night');
   assert.deepEqual(eng.ledState().boards[0].presets, ['Night']);
+}
+
+// the free pins: definitions, outputs that follow formulas, inputs that come back and can be used as pin.<NAME>
+{
+  assert.equal(PINS.length, 21);
+  const np = normalizePins([
+    { pin: 'fan1', mode: 'out', expr: 'truck.engine.enabled', inv: true, safe: true, label: 'Fan' },
+    { pin: 'FAN1', mode: 'pwm' }, // duplicate
+    { pin: 'STOP6', mode: 'out' }, // an input-only pin cannot be an output
+    { pin: 'NOPE', mode: 'out' },
+    { pin: 'T0', mode: 'adc', expr: 'ignored', safe: true },
+    { pin: 'HE0', mode: 'off' },
+    { pin: 'BED', mode: 'pwm', expr: 'x.rpmPercent' },
+  ]);
+  assert.deepEqual(np.map(e => `${e.pin}:${e.mode}`), ['FAN1:out', 'T0:adc', 'BED:pwm']);
+  assert.equal(np[0].inv, true);
+  assert.equal(np[0].safe, true);
+  assert.equal(np[1].expr, '', 'an input has no formula');
+  assert.equal(np[1].safe, false, 'an input has no safe level');
+  assert.equal(pinConfigCommand('FAN1', np[0]), 'CFG PIN FAN1 mode=1 inv=1 safe=1');
+  assert.equal(pinConfigCommand('BED', np[2]), 'CFG PIN BED mode=2 inv=0 safe=0');
+  assert.equal(pinConfigCommand('HE0', undefined), 'CFG PIN HE0 mode=0 inv=0 safe=0');
+  assert.equal(pinOutputValue('out', true), 1);
+  assert.equal(pinOutputValue('out', 0), 0);
+  assert.equal(pinOutputValue('pwm', 50), 128);
+  assert.equal(pinOutputValue('pwm', 150), 255);
+  assert.equal(pinOutputValue('pwm', -5), 0);
+  assert.equal(pinOutputValue('out', NaN), 0);
+  assert.deepEqual(parseCfg(['CFG PIN FAN1 mode=1 inv=1 safe=0']).pins, { FAN1: { mode: 1, inv: true, safe: false } });
+  assert.equal(hasPins('1.4'), false);
+  assert.equal(hasPins('1.5'), true);
+  assert.equal(parseHello('OCTOPUS-GAUGES 1.5 motors=6 cfg=1 pins=21').pins, 21);
+
+  const w = [];
+  const ev = new EventEmitter();
+  let raw = { truck: { engine: { enabled: true, rpm: { value: 1000, max: 2000 } } } };
+  const h = {
+    events: ev, connected: true,
+    open: id => { queueMicrotask(() => ev.emit('state', { id, state: 'open' })); return true; },
+    close: () => {}, write: (id, data) => { if (id === 'oct') w.push(String(data)); },
+    ports: async () => ({ ports: [] }), probe: async () => ({}),
+  };
+  const eng = createEngine({ hub: h, getRaw: () => raw, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'studio-')) });
+  const until = async (fn, what, ms = 3000) => {
+    const t0 = Date.now();
+    while (!fn()) {
+      if (Date.now() - t0 > ms) assert.fail(`${what} (last: ${JSON.stringify(w.slice(-4))})`);
+      await new Promise(r => setTimeout(r, 20));
+    }
+  };
+  const c = structuredClone(eng.config);
+  c.serial = [{ id: 'oct', name: 'Octopus', enabled: true, port: 'COM9', board: 'octopus', idle: 'none', pins: [
+    { pin: 'FAN1', mode: 'out', expr: 'truck.engine.enabled' },
+    { pin: 'HE0', mode: 'pwm', expr: 'x.rpmPercent' },
+    { pin: 'STOP6', mode: 'pullup' },
+    { pin: 'FAN2', mode: 'out', expr: 'pin.STOP6' },
+  ] }];
+  eng.apply(c);
+  await until(() => w.filter(x => x.startsWith('CFG PIN ')).length >= 21, 'every pin gets its role when the board connects');
+  assert.ok(w.includes('CFG PIN FAN1 mode=1 inv=0 safe=0\n'));
+  assert.ok(w.includes('CFG PIN STOP6 mode=4 inv=0 safe=0\n'));
+  assert.ok(w.includes('CFG PIN BED mode=0 inv=0 safe=0\n'), 'a pin that is not defined is switched off');
+  await until(() => w.includes('PIN FAN1 v=1\n'), 'the fan follows its formula');
+  await until(() => w.includes('PIN HE0 v=128\n'), 'the pwm output follows 50 %');
+  await until(() => w.includes('PIN? in\n'), 'the inputs are asked for');
+  assert.ok(!w.includes('PIN FAN2 v=1\n'), 'an unread input is 0');
+  ev.emit('rx', { id: 'oct', text: 'PIN STOP6 mcu=PG14 caps=4 mode=4 inv=0 safe=0 val=1' });
+  assert.equal(eng.status().devices[0].pins.values.STOP6, 1);
+  await until(() => w.includes('PIN FAN2 v=1\n'), 'an input used in a formula as pin.STOP6');
+  raw = { truck: { engine: { enabled: false, rpm: { value: 0, max: 2000 } } } };
+  await until(() => w.filter(x => x === 'PIN FAN1 v=0\n').length > 0, 'the formula went false');
+  assert.equal(eng.pinTest('oct', 'FAN1', 1000), true);
+  await until(() => w.filter(x => x === 'PIN FAN1 v=1\n').length > 1, 'a test switches the output on');
+  assert.equal(eng.pinTest('oct', 'STOP6', 1000), false, 'an input cannot be tested as an output');
+  const n = w.length;
+  const c2 = structuredClone(eng.config);
+  c2.serial[0].pins = c2.serial[0].pins.filter(e => e.pin !== 'HE0');
+  eng.apply(c2);
+  assert.deepEqual(w.slice(n).filter(x => x.startsWith('CFG PIN')), ['CFG PIN HE0 mode=0 inv=0 safe=0\n'], 'only the pin that changed is sent');
 }
 
 // the zero offset after homing (firmware 1.3 "hoff", degrees in Studio, 0.1 deg on the wire)

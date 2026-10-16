@@ -598,6 +598,7 @@ function boardPcbCard(d) {
     panel,
     sleepPanel,
     powerPanel,
+    pinPanel(d),
     el('div', { class: 'actions boardactions' },
       el('button', { class: 'btn primary', 'data-role': 'upload', onclick: () => boardOp(d, 'upload') }, icon('play'), t('board.upload')),
       el('button', { class: 'btn', onclick: () => boardOp(d, 'read') }, icon('refresh'), t('board.read')),
@@ -626,6 +627,7 @@ function paintBoard() {
       sync.className = 'pill warn';
       sync.textContent = t('board.syncDiff', { list: b.differs.map(i => t('board.socket', { n: i })).join(', ') || '–' });
     } else { sync.className = 'pill ok'; sync.textContent = t('board.syncOk'); }
+    paintPins(card, d, st, b);
     const ss = card.querySelector('[data-role=sleepstate]');
     if (!d.sleep.motors) ss.textContent = '';
     else if (b && !b.idle) { ss.className = 'pill warn'; ss.textContent = t('sleep.oldFw'); }
