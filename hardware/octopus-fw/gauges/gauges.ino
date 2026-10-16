@@ -237,6 +237,11 @@ static void setPower(bool on) {
 // LED_REFRESH_MS, and not while a needle is moving.
 static bool ledColorsChanged = true;
 static uint32_t ledAt = 0;
+// Frames from the PC (LEDF <hex rgb>): Studio renders the effects and sends the finished pixels. They win over the
+// stored segments while they keep coming; 3 s without a frame and the board shows its stored segments again.
+static uint8_t frameBuf[LED_MAX_PIXELS * 3];
+static bool frameOn = false, frameDirty = false;
+static uint32_t frameAt = 0;
 
 static void ledShow() {
   const LedSettings& L = S.led;
@@ -244,7 +249,12 @@ static void ledShow() {
   uint8_t buf[LED_MAX_PIXELS * 3];
   const uint8_t n = L.count * 3;
   memset(buf, 0, n);                                           // pixels in no segment stay dark
-  for (uint8_t s = 0; s < L.nseg; s++) {
+  const bool useFrame = frameOn && millis() - frameAt < LED_FRAME_TIMEOUT_MS;
+  if (useFrame) {
+    for (uint8_t p = 0; p < L.count; p++)
+      for (uint8_t q = 0; q < 3; q++) buf[p * 3 + q] = frameBuf[p * 3 + ORDER[L.order][q]];
+  }
+  for (uint8_t s = 0; !useFrame && s < L.nseg; s++) {
     const LedSeg& g = L.seg[s];
     if (!g.on) continue;
     const uint8_t rgb[3] = { (uint8_t)((uint16_t)g.r * L.bri / 255), (uint8_t)((uint16_t)g.g * L.bri / 255), (uint8_t)((uint16_t)g.b * L.bri / 255) };
@@ -269,6 +279,7 @@ static void ledShow() {
   }
   interrupts();                                                // the line stays low: the ICs latch after 50 us
   ledColorsChanged = false;
+  frameDirty = false;
   ledAt = millis();
 }
 
@@ -568,8 +579,29 @@ static void ledCommand(char* s) {
   say("OK LED");
 }
 
+// LEDF <hex>: one finished frame, 6 hex digits (r,g,b) per pixel, exactly "count" pixels. No answer (it comes 25x a second);
+// a wrong frame is dropped with one ERR line.
+static void ledFrame(char* s) {
+  const char* p = s + 4;
+  while (*p == ' ') p++;
+  const uint8_t want = S.led.count * 3;
+  uint8_t tmp[LED_MAX_PIXELS * 3];
+  uint8_t k = 0;
+  while (*p && *p != '\r' && k < want) {
+    auto hex = [](char c) -> int { return c >= '0' && c <= '9' ? c - '0' : (c >= 'a' && c <= 'f' ? c - 'a' + 10 : (c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1)); };
+    int a = hex(p[0]), b = a < 0 ? -1 : hex(p[1]);
+    if (a < 0 || b < 0) break;
+    tmp[k++] = (uint8_t)(a * 16 + b);
+    p += 2;
+  }
+  if (k != want || (*p && *p != '\r')) { say("ERR LEDF needs %u hex pixels (%u bytes), got %u bytes", S.led.count, want, k); return; }
+  memcpy(frameBuf, tmp, want);
+  frameOn = true; frameAt = millis(); frameDirty = true;
+}
+
 static void command(char* s) {
   if (!strncmp(s, "CFG", 3)) { cfgCommand(s); return; }
+  if (!strncmp(s, "LEDF", 4)) { ledFrame(s); return; }
   if (!strncmp(s, "LED", 3)) { ledCommand(s); return; }
   const char* p = s + 1;
   int a, b;
@@ -671,8 +703,8 @@ static void command(char* s) {
       say("OK entering DFU"); Serial.flush(); delay(100);
       jumpToDfu();
       break;
-    case '?': say("OCTOPUS-GAUGES %s motors=%u cfg=1 power=1 leds=%u idle=1", FW_VERSION, N_MOTORS, S.led.count); break;
-    default: say("ERR unknown command. I E Z P D C S G H T U W LED CFG BOOTLOADER ?"); break;
+    case '?': say("OCTOPUS-GAUGES %s motors=%u cfg=1 power=1 leds=%u idle=1 ledf=1", FW_VERSION, N_MOTORS, S.led.count); break;
+    default: say("ERR unknown command. I E Z P D C S G H T U W LED LEDF CFG BOOTLOADER ?"); break;
   }
 }
 
@@ -731,7 +763,9 @@ void loop() {
     setDrivers(false);
     say("drivers off: no data for %u s", (unsigned)idleSeconds(S.idleSec));
   }
-  if ((ledColorsChanged || millis() - ledAt >= LED_REFRESH_MS) && !anyNeedleMoving()) ledShow();
+  if (frameOn && millis() - frameAt >= LED_FRAME_TIMEOUT_MS) { frameOn = false; ledColorsChanged = true; }   // the PC stopped: stored segments again
+  if (frameDirty && millis() - ledAt >= 12) ledShow();       // frames from the PC: also while needles move (a frame costs ~0.7 ms)
+  else if ((ledColorsChanged || millis() - ledAt >= LED_REFRESH_MS) && !anyNeedleMoving()) ledShow();
   if (powerOn && millis() - powerAt > POWER_TIMEOUT_MS) {   // the PC went away: do not keep the head unit on forever
     setPower(false);
     say("power off: no power field for %lu s", (unsigned long)(POWER_TIMEOUT_MS / 1000));

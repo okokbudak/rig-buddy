@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createEngine, normalize } from '../pc/agent/studio/engine.mjs';
-import { normalizeLeds, ledCommand, parseCfg, parseHello, normalizeMotor, motorCommand, motorDiff, hasHomeOffset, hasIdle, normalizeSleep, idleCommand } from '../pc/agent/studio/board.mjs';
+import { createRenderer, EFFECTS } from '../pc/agent/studio/leds.mjs';
+import { hasLedFrames, normalizeLeds, ledCommand, parseCfg, parseHello, normalizeMotor, motorCommand, motorDiff, hasHomeOffset, hasIdle, normalizeSleep, idleCommand } from '../pc/agent/studio/board.mjs';
 import { compile, FormulaError } from '../pc/agent/studio/expr.mjs';
 import { catalog, read } from '../pc/agent/studio/props.mjs';
 
@@ -461,50 +462,144 @@ const NX = {
   assert.ok(!w.slice(n).some(x => /^\d/.test(x)), 'no data line after the game ended');
 }
 
-// the LED chain: normalising, the firmware command, the push on connect / edit, live colours
+// the LED chain: configuration, the board's static copy, the renderer (effects, bars, rules, correction), frames to the board
 {
   const l = normalizeLeds({});
   assert.equal(l.count, 24);
   assert.equal(l.order, 2);
   assert.deepEqual(l.segments.map(s => [s.start, s.len]), [[0, 6], [6, 6], [12, 3], [15, 3], [18, 3], [21, 3]]);
   assert.equal(l.enabled, false);
+  assert.equal(l.gamma, 1);
   const odd = normalizeLeds({ count: 10, order: 9, bri: -5, segments: [{ start: 8, len: 50, color: 'red', on: false }, { start: 99, len: 1 }] });
   assert.equal(odd.order, 5, 'an order past the last one is clamped');
   assert.equal(odd.bri, 0);
-  assert.deepEqual(odd.segments[0], { name: '', start: 8, len: 2, color: '#ff9329', on: false });
+  assert.equal(odd.segments[0].start, 8);
+  assert.equal(odd.segments[0].len, 2);
+  assert.equal(odd.segments[0].on, false);
+  assert.equal(odd.segments[0].look.c1, '#ff9329', 'a bad colour becomes the default');
   assert.equal(odd.segments[1].start, 9, 'a start past the end is pulled in');
+  assert.equal(normalizeLeds({ count: 6, segments: [{ start: 0, len: 6, color: '#0A0B0C' }] }).segments[0].look.c1, '#0a0b0c', 'an old segment with just a colour is a solid look');
   assert.equal(ledCommand(normalizeLeds({ count: 6, segments: [{ start: 0, len: 6, color: '#0a0b0c' }] })), 'LED n=6 order=2 bri=255 seg=0,6,10,11,12,1');
   assert.equal(ledCommand(normalizeLeds({ count: 6, segments: [] })), 'LED n=6 order=2 bri=255 clear');
+  assert.equal(ledCommand(normalizeLeds({ count: 6, maxBri: 100, segments: [] })), 'LED n=6 order=2 bri=100 clear', 'the cap shows in the static copy');
+  assert.equal(ledCommand(normalizeLeds({ count: 6, segments: [] }), { dark: true }), 'LED n=6 order=2 bri=0 clear');
   assert.deepEqual(parseCfg(['CFG LED n=24 order=2 bri=255 segs=1', 'CFG SEG 0 start=0 len=24 r=1 g=2 b=3 on=1', 'CFG END motors=6 saved=1']).led,
     { count: 24, order: 2, bri: 255, segs: [{ start: 0, len: 24, r: 1, g: 2, b: 3, on: true }] });
+  assert.equal(hasLedFrames('1.4'), false);
+  assert.equal(hasLedFrames('1.5'), true);
 
+  // the renderer
+  const solid = (extra = {}, seg = {}) => normalizeLeds({ enabled: true, count: 6, segments: [{ start: 0, len: 6, look: { fx: 'solid', c1: '#ff0000' }, ...seg }], ...extra });
+  const none = () => 0;
+  const px = (u8, i) => [...u8.slice(i * 3, i * 3 + 3)];
+  const R = createRenderer();
+  const f1 = R.render(solid(), 1000, none);
+  assert.equal(f1.length, 18);
+  assert.deepEqual(px(f1, 0), [255, 0, 0]);
+  assert.deepEqual(px(f1, 5), [255, 0, 0]);
+  assert.deepEqual(px(createRenderer().render(solid({ bri: 128 }), 1000, none), 0), [128, 0, 0], 'master brightness');
+  assert.deepEqual(px(createRenderer().render(solid({ bri: 255, maxBri: 64 }), 1000, none), 0), [64, 0, 0], 'the brightness cap');
+  assert.deepEqual(px(createRenderer().render(solid({ gamma: 2 }, { look: { fx: 'solid', c1: '#808080' } }), 1000, none), 0), [64, 64, 64], 'gamma 2');
+  assert.deepEqual(px(createRenderer().render(solid({ rgb: [100, 50, 100] }, { look: { fx: 'solid', c1: '#ffffff' } }), 1000, none), 0), [255, 128, 255], 'channel scale');
+  assert.deepEqual(px(createRenderer().render(solid({ sat: 0 }, { look: { fx: 'solid', c1: '#ff0000' } }), 1000, none), 0), [76, 76, 76], 'no saturation = grey');
+  const warm = px(createRenderer().render(solid({ temp: 100 }, { look: { fx: 'solid', c1: '#ffffff' } }), 1000, none), 0);
+  assert.ok(warm[0] === 255 && warm[2] < warm[1] && warm[1] < 255, 'warm white balance');
+  assert.deepEqual([...createRenderer().render(solid(), 1000, none, { awake: false })], new Array(18).fill(0), 'dark when asleep');
+  assert.deepEqual(px(createRenderer().render(solid({}, { on: false }), 1000, none), 0), [0, 0, 0], 'a segment that is off');
+  assert.deepEqual(px(createRenderer().render(solid({}, { bri: 128, opacity: 100 }), 1000, none), 0), [128, 0, 0], 'segment brightness');
+  const sm = createRenderer();
+  sm.render(solid({ smooth: 500 }), 1000, none, { awake: false });
+  const faded = px(sm.render(solid({ smooth: 500 }), 1040, none), 0);
+  assert.ok(faded[0] > 0 && faded[0] < 255, `smoothing crossfades (${faded})`);
+
+  // every effect renders 24 pixels for a while without trouble
+  for (const e of EFFECTS) {
+    const cfg = normalizeLeds({ enabled: true, count: 24, segments: [{ start: 0, len: 24, look: { fx: e.id, pal: e.pal ? 'rainbow' : 'colors', c1: '#ff2000', c2: '#0020ff', c3: '#00ff00' } }] });
+    const r = createRenderer();
+    let lit = 0;
+    for (let k = 0; k < 120; k++) {
+      const f = r.render(cfg, 5000 + k * 40, none);
+      assert.equal(f.length, 72, e.id);
+      lit += f.reduce((a, b) => a + b, 0);
+    }
+    assert.ok(lit > 0, `${e.id} shows something`);
+  }
+  assert.ok(EFFECTS.length >= 28, 'a WLED-sized effect list');
+
+  // reverse, mirror, grouping and spacing
+  const grad = (seg, n = 4) => normalizeLeds({ enabled: true, count: n, segments: [{ start: 0, len: n, look: { fx: 'gradient', pal: 'colors', c1: '#ff0000', c2: '#0000ff', c3: '#0000ff' }, ...seg }] });
+  const g0 = createRenderer().render(grad({}), 0, none);
+  assert.deepEqual(px(g0, 0), [255, 0, 0]);
+  assert.deepEqual(px(g0, 3), [0, 0, 255]);
+  const g1 = createRenderer().render(grad({ reverse: true }), 0, none);
+  assert.deepEqual(px(g1, 0), [0, 0, 255], 'reverse');
+  const g2 = createRenderer().render(grad({ mirror: true }), 0, none);
+  assert.deepEqual(px(g2, 0), px(g2, 3), 'mirror');
+  assert.deepEqual(px(g2, 1), px(g2, 2), 'mirror');
+  const gs = createRenderer().render(normalizeLeds({ enabled: true, count: 6, segments: [{ start: 0, len: 6, group: 2, spacing: 1, look: { fx: 'solid', c1: '#ffffff' } }] }), 0, none);
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map(i => px(gs, i)[0]), [255, 255, 0, 255, 255, 0], 'groups of 2 with a gap of 1');
+
+  // a game value as a bar, and rules that take over
+  const bar = (v, extra = {}) => normalizeLeds({ enabled: true, count: 6, segments: [{ start: 0, len: 6, mode: 'bar', bar: { value: 'x.v', lo: 0, hi: 100, stops: [[0, '#00ff00'], [1, '#ff0000']], bg: '#000000', ...extra } }] });
+  const b50 = createRenderer().render(bar(50), 0, p => (p === 'x.v' ? 50 : 0));
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map(i => px(b50, i).some(Boolean)), [true, true, true, false, false, false], 'half a bar');
+  const b100 = createRenderer().render(bar(100), 0, p => (p === 'x.v' ? 100 : 0));
+  assert.ok([0, 1, 2, 3, 4, 5].every(i => px(b100, i).some(Boolean)), 'a full bar');
+  assert.ok(px(b100, 5)[0] > px(b100, 5)[1] && px(b100, 0)[1] > px(b100, 0)[0], 'green at the start, red at the end');
+  const ruled = solid({}, { rules: [{ name: 'blue when set', when: 'x.b', look: { fx: 'solid', c1: '#0000ff' } }] });
+  assert.deepEqual(px(createRenderer().render(ruled, 0, p => (p === 'x.b' ? 1 : 0)), 0), [0, 0, 255], 'a rule takes over');
+  assert.deepEqual(px(createRenderer().render(ruled, 0, p => 0), 0), [255, 0, 0], 'no rule: the base look');
+  const broken = createRenderer();
+  broken.render(solid({}, { rules: [{ when: '1 +', look: {} }] }), 0, none);
+  assert.ok(broken.errors.length === 1, 'a formula that does not compile is reported');
+
+  // the engine sends frames to the board
   const w = [];
   const ev = new EventEmitter();
+  let raw = null;
   const h = {
     events: ev, connected: true,
     open: id => { queueMicrotask(() => ev.emit('state', { id, state: 'open' })); return true; },
     close: () => {}, write: (id, data) => { if (id === 'oct') w.push(String(data)); },
     ports: async () => ({ ports: [] }), probe: async () => ({}),
   };
-  const eng = createEngine({ hub: h, getRaw: () => null, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'studio-')) });
+  const eng = createEngine({ hub: h, getRaw: () => raw, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'studio-')) });
+  const until = async (fn, what, ms = 3000) => {
+    const t0 = Date.now();
+    while (!fn()) {
+      if (Date.now() - t0 > ms) assert.fail(`${what} (last: ${JSON.stringify(w.slice(-3))})`);
+      await new Promise(r => setTimeout(r, 20));
+    }
+  };
+  const frames = () => w.filter(x => x.startsWith('LEDF '));
   const c = structuredClone(eng.config);
   c.serial = [{ id: 'oct', name: 'Octopus', enabled: true, port: 'COM9', board: 'octopus', idle: 'none', leds: { enabled: false } }];
   eng.apply(c);
-  await new Promise(r => setTimeout(r, 100));
+  await new Promise(r => setTimeout(r, 200));
   assert.ok(!w.some(x => x.startsWith('LED')), 'LEDs not enabled: the board keeps its own');
+  eng.ledWatchers = 1;
+  await until(() => eng.ledFrames().oct, 'a watching editor gets frames even with the LEDs disabled');
+  assert.equal(frames().length, 0, '...but nothing goes to the board');
+  eng.ledWatchers = 0;
   const c2 = structuredClone(eng.config);
   c2.serial[0].leds.enabled = true;
   eng.apply(c2);
-  assert.ok(w.at(-1).startsWith('LED n=24 order=2 bri=255 seg=0,6,255,147,41,1 seg=6,6'), `enabling pushes the chain (${w.at(-1)})`);
-  const n = w.length;
-  eng.apply(structuredClone(eng.config));
-  assert.equal(w.length, n, 'an unchanged chain is not sent again');
+  assert.ok(w.at(-1).startsWith('LED n=24 order=2 bri=255 seg=0,6,255,147,41,1 seg=6,6'), `enabling pushes the static copy (${w.at(-1)})`);
+  await until(() => frames().length > 0, 'sleep is off: frames go out even without a game');
+  raw = { truck: { electric: { enabled: true } } };
+  await until(() => frames().at(-1) === `LEDF ${'ff9329'.repeat(24)}\n`, 'the segments default to warm white');
+  raw = null;
   const c3 = structuredClone(eng.config);
-  c3.serial[0].leds.segments[0].color = '#000000';
+  c3.serial[0].sleep = { leds: true };
   eng.apply(c3);
-  assert.ok(w.at(-1).includes('seg=0,6,0,0,0,1'), 'an edit is pushed');
-  assert.equal(eng.ledLive('oct', { count: 3, segments: [{ start: 0, len: 3, color: '#ffffff' }] }), true);
-  assert.equal(w.at(-1), 'LED n=3 order=2 bri=255 seg=0,3,255,255,255,1\n');
+  assert.ok(w.filter(x => x.startsWith('LED n=')).at(-1).includes('bri=0'), 'sleep: the static copy is dark too');
+  await until(() => frames().at(-1) === `LEDF ${'00'.repeat(72)}\n`, 'sleeping LEDs: black frames keep coming');
+  assert.equal(eng.ledTest('oct', 60), true);
+  await until(() => frames().at(-1) === `LEDF ${'ff9329'.repeat(24)}\n`, 'a test lights the LEDs without a game');
+  assert.equal(eng.ledTest('oct', 0), true);
+  await until(() => frames().at(-1) === `LEDF ${'00'.repeat(72)}\n`, 'the test ended');
+  assert.equal(eng.ledLive('oct', { count: 2, segments: [{ start: 0, len: 2, look: { fx: 'solid', c1: '#ffffff' } }] }), true);
+  await until(() => frames().at(-1) === `LEDF ${'ffffff'.repeat(2)}\n`, 'live colours reach the strip at once (and wake it)');
   assert.equal(eng.ledLive('nope', {}), false);
 }
 

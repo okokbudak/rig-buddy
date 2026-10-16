@@ -83,6 +83,11 @@ export function startStudio({ engine, hub, port = Number(process.env.RIGBUDDY_ST
             const b = JSON.parse(await readBody(req));
             return send(200, { ok: engine.homeMotor(String(b.id), b.motor) });
           }
+          case 'GET /api/led-catalog': return send(200, engine.ledCatalog());
+          case 'POST /api/led-test': {
+            const b = JSON.parse(await readBody(req));
+            return send(200, { ok: engine.ledTest(String(b.id), Number(b.sec) || 0) });
+          }
           case 'POST /api/led-live': {
             const b = JSON.parse(await readBody(req));
             return send(200, { ok: engine.ledLive(String(b.id), b.leds ?? {}) });
@@ -118,10 +123,18 @@ export function startStudio({ engine, hub, port = Number(process.env.RIGBUDDY_ST
   const wss = new WebSocketServer({ server, path: '/live', maxPayload: 64 * 1024, verifyClient: ({ req }) => sameOrigin(req) });
   wss.on('connection', ws => {
     let watch = [];
+    let ledTimer = null; // the LED tab asks for the rendered frames (12 per second) for its live preview
+    const stopLeds = () => { if (ledTimer) { clearInterval(ledTimer); ledTimer = null; engine.ledWatchers--; } };
     ws.on('message', data => {
       try {
         const m = JSON.parse(data.toString());
         if (Array.isArray(m.watch)) watch = m.watch.slice(0, 400).filter(p => typeof p === 'string');
+        if (typeof m.watchLeds === 'boolean') {
+          if (m.watchLeds && !ledTimer) {
+            engine.ledWatchers++;
+            ledTimer = setInterval(() => { if (ws.readyState === 1) ws.send(JSON.stringify({ leds: engine.ledFrames() })); }, 80);
+          } else if (!m.watchLeds) stopLeds();
+        }
       } catch { /* ignore */ }
     });
     const push = () => {
@@ -135,6 +148,7 @@ export function startStudio({ engine, hub, port = Number(process.env.RIGBUDDY_ST
     engine.viewers++;
     ws.on('close', () => {
       clearInterval(timer);
+      stopLeds();
       engine.viewers--;
     });
     push();

@@ -82,6 +82,7 @@ constexpr uint8_t  LED_DEFAULT_COUNT = 24;              // sum of the line above
 constexpr uint8_t  LED_DEFAULT_ORDER = 2;
 constexpr uint8_t  LED_DEFAULT_RGB[3] = { 255, 147, 41 };   // warm white
 constexpr uint32_t LED_REFRESH_MS = 2000;
+constexpr uint32_t LED_FRAME_TIMEOUT_MS = 3000;         // frames from the PC (LEDF) older than this: back to the stored segments
 
 // ---- Nextion display on the TFT connector (5V, GND, TX, RX): USART1 ----
 constexpr uint32_t NEXTION_TX = PA9;             // board TX -> display RX

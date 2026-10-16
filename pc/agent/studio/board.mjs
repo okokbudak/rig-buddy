@@ -71,43 +71,12 @@ export function motorCommand(i, m, version = '99') {
     (hasSmooth(version) ? ` smooth=${m.smooth}` : '');
 }
 
-// --- the LED chain on PB0 (firmware 1.2+): split into segments, live like WLED ---------------------------
-//   -> "LED n=24 order=2 bri=255 seg=0,6,255,147,41,1 seg=6,6,..."   <- "OK LED" | "ERR LED ..."
-export const LED_ORDERS = ['RGB', 'GRB', 'BRG', 'RBG', 'GBR', 'BGR'];
-export const LED_MAX_PIXELS = 64;
-export const LED_MAX_SEGS = 16;
-const LED_DEFAULT_SEGS = [6, 6, 3, 3, 3, 3]; // the user's six strips (ICs): 18+18+9+9+9+9 LEDs
-const LED_WARM = '#ff9329';
-
-function defaultSegments() {
-  let at = 0;
-  return LED_DEFAULT_SEGS.map(len => ({ name: '', start: (at += len) - len, len, color: LED_WARM, on: true }));
-}
-
-export function normalizeLeds(l = {}) {
-  const count = int(l.count, 1, LED_MAX_PIXELS, 24);
-  const segs = [];
-  for (const s of (Array.isArray(l.segments) ? l.segments : defaultSegments()).slice(0, LED_MAX_SEGS)) {
-    const start = int(s?.start, 0, count - 1, 0);
-    segs.push({
-      name: String(s?.name ?? '').slice(0, 24),
-      start,
-      len: int(s?.len, 1, count - start, 1),
-      color: /^#[0-9a-f]{6}$/i.test(String(s?.color)) ? String(s.color).toLowerCase() : LED_WARM,
-      on: s?.on !== false,
-    });
-  }
-  return { enabled: !!l.enabled, count, order: int(l.order, 0, 5, 2), bri: int(l.bri, 0, 255, 255), segments: segs };
-}
-
-/** The firmware command that makes the chain look like `l` (a normalized LED config). */
-export function ledCommand(l) {
-  const segs = l.segments.map(s => {
-    const [r, g, b] = [1, 3, 5].map(i => parseInt(s.color.slice(i, i + 2), 16));
-    return `seg=${s.start},${s.len},${r},${g},${b},${+s.on}`;
-  });
-  return `LED n=${l.count} order=${l.order} bri=${l.bri} ${segs.length ? segs.join(' ') : 'clear'}`;
-}
+// --- the LED chain on PB0 (firmware 1.2+): segments, effects, game sync: see leds.mjs -------------------
+//   -> "LED n=24 order=2 bri=255 seg=0,6,255,147,41,1 ..."   <- "OK LED"   (the static copy the board keeps)
+//   -> "LEDF <hex rgb per pixel>"                            (a finished frame from the PC, firmware 1.5+)
+export { normalizeLeds, ledCommand, ORDERS as LED_ORDERS, MAX_PIXELS as LED_MAX_PIXELS, MAX_SEGMENTS as LED_MAX_SEGS } from './leds.mjs';
+/** true when it takes finished frames from the PC (`LEDF`, 1.5 or newer). */
+export const hasLedFrames = version => atLeast(version, 1, 5);
 
 /** "OCTOPUS-GAUGES 0.8 motors=6 cfg=1" -> {type, version, motors, cfg}; null for anything else. */
 export function parseHello(text) {

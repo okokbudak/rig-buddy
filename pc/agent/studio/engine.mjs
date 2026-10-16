@@ -8,6 +8,7 @@ import { compile, FormulaError } from './expr.mjs';
 import { createNextion, normalizeNextion, directFrames, tunnelLines, tunnelFrame } from './nextion.mjs';
 import { read } from './props.mjs';
 import { BOARD_TYPES, hasHomeOffset, hasIdle, normalizeSleep, idleCommand, normalizeLeds, ledCommand, normalizeMotor, motorCommand, parseCfg, parseHello, motorDiff } from './board.mjs';
+import { createRenderer, frameHex, EFFECTS, PALETTE_IDS } from './leds.mjs';
 
 const TICK_MS = 40; // 25 Hz, what the gauge firmware parses at most
 const KEEPALIVE_MS = 500; // an unchanged line is repeated at least this often (gauges park without data)
@@ -220,7 +221,33 @@ export function createEngine({ hub, getRaw, dataDir }) {
   /** Sends the wanted LED chain to a connected board (Studio drives it when the device's LEDs are enabled). */
   function pushLeds(d) {
     if (!d.board || !d.leds.enabled || rt(d.id).state !== 'open' || waiters.has(d.id)) return;
-    hub.write(d.id, `${ledCommand(d.leds)}\n`);
+    hub.write(d.id, `${ledCommand(d.leds, { dark: d.sleep.leds })}\n`); // the board's static copy (frames from Studio win while they come)
+  }
+
+  /**
+   * One LED frame for a board: the effects/bars/rules rendered against the telemetry, sent as `LEDF <hex>` (25 Hz at most,
+   * at least every 500 ms: the board falls back to its static copy after 3 s). Dark (but still sent) while there is no
+   * game and the LEDs are set to sleep, unless an editor is previewing.
+   */
+  function ledTick(d, raw, now) {
+    const r = rt(d.id);
+    const live = r.ledLive && now < r.ledLive.until ? r.ledLive.cfg : null;
+    const cfg = live ?? d.leds;
+    const watched = engine.ledWatchers > 0;
+    if (!d.board || (!cfg.enabled && !live && !watched)) { r.ledFrame = null; return; }
+    const awake = raw != null || now < (r.ledAwakeUntil ?? 0) || !d.sleep.leds;
+    r.ledRenderer ??= createRenderer();
+    r.ledFrame = r.ledRenderer.render(cfg, now, p => read(raw, p), { awake });
+    r.ledErrors = r.ledRenderer.errors;
+    r.ledAwake = awake;
+    r.ledCount = cfg.count;
+    if (!(cfg.enabled || live) || r.state !== 'open' || waiters.has(d.id)) return;
+    const hex = frameHex(r.ledFrame);
+    if (hex !== r.ledHex || now - (r.ledSentAt ?? 0) >= 500) {
+      hub.write(d.id, `LEDF ${hex}\n`);
+      r.ledHex = hex;
+      r.ledSentAt = now;
+    }
   }
 
   /** Tells a connected board whether its motors may sleep (CFG IDLE; an older firmware just answers ERR). */
@@ -234,8 +261,12 @@ export function createEngine({ hub, getRaw, dataDir }) {
     const before = new Map(config.serial.map(d => [d.id, JSON.stringify(d.leds)]));
     const beforeSleep = new Map(config.serial.map(d => [d.id, JSON.stringify(d.sleep)]));
     config = normalize(next);
-    for (const d of config.serial) if (before.get(d.id) !== JSON.stringify(d.leds)) pushLeds(d);
-    for (const d of config.serial) if (beforeSleep.get(d.id) !== JSON.stringify(d.sleep)) pushIdle(d);
+    for (const d of config.serial) {
+      const sleepChanged = beforeSleep.get(d.id) !== JSON.stringify(d.sleep);
+      if (before.get(d.id) !== JSON.stringify(d.leds)) rt(d.id).ledLive = null; // what the editor showed live is now the saved configuration
+      if (before.get(d.id) !== JSON.stringify(d.leds) || sleepChanged) pushLeds(d); // (sleeping LEDs: the static copy goes dark)
+      if (sleepChanged) pushIdle(d);
+    }
     compileAll();
     buildNextions();
     syncPorts();
@@ -440,6 +471,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
       r.lastSent = now;
       r.sent++;
     }
+    for (const d of config.serial) ledTick(d, raw, now);
   }
 
   compileAll();
@@ -546,10 +578,32 @@ export function createEngine({ hub, getRaw, dataDir }) {
     /** The editor's colour pickers: shows `leds` on the board at once, without saving anything. */
     ledLive(id, leds) {
       const d = config.serial.find(x => x.id === id);
-      if (!d || !d.board || rt(id).state !== 'open' || waiters.has(id)) return false;
-      hub.write(id, `${ledCommand(normalizeLeds(leds))}\n`);
+      if (!d || !d.board) return false;
+      const r = rt(id), now = Date.now();
+      r.ledLive = { cfg: normalizeLeds(leds), until: now + 10000 }; // shown on the strip at once; the saved config follows
+      r.ledAwakeUntil = now + 60000; // an editor at work sees the LEDs even without a game
       return true;
     },
+    /** Keeps the LEDs lit for `sec` seconds without a game (the editor's test button; 0 ends it). */
+    ledTest(id, sec = 60) {
+      const d = config.serial.find(x => x.id === id);
+      if (!d || !d.board) return false;
+      rt(id).ledAwakeUntil = sec > 0 ? Date.now() + Math.min(600, sec) * 1000 : 0;
+      return true;
+    },
+    /** Pages that watch the LED frames (live preview); counted by the server's socket. */
+    ledWatchers: 0,
+    /** The last rendered frame of each board's LED chain, for the preview in the editor. */
+    ledFrames() {
+      const out = {};
+      for (const d of config.serial) {
+        const r = rt(d.id);
+        if (d.board && r.ledFrame) out[d.id] = { hex: frameHex(r.ledFrame), count: r.ledCount, awake: !!r.ledAwake, errors: r.ledErrors ?? [] };
+      }
+      return out;
+    },
+    /** What the editor needs to build its menus. */
+    ledCatalog() { return { effects: EFFECTS, palettes: PALETTE_IDS }; },
     /** Next/previous page of a Nextion display (the editor's test buttons). */
     nextionNav(id, action) {
       nextions.get(id)?.nav(action);
