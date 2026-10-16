@@ -234,4 +234,8 @@
     <string name="led_offline">Platine nicht verbunden</string>
     <string name="led_lit">Leuchtet</string>
     <string name="led_dark">Dunkel</string>
+    <string name="set_explore">Erkundete Straßen: %1$s</string>
+    <string name="explore_on">an (orange-gelb)</string>
+    <string name="explore_off">aus</string>
+    <string name="explore_need_map">Die Farben erkundeter Straßen brauchen eine neu erstellte Karte: Karte am PC neu erstellen (sie wird dann neu geladen).</string>
 </resources>

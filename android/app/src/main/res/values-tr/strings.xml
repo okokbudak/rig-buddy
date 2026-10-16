@@ -240,4 +240,8 @@
     <string name="led_offline">Kart bağlı değil</string>
     <string name="led_lit">Yanıyor</string>
     <string name="led_dark">Sönük</string>
+    <string name="set_explore">Keşfedilen yollar: %1$s</string>
+    <string name="explore_on">açık (turuncu-sarı)</string>
+    <string name="explore_off">kapalı</string>
+    <string name="explore_need_map">Keşfedilen yol renkleri için yeni üretilmiş bir harita gerekir: haritayı PC\'de yeniden üret (sonra yeniden indirilir).</string>
 </resources>

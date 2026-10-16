@@ -43,6 +43,8 @@ import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.Style;
 import com.mapbox.mapboxsdk.offline.OfflineManager;
 import com.mapbox.mapboxsdk.style.expressions.Expression;
+import com.mapbox.mapboxsdk.style.layers.FillLayer;
+import com.mapbox.mapboxsdk.style.layers.Layer;
 import com.mapbox.mapboxsdk.style.layers.LineLayer;
 import com.mapbox.mapboxsdk.style.layers.Property;
 import com.mapbox.mapboxsdk.style.layers.PropertyFactory;
@@ -112,6 +114,13 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
 
   private String game = "ets2";
   private boolean darkMode;
+  /** Road items the player has driven (the save's discovered_items, hex uids; GET /explored), null until the PC said. */
+  private List<String> exploredUids;
+  /** The style on screen colours explored roads (the map file carries the uids and the player wants it). */
+  private boolean exploreShown;
+  private boolean exploreHintShown;
+  /** The phone's map file carries the road items' `uid` (maps built before the explored-roads feature do not). */
+  private boolean mapHasUid;
   private boolean following = true;
   private boolean frameLoopRunning;
   private long lastFrameMs, lastGuidanceMs, lastTruckSourceMs, lastHudMs, lastDebugLogMs;
@@ -310,6 +319,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
       public void onSaveChanged() {
         jobs.onSaveChanged();
         profile.onSaveChanged();
+        refreshExplored(); // the game saved: new roads may be explored
       }
 
       @Override
@@ -324,6 +334,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
         if (connected) {
           profile.load();
           syncTiles();
+          refreshExplored();
         } else {
           scheduleRediscovery();
         }
@@ -785,6 +796,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     if (map == null) return;
     File mbtiles = TileDownloader.fileFor(mapDir(), game);
     String tileUrl = "http://127.0.0.1:1/none/{z}/{x}/{y}.pbf";
+    mapHasUid = false;
     if (mbtiles.exists()) {
       try {
         LocalTileServer server = tileServers.get(game);
@@ -794,6 +806,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
           tileUrlCache.put(game, server.start());
         }
         tileUrl = tileUrlCache.get(game);
+        mapHasUid = server.hasField("uid");
         hideMessage();
       } catch (IOException e) {
         showMessage(Ui.s(R.string.map_file_failed, e.getMessage()));
@@ -806,7 +819,49 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     File sprites = TileDownloader.spritesDir(mapDir());
     String spriteUrl = new File(sprites, "sprites.png").exists() ? "file://" + sprites.getAbsolutePath() + "/sprites" : null;
     style = null;
-    map.setStyle(new Style.Builder().fromJson(MapStyle.build(game, tileUrl, spriteUrl, darkMode)), this::onStyleLoaded);
+    exploreShown = exploreWanted() && mapHasUid && exploredUids != null;
+    if (exploreWanted() && !mapHasUid && mbtiles.exists() && !exploreHintShown) {
+      exploreHintShown = true;
+      flashMessage(Ui.s(R.string.explore_need_map)); // a map from before the explored-roads feature has no uids
+    }
+    map.setStyle(new Style.Builder().fromJson(
+        MapStyle.build(game, tileUrl, spriteUrl, darkMode, exploreShown ? exploredUids : null)), this::onStyleLoaded);
+  }
+
+  private boolean exploreWanted() {
+    return prefs.getBoolean("explore", true);
+  }
+
+  /** Asks the PC which roads the player has explored (from the save) and colours the map with it. */
+  private void refreshExplored() {
+    if (!exploreWanted() || agent == null || !agent.isConnected()) return;
+    agent.get("/explored", (json, error) -> {
+      if (json == null || !game.equals(json.optString("game"))) return; // no save yet, or the other game's
+      JSONArray arr = json.optJSONArray("uids");
+      if (arr == null) return;
+      List<String> list = new ArrayList<>(arr.length());
+      for (int i = 0; i < arr.length(); i++) list.add(arr.optString(i));
+      exploredUids = list;
+      if (style == null || map == null || !mapHasUid) return; // loadStyle() uses the list when the style comes; no uids in the map: nothing to colour
+      if (!exploreShown) loadStyle(); // first data: build the style with the colours
+      else applyExplored();
+    });
+  }
+
+  /** Swaps the explored/unexplored colours into the loaded style (no reload). */
+  private void applyExplored() {
+    if (style == null || exploredUids == null) return;
+    try {
+      for (String id : new String[] {"road-surfaces", "road-surfaces-hidden", "prefabs"}) {
+        Layer layer = style.getLayer(id);
+        if (!(layer instanceof FillLayer)) continue;
+        Expression ex = Expression.raw(MapStyle.exploreFill(id, darkMode, exploredUids));
+        if ("prefabs".equals(id)) ((FillLayer) layer).setProperties(PropertyFactory.fillColor(ex));
+        else ((FillLayer) layer).setProperties(PropertyFactory.fillColor(ex), PropertyFactory.fillOutlineColor(ex));
+      }
+    } catch (RuntimeException e) {
+      Log.w(TAG, "explored colours: " + e);
+    }
   }
 
   private final Map<String, String> tileUrlCache = new HashMap<>();
@@ -1403,6 +1458,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
         Ui.s(R.string.set_theme, themeLabel(Ui.themeSetting(prefs))),
         Ui.s(R.string.set_language, langLabel(Lang.setting(prefs))),
         Ui.s(R.string.set_route_strategy, routeStrategyLabel(prefs.getString("routeStrategy", ROUTE_STRATEGIES[0]))),
+        Ui.s(R.string.set_explore, Ui.s(exploreWanted() ? R.string.explore_on : R.string.explore_off)),
     };
     new AlertDialog.Builder(this)
         .setTitle(Ui.s(R.string.set_title))
@@ -1413,7 +1469,14 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
             restartClients();
           } else if (which == 2) showThemeDialog();
           else if (which == 3) showLanguageDialog();
-          else showRouteStrategyDialog();
+          else if (which == 4) showRouteStrategyDialog();
+          else {
+            // explored roads on/off: orange-yellow / grey like the game's own map, or the plain white roads
+            prefs.edit().putBoolean("explore", !exploreWanted()).apply();
+            exploreHintShown = false;
+            loadStyle();
+            refreshExplored();
+          }
         })
         .setNegativeButton(Ui.s(R.string.btn_close), null)
         .show();

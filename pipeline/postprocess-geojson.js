@@ -99,6 +99,8 @@ for (const f of feats) {
   // falls apart into pieces wherever a road leaves the trunk route.
   if (p.hidden === true && p.type === 'prefab') continue;
   delete f.tippecanoe;
+  // The prefab's item uid (the feature id is "<uid>poly<n>" / "<uid>road<n>"): the app colours explored junctions with it.
+  if (p.type === 'prefab' && f.id != null) p.uid = String(f.id).replace(/(poly|road)\d+$/, '');
   // How wide the road really is, in game metres. The map is about 19x game
   // scale, so a road drawn thinner than it is leaves the truck - which drives
   // in a lane, not on the centre line - beside it instead of on it.

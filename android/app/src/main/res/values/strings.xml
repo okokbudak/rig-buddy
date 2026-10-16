@@ -242,4 +242,8 @@
     <string name="led_offline">Board not connected</string>
     <string name="led_lit">Lit</string>
     <string name="led_dark">Dark</string>
+    <string name="set_explore">Explored roads: %1$s</string>
+    <string name="explore_on">on (orange-yellow)</string>
+    <string name="explore_off">off</string>
+    <string name="explore_need_map">The explored-roads colours need a newly built map: rebuild the map on the PC (it is then downloaded again).</string>
 </resources>

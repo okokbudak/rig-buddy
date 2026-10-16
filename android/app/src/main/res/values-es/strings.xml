@@ -234,4 +234,8 @@
     <string name="led_offline">Placa no conectada</string>
     <string name="led_lit">Encendido</string>
     <string name="led_dark">Apagado</string>
+    <string name="set_explore">Carreteras exploradas: %1$s</string>
+    <string name="explore_on">activado (naranja-amarillo)</string>
+    <string name="explore_off">desactivado</string>
+    <string name="explore_need_map">Los colores de carreteras exploradas necesitan un mapa nuevo: regenera el mapa en el PC (se descargará de nuevo).</string>
 </resources>

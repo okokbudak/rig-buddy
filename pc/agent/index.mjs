@@ -4,6 +4,7 @@
 //                            {"type":"radio","data":{name,genre,country,song}|null} when the in-game radio changes
 //   GET  /profile         -> profile/economy summary from the latest save
 //   GET  /jobs            -> freight-market offers, nearest pickup first
+//   GET  /explored        -> {game, count, uids, hasUid}: roads/junctions the player has driven (from the save), as the uids the map tiles carry
 //   GET  /tiles           -> {"ets2": {size, version}}: map files the app can download
 //   GET  /tiles/ets2.mbtiles -> the map file itself
 //   GET  /tiles/sprites.json|png -> the map's POI icons ("sprites" in /tiles)
@@ -17,6 +18,7 @@ import http from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import tst from 'trucksim-telemetry';
 import { WebSocketServer } from 'ws';
 import { createRadio } from './radio.mjs';
@@ -202,6 +204,25 @@ function tileFile(g) {
   }
 }
 
+/** Does this map file carry the road items' `uid` (so explored roads can be coloured)? Maps built before 0.2.6 do not. */
+const uidCache = new Map();
+function tileHasUid(g) {
+  const t = tileFile(g);
+  if (!t) return false;
+  if (uidCache.has(t.version)) return uidCache.get(t.version);
+  let has = false;
+  try {
+    const db = new DatabaseSync(t.file); // (only read: the `readOnly` option is newer than some Node 22 builds)
+    const row = db.prepare("SELECT value FROM metadata WHERE name = 'json'").get();
+    db.close();
+    has = !!row && /"uid"\s*:/.test(String(row.value));
+  } catch {
+    has = false;
+  }
+  uidCache.set(t.version, has);
+  return has;
+}
+
 // the map's POI icons (data/sprites/app.*, cut from the game's own icons by the pipeline)
 const SPRITES = { json: 'application/json', png: 'image/png' };
 function spriteFiles() {
@@ -299,6 +320,11 @@ const server = http.createServer((req, res) => {
     if (!save) return send(503, { error: saveError || 'nosave' });
     const limit = Math.min(500, Number(url.searchParams.get('limit') || 200));
     return send(200, { savedAt: save.savedAt, gameTime: save.gameTime, currency: save.currency, jobs: jobsForApp(limit) });
+  }
+  if (url.pathname === '/explored') {
+    // the roads and junctions the player has driven (from the save), as the uids the map tiles carry; hasUid: this PC's map has them
+    if (!save) return send(503, { error: saveError || 'nosave' });
+    return send(200, { game: save.game, count: save.explored.length, uids: save.explored, hasUid: tileHasUid(save.game), savedAt: save.savedAt });
   }
   if (url.pathname === '/tiles') return send(200, tilesIndex());
   const tile = /^\/tiles\/(ets2|ats)\.mbtiles$/.exec(url.pathname);

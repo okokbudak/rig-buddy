@@ -293,7 +293,9 @@ for (const r of roads) {
   if (!inNear((a.x + b.x) / 2, (a.y + b.y) / 2)) continue;
   if (status.get(r.roadLookToken) === 'guessed') guessedRoads.set(r.roadLookToken, (guessedRoads.get(r.roadLookToken) ?? 0) + 1);
   const z = Math.max(a.z ?? 0, b.z ?? 0);
-  const props = { type: 'road', roadType: type, hidden: r.hidden === true };
+  // `uid`: the road item's id as the game keeps it in the save's discovered_items (hex), so the app can colour
+  // explored roads differently from unexplored ones
+  const props = { type: 'road', roadType: type, hidden: r.hidden === true, uid: String(r.uid) };
   const len = r.length > 0 ? r.length : Math.hypot(b.x - a.x, b.y - a.y);
   const steps = Math.max(3, Math.min(80, Math.ceil(len / 8)));
   const spline = [];

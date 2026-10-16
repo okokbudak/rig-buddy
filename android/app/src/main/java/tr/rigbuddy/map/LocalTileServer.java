@@ -54,6 +54,16 @@ public final class LocalTileServer {
     return "http://127.0.0.1:" + socket.getLocalPort() + "/" + name + "/{z}/{x}/{y}.pbf";
   }
 
+  /** Does the tile file's metadata list this attribute (e.g. "uid", the road items' ids)? Older maps lack it. */
+  public synchronized boolean hasField(String field) {
+    if (db == null) return false;
+    try (Cursor cur = db.rawQuery("SELECT value FROM metadata WHERE name='json'", null)) {
+      return cur.moveToFirst() && cur.getString(0) != null && cur.getString(0).contains("\"" + field + "\"");
+    } catch (RuntimeException e) {
+      return false;
+    }
+  }
+
   public synchronized void stop() {
     try {
       if (socket != null) socket.close();

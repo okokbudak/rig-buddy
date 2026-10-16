@@ -24,6 +24,7 @@ public final class MapStyle {
     String background, water, roadArea, lightArea, darkArea, greenArea;
     String road, roadCase, hiddenRoad, noVehicles;
     String ferry, text, textHalo, secondaryText;
+    String explored, unexplored; // roads the player has driven (orange-yellow, like the game's map) and has not (grey)
   }
 
   private static Palette light() {
@@ -42,6 +43,8 @@ public final class MapStyle {
     p.text = "#3c4043";
     p.textHalo = "#ffffff";
     p.secondaryText = "#5f6368";
+    p.explored = "#f2a20c";
+    p.unexplored = "#c9ccd1";
     return p;
   }
 
@@ -61,6 +64,8 @@ public final class MapStyle {
     p.text = "#e4e7ec";
     p.textHalo = "#141a22";
     p.secondaryText = "#a9b0ba";
+    p.explored = "#f5b014";
+    p.unexplored = "#566070";
     return p;
   }
 
@@ -70,6 +75,15 @@ public final class MapStyle {
    * @param spriteUrl  the POI icon sheet (downloaded from the PC), or null: no icons yet
    */
   public static String build(String game, String tileUrl, String spriteUrl, boolean darkMode) {
+    return build(game, tileUrl, spriteUrl, darkMode, null);
+  }
+
+  /**
+   * @param explored  the uids of the road items the player has driven (the save's discovered_items, hex), or null for the
+   *                  plain map. From z10 on, roads and junctions are then orange-yellow when explored and grey when not,
+   *                  as in the game's own map (needs a map built with the `uid` attribute).
+   */
+  public static String build(String game, String tileUrl, String spriteUrl, boolean darkMode, java.util.List<String> explored) {
     Palette c = darkMode ? dark() : light();
     try {
       JSONObject style = new JSONObject();
@@ -96,7 +110,7 @@ public final class MapStyle {
       // junction/prefab road surfaces
       layers.put(layer("prefabs", "fill", game)
           .put("filter", all(geom("Polygon"), eq("type", "prefab")))
-          .put("paint", new JSONObject().put("fill-color", areaColor(c, true)).put("fill-antialias", false)));
+          .put("paint", new JSONObject().put("fill-color", explored != null ? exploredFill("prefabs", c, explored) : areaColor(c, true)).put("fill-antialias", false)));
 
       JSONArray roadFilter = all(geom("LineString"), eq("type", "road"), eq("hidden", false),
           new JSONArray().put("!=").put(get("roadType")).put("train"));
@@ -128,15 +142,17 @@ public final class MapStyle {
       // From z10 the tiles carry the roads as surfaces (pipeline/road-polygons.mjs),
       // as wide as they really are and stacked lowest first, so a bridge covers
       // what runs under it and the truck sits on tarmac, not beside a line.
+      Object hiddenFill = explored != null ? exploredFill("road-surfaces-hidden", c, explored) : c.hiddenRoad;
+      Object roadFill = explored != null ? exploredFill("road-surfaces", c, explored) : roadColor(c, false);
       layers.put(layer("road-surfaces-hidden", "fill", game).put("minzoom", 10)
           .put("filter", all(geom("Polygon"), eq("type", "road"), eq("hidden", true)))
-          .put("paint", new JSONObject().put("fill-color", c.hiddenRoad)
-              .put("fill-outline-color", c.hiddenRoad)));
+          .put("paint", new JSONObject().put("fill-color", hiddenFill)
+              .put("fill-outline-color", hiddenFill)));
       layers.put(layer("road-surfaces", "fill", game).put("minzoom", 10)
           .put("filter", all(geom("Polygon"), eq("type", "road"), eq("hidden", false),
               new JSONArray().put("!=").put(get("roadType")).put("train")))
-          .put("paint", new JSONObject().put("fill-color", roadColor(c, false))
-              .put("fill-outline-color", roadColor(c, false))));
+          .put("paint", new JSONObject().put("fill-color", roadFill)
+              .put("fill-outline-color", roadFill)));
       layers.put(layer("ferries", "line", game)
           .put("filter", all(geom("LineString"), eq("type", "ferry")))
           .put("paint", new JSONObject().put("line-color", c.ferry).put("line-width", 1.5)
@@ -186,6 +202,41 @@ public final class MapStyle {
 
       style.put("layers", layers);
       return style.toString();
+    } catch (JSONException e) {
+      throw new IllegalStateException(e);
+    }
+  }
+
+  /**
+   * Fill colour of a road layer that shows what the player has explored: a road or junction whose `uid` is in the
+   * save's discovered_items is orange-yellow, any other is grey (as in the game's own map). Roads closed to vehicles
+   * stay dimmed, and prefabs that are not tarmac (areas) keep their colours.
+   */
+  private static Object exploredFill(String layerId, Palette c, java.util.List<String> uids) throws JSONException {
+    Object byUid;
+    if (uids.isEmpty()) {
+      byUid = new JSONArray().put("to-color").put(c.unexplored);
+    } else {
+      JSONArray labels = new JSONArray();
+      for (String u : uids) labels.put(u);
+      byUid = new JSONArray().put("match").put(get("uid")).put(labels).put(c.explored).put(c.unexplored);
+    }
+    if ("road-surfaces".equals(layerId)) {
+      return new JSONArray().put("case").put(eq("roadType", "no_vehicles")).put(c.noVehicles).put(byUid);
+    }
+    if ("prefabs".equals(layerId)) {
+      return new JSONArray().put("case").put(eq("color", 0)).put(byUid).put(areaColor(c, true));
+    }
+    return byUid;
+  }
+
+  /**
+   * The same colouring as a bare expression, to swap into a loaded style when the player's save changes (so the
+   * map need not reload). layerId: "road-surfaces", "road-surfaces-hidden" or "prefabs".
+   */
+  public static String exploreFill(String layerId, boolean darkMode, java.util.List<String> uids) {
+    try {
+      return exploredFill(layerId, darkMode ? dark() : light(), uids).toString();
     } catch (JSONException e) {
       throw new IllegalStateException(e);
     }

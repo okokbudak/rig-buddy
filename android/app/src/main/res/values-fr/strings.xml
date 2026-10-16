@@ -234,4 +234,8 @@
     <string name="led_offline">Carte non connectée</string>
     <string name="led_lit">Allumées</string>
     <string name="led_dark">Éteintes</string>
+    <string name="set_explore">Routes explorées : %1$s</string>
+    <string name="explore_on">activé (orange-jaune)</string>
+    <string name="explore_off">désactivé</string>
+    <string name="explore_need_map">Les couleurs des routes explorées demandent une carte récente : régénérez la carte sur le PC (elle sera retéléchargée).</string>
 </resources>

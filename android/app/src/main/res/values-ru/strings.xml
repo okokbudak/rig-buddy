@@ -234,4 +234,8 @@
     <string name="led_offline">Плата не подключена</string>
     <string name="led_lit">Горит</string>
     <string name="led_dark">Выключена</string>
+    <string name="set_explore">Исследованные дороги: %1$s</string>
+    <string name="explore_on">вкл. (оранжево-жёлтые)</string>
+    <string name="explore_off">выкл.</string>
+    <string name="explore_need_map">Для цветов исследованных дорог нужна заново созданная карта: пересоберите карту на ПК (она скачается снова).</string>
 </resources>
