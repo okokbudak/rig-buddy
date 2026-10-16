@@ -25,6 +25,9 @@ struct MotorSettings {
 };
 static_assert(sizeof(MotorSettings) == 24, "settings v1/v2 saved by older firmware must keep their layout");
 
+/** Seconds without a data line after which the drivers go off (only with the idleOff setting). */
+static inline uint16_t idleSeconds(uint8_t v) { return v == 0 ? IDLE_DEFAULT_SEC : v; }
+
 /** Smoothing gain in 1/s for a motor (0 = no smoothing). A saved 0 (older firmware) means the default. */
 static inline uint8_t smoothHz(const MotorSettings& m) { return m.smooth == 0 ? SMOOTH_DEFAULT : (m.smooth == 255 ? 0 : m.smooth); }
 
@@ -44,7 +47,9 @@ struct Settings {
   uint16_t size;
   MotorSettings m[N_MOTORS];
   uint8_t  nxEnabled;      // 1: the Nextion tunnel on the TFT connector is on
-  uint8_t  reserved[3];
+  uint8_t  idleOff;        // 1: the motor drivers stay unpowered until a data line arrives and go off again after idleSec of silence
+  uint8_t  idleSec;        // seconds of silence before they go off: 0 = the default (IDLE_DEFAULT_SEC), 1..255
+  uint8_t  reserved;       // (idleOff/idleSec were reserved[3]: zero in settings saved by firmware before 1.5 = feature off)
   uint32_t nxBaud;
   LedSettings led;         // since settings version 2
   uint32_t crc;            // CRC-32 of everything above

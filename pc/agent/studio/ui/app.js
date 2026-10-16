@@ -573,6 +573,15 @@ function boardPcbCard(d) {
         try { await api('POST', '/api/test-power', { id: d.id, ms: 5000 }); pwMsg.textContent = t('power.testing'); setTimeout(() => { pwMsg.textContent = ''; }, 5200); } catch (e) { pwMsg.textContent = e.message; }
       } }, icon('play'), t('power.test')), pwMsg) : null);
 
+  // motors without current while there is no game
+  const sl = d.sleep;
+  const sleepPanel = el('div', { class: 'sockpanel' },
+    el('div', { class: 'ehead' }, el('h3', {}, t('sleep.title')), el('span', { class: 'pill off', 'data-role': 'sleepstate' })),
+    el('p', { class: 'muted small' }, t('sleep.lead')),
+    el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: sl.motors, onchange: e => { sl.motors = e.target.checked; touch(); renderBoard(); paint(); } }), el('span', {}, t('sleep.motors'))),
+    sl.motors ? el('div', { class: 'fields' },
+      field(t('sleep.delay'), el('input', { type: 'number', class: 'n', min: 5, max: 255, value: sl.motorsDelay, onchange: e => { sl.motorsDelay = Number(e.target.value); touch(); } }), t('sleep.delayHint'))) : null);
+
   return el('div', { class: `card ${d.enabled ? '' : 'dim'}`, 'data-board': d.id },
     el('div', { class: 'chead' },
       icon('cpu'), el('h2', {}, d.name),
@@ -582,6 +591,7 @@ function boardPcbCard(d) {
       el('span', { class: 'pill', 'data-role': 'sync' })),
     pcb,
     panel,
+    sleepPanel,
     powerPanel,
     ledPanel(d),
     el('div', { class: 'actions boardactions' },
@@ -699,6 +709,11 @@ function paintBoard() {
       sync.className = 'pill warn';
       sync.textContent = t('board.syncDiff', { list: b.differs.map(i => t('board.socket', { n: i })).join(', ') || '–' });
     } else { sync.className = 'pill ok'; sync.textContent = t('board.syncOk'); }
+    const ss = card.querySelector('[data-role=sleepstate]');
+    if (!d.sleep.motors) ss.textContent = '';
+    else if (b && !b.idle) { ss.className = 'pill warn'; ss.textContent = t('sleep.oldFw'); }
+    else if (st?.asleep) { ss.className = 'pill ok'; ss.textContent = t('sleep.asleep'); }
+    else { ss.className = 'pill off'; ss.textContent = t('sleep.awake'); }
     const ps = card.querySelector('[data-role=powerstate]');
     const p = st?.power;
     if (!d.power.enabled && !d.power.manual) ps.textContent = '';

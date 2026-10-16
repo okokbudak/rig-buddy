@@ -40,6 +40,10 @@ Betik karta `BOOTLOADER` yollar, kart ST DFU'ya geçer, `out\firmware.bin` **0x0
 
 **LED şeritler (firmware 1.2):** 12 V WS2811 tipi şeritler (3 LED'de bir IC) tek zincirde PB0'dan (NeoPixel soketinin veri pini) sürülür: 24 IC (72 LED), en çok 64 IC. Zincir en çok 16 **parçaya** bölünür (başlangıç, uzunluk, renk, açık/kapalı); parçada olmayan IC'ler sönük, sonraki parça öncekinin üstüne boyar. Renk sırası (`order`: 0 RGB, 1 GRB, 2 BRG ← bu şeritler, 3 RBG, 4 GBR, 5 BGR) ve parlaklık da ayardır. Studio'nun Kart sayfasındaki "LED şeritler" bölümü bunları WLED gibi canlı değiştirir; `config.h`'deki `LED_DEFAULT_*` değerleri sadece kayıtlı ayarı olmayan kartın başlangıcıdır (6+6+3+3+3+3, sıcak beyaz). Komut: `LED n=24 order=2 bri=255 seg=<başlangıç>,<uzunluk>,<r>,<g>,<b>,<açık> …` (önce hepsi denetlenir; ilk `seg=` ya da `clear` eski parçaları siler; yanıt `OK LED`), `LED?` zinciri listeler. `CFG SAVE` zinciri de flash'a yazar (ayar sürümü 2; 1.0/1.1'in kayıtlı ayarları açılışta otomatik taşınır), `CFG?` `CFG LED …` ve `CFG SEG …` satırlarını da verir. Renkler kart açılırken ve sonra her 2 sn'de bir gönderilir (şeridin 12 V'u karttan sonra gelirse karanlık kalmasın); bir ibre hareket ediyorsa bekler, çünkü bir kare ~0,7 ms kesmeleri kapatır. Şeridin +12 V'u kartın **hep açık** FAN6/FAN7 soketinden (jumper 12 V), GND'si ortak GND'den; veri hattında 330–470 Ω seri direnç. FAN0..FAN5 anahtarlamalıdır, şerit gücü için kullanma.
 
+**Oyun dışında motorlar kapalı (firmware 1.5):** `CFG IDLE off=1 sec=60` ile açılır (kayıtlı ayardır: `CFG SAVE`). Açıkken kart açılırken sürücüler **kapalı** kalır (EN yüksek, motorlarda akım yok, sıfırlama da yok). İlk veri satırı (ya da `P`, `T`, `H` komutu) sürücüleri açar ve `home=1` olan ibreleri sıfırlar; `sec` saniye (varsayılan 60) veri gelmezse sürücüler yine kapanır (ibre hareket ediyor ya da sıfırlanıyorsa beklenir). Yani oyun yokken ve test verisi göndermiyorsan, PC kapalı olsa bile motorlara hiç güç gitmez. Studio bu modda oyun yokken veri satırı göndermez, sadece güç çıkışını `W1`/`W0` ile ayakta tutar. `E1`/`E0` elle açar/kapatır.
+
+**Sıfırlama güvenliği (1.5):** `H<n>` ya da açılış sıfırlaması başlarken o motorun DIAG pini zaten yüksekse (jumper yok, sürücüde DIAG yok) sıfırlama başlamaz: `ERR HOME M<n> DIAG pin is high before moving …` yazar, `I` çıktısında `homing=3` görünür. Böylece ibre birkaç derece gidip "dayandı" sanarak yanlış yerde sıfırlanmaz.
+
 `@<komut>\n` satırları Nextion'a gider (kart sonuna FF FF FF ekler). Ekrandan gelen her çerçeve `@<hex>\n` olarak geri döner.
 
 ## Ayarlar (`CFG`): Studio'nun Kart sayfası bunları kullanır
@@ -48,6 +52,7 @@ Betik karta `BOOTLOADER` yollar, kart ST DFU'ya geçer, `out\firmware.bin` **0x0
 | `CFG?` | Tüm ayarlar: `CFG M0 en=1 dir=1 ms=16 ma=500 hold=30 home=0 spr=200 sweep=2400 full=3000 vmax=500 acc=5000 sg=40` ×6, `CFG NX en=1 baud=115200`, `CFG END motors=6 saved=1` |
 | `CFG M<n\|*> anahtar=değer …` | Motor ayarı, hemen uygulanır. Önce hepsi denetlenir, biri hatalıysa hiçbiri değişmez (`ERR CFG bad setting: …`) |
 | `CFG NX en=0\|1 baud=…` | Ekran tüneli |
+| `CFG IDLE off=0\|1 sec=…` | Oyun dışında motorları kapat (1.5), `sec` = veri kesildikten kaç sn sonra (varsayılan 60) |
 | `CFG SAVE` | Flash'a kaydet (~1 sn), güç kesilse de kalır |
 | `CFG LOAD` / `CFG DEFAULTS` | Kayıtlıya / ilk açılış varsayılanlarına dön (kaydetmez) |
 
@@ -56,7 +61,7 @@ Anahtarlar: `en` motor açık, `dir` yön ters, `ms` mikroadım (1…256), `ma` 
 ## Diğer komutlar (teşhis)
 | Komut | Ne yapar |
 |---|---|
-| `?` | `OCTOPUS-GAUGES 1.2 motors=6 cfg=1 power=1 leds=24` |
+| `?` | `OCTOPUS-GAUGES 1.5 motors=6 cfg=1 power=1 leds=24 idle=1` |
 | `LED?` / `LED n=… order=… bri=… seg=…` | LED zincirini listele / değiştir (yukarıdaki LED şeritler bölümü) |
 | `W1` / `W0` / `W` | Güç çıkışı (FAN0) aç / kapat / durum |
 | `I` | Her motorun durumu (ve güç çıkışı): TMC2209 cevabı, konum, akım, yön, skala; ayarlar kayıtlı mı; ekran sayaçları |

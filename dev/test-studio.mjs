@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createEngine, normalize } from '../pc/agent/studio/engine.mjs';
-import { normalizeLeds, ledCommand, parseCfg, normalizeMotor, motorCommand, motorDiff, hasHomeOffset } from '../pc/agent/studio/board.mjs';
+import { normalizeLeds, ledCommand, parseCfg, parseHello, normalizeMotor, motorCommand, motorDiff, hasHomeOffset, hasIdle, normalizeSleep, idleCommand } from '../pc/agent/studio/board.mjs';
 import { compile, FormulaError } from '../pc/agent/studio/expr.mjs';
 import { catalog, read } from '../pc/agent/studio/props.mjs';
 
@@ -413,6 +413,52 @@ const NX = {
   c2.serial[0].power.manual = false;
   eng.apply(c2);
   await until(() => w.at(-1)?.trim().split(',').length !== 7 || field7() === '0', 'manual off: output off again');
+}
+
+// motors sleep without a game: no data lines at all (the board's drivers run dry), CFG IDLE goes to the board, a game wakes them
+{
+  assert.deepEqual(normalizeSleep({}), { motors: false, motorsDelay: 60, leds: false });
+  assert.equal(normalizeSleep({ motorsDelay: 9999 }).motorsDelay, 255);
+  assert.equal(normalizeSleep({ motorsDelay: 1 }).motorsDelay, 5);
+  assert.equal(idleCommand(normalizeSleep({ motors: true, motorsDelay: 90 })), 'CFG IDLE off=1 sec=90');
+  assert.equal(hasIdle('1.4'), false);
+  assert.equal(hasIdle('1.5'), true);
+  assert.equal(parseCfg(['CFG IDLE off=1 sec=60']).idle.off, true);
+  assert.equal(parseHello('OCTOPUS-GAUGES 1.5 motors=6 cfg=1 power=1 leds=24 idle=1').idle, true);
+
+  const w = [];
+  const ev = new EventEmitter();
+  let raw = null;
+  const h = {
+    events: ev, connected: true,
+    open: id => { queueMicrotask(() => ev.emit('state', { id, state: 'open' })); return true; },
+    close: () => {}, write: (id, data) => { if (id === 'oct') w.push(String(data)); },
+    ports: async () => ({ ports: [] }), probe: async () => ({}),
+  };
+  const eng = createEngine({ hub: h, getRaw: () => raw, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'studio-')) });
+  const c = structuredClone(eng.config);
+  c.serial = [{ id: 'oct', name: 'Octopus', enabled: true, port: 'COM9', board: 'octopus', idle: 'zeros', sleep: { motors: true, motorsDelay: 30 }, power: { manual: true } }];
+  eng.apply(c);
+  const until = async (fn, what, ms = 3000) => {
+    const t0 = Date.now();
+    while (!fn()) {
+      if (Date.now() - t0 > ms) assert.fail(`${what} (lines: ${JSON.stringify(w.slice(-4))})`);
+      await new Promise(r => setTimeout(r, 20));
+    }
+  };
+  await until(() => w.includes('CFG IDLE off=1 sec=30\n'), 'the board is told that its motors may sleep');
+  await until(() => w.includes('W1\n'), 'asleep: only the short power command goes out (power switch is on)');
+  await new Promise(r => setTimeout(r, 400));
+  assert.ok(!w.some(x => /^\d/.test(x)), 'asleep: no data line, so no current in the motors');
+  assert.equal(eng.status().devices[0].asleep, true);
+  raw = { truck: { electric: { enabled: true }, engine: { rpm: { value: 1000 } } } };
+  await until(() => w.some(x => /^\d+,\d+,\d+,\d+,\d+,\d+,1\n$/.test(x)), 'a game: data lines with the power field go out, the board wakes the motors');
+  assert.equal(eng.status().devices[0].asleep, false);
+  raw = null;
+  const n = w.length;
+  await until(() => eng.status().devices[0].asleep === true, 'game over: asleep again');
+  await new Promise(r => setTimeout(r, 300));
+  assert.ok(!w.slice(n).some(x => /^\d/.test(x)), 'no data line after the game ended');
 }
 
 // the LED chain: normalising, the firmware command, the push on connect / edit, live colours

@@ -4,7 +4,7 @@
 // All user-tunable settings live in this file.
 #include <Arduino.h>
 
-#define FW_VERSION "1.4"
+#define FW_VERSION "1.5"
 
 constexpr uint8_t N_MOTORS = 6;
 
@@ -44,6 +44,9 @@ constexpr float R_SENSE = 0.11f;                 // ohm, sense resistor of the T
 // (per second), so small steps in the data (25 updates a second) blend into one flowing motion instead of a
 // start-stop per update. 15 = about 65 ms of lag; higher = tighter and steppier, lower = lazier. Per motor "smooth".
 constexpr uint8_t SMOOTH_DEFAULT = 15;
+// Motors off while there is no game: with the "idle" setting the drivers stay unpowered at power-up, wake up
+// (and home) when the first data line arrives and go off again after this many seconds without one.
+constexpr uint16_t IDLE_DEFAULT_SEC = 60;
 constexpr float MAX_DEG_S = 500.0f;             // needle speed limit, degrees per second
 constexpr float ACC_DEG_S2 = 5000.0f;            // acceleration, degrees per second^2
 constexpr int32_t DEADBAND_USTEPS = 2;           // ignore target changes smaller than this

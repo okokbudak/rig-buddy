@@ -155,6 +155,13 @@ static uint8_t hstate[N_MOTORS];
 static uint32_t hT0[N_MOTORS];
 
 static void homeStart(uint8_t i) {
+  // A DIAG pin that is already high before the needle moves (jumper missing, driver without DIAG) would look like
+  // an instant stall: the needle would stop after a few degrees and "home" in the wrong place. Refuse instead.
+  if (digitalRead(MOTOR[i].diag)) {
+    hstate[i] = H_FAIL;
+    Serial.print("ERR HOME M"); Serial.print(i); Serial.println(" DIAG pin is high before moving (check the DIAG jumper and the driver)");
+    return;
+  }
   tmc[i].write(REG_SGTHRS, S.m[i].sgthrs);
   tmc[i].write(REG_TCOOLTHRS, 0xFFFFF);                          // StallGuard active at every speed
   setLimits(i, HOME_DEG_S, S.m[i].accDegS2);
@@ -280,6 +287,25 @@ static void ledInit() {
   ledShow();
 }
 
+// ---- motors off while there is no game (setting "idle": CFG IDLE off=1 sec=N) ----
+// With it the drivers stay unpowered at power-up. The first data line (or P / T / H command) powers them and
+// homes the needles that are set to home; after N seconds without a data line they go off again. So with no game
+// and no test data the motors get no current at all, even if the PC is off.
+static bool idleDriversOff = false;                    // the drivers are off because of silence (or because they never started)
+static uint32_t lastDataAt = 0;                        // when the last data line with a motor field arrived
+
+static void driversWake() {
+  idleDriversOff = false;
+  lastDataAt = millis();
+  setDrivers(true);
+  for (uint8_t i = 0; i < N_MOTORS; i++) if (S.m[i].enabled && S.m[i].homeOnBoot && drvOn[i]) homeStart(i);
+}
+
+static bool anyHoming() {
+  for (uint8_t i = 0; i < N_MOTORS; i++) if (hstate[i] == H_RUN) return true;
+  return false;
+}
+
 // Field n -> MOTORn; the field after the last motor (field 7) is the power output, 0 or 1. A line with
 // fewer fields moves only those motors; a field that is not a plain integer drops the whole line (a broken
 // line must never move a needle or switch the head unit).
@@ -295,6 +321,10 @@ static void applyData(char* s) {
     tok = strtok(NULL, ",");
   }
   if (count > N_MOTORS) { setPower(val[N_MOTORS] != 0); powerAt = millis(); }
+  if (count >= 1) {
+    lastDataAt = millis();
+    if (S.idleOff && idleDriversOff) driversWake();    // a game (or a test) started: power the motors and home them
+  }
   for (uint8_t i = 0; i < count && i < N_MOTORS; i++) {
     const MotorSettings& m = S.m[i];
     if (!m.enabled || hstate[i] == H_RUN || testStage) continue;
@@ -381,6 +411,7 @@ static void cfgDumpMotor(uint8_t i) {
 static void cfgDump() {
   for (uint8_t i = 0; i < N_MOTORS; i++) cfgDumpMotor(i);
   say("CFG NX en=%u baud=%lu", S.nxEnabled, (unsigned long)S.nxBaud);
+  say("CFG IDLE off=%u sec=%u", S.idleOff, (unsigned)idleSeconds(S.idleSec));
   say("CFG LED n=%u order=%u bri=%u segs=%u", S.led.count, S.led.order, S.led.bri, S.led.nseg);
   for (uint8_t i = 0; i < S.led.nseg; i++)
     say("CFG SEG %u start=%u len=%u r=%u g=%u b=%u on=%u", i, S.led.seg[i].start, S.led.seg[i].len, S.led.seg[i].r, S.led.seg[i].g, S.led.seg[i].b, S.led.seg[i].on);
@@ -477,6 +508,20 @@ static void cfgCommand(char* s) {
     say("OK CFG NX");
     return;
   }
+  if (!strncmp(p, "IDLE", 4)) {                        // CFG IDLE off=0|1 sec=1..255 (0 = default)
+    uint8_t off = S.idleOff, sec = S.idleSec;
+    for (char* kv = strtok(p + 4, " "); kv; kv = strtok(NULL, " ")) {
+      long v = atol(strchr(kv, '=') ? strchr(kv, '=') + 1 : "x");
+      if (!strncmp(kv, "off=", 4) && (v == 0 || v == 1)) off = v;
+      else if (!strncmp(kv, "sec=", 4) && v >= 0 && v <= 255) sec = v;
+      else { say("ERR CFG bad setting: %s", kv); return; }
+    }
+    S.idleOff = off; S.idleSec = sec;
+    lastDataAt = millis();                             // a change counts as activity: no instant switch-off
+    if (!off && idleDriversOff) driversWake();         // the feature went off while the drivers were asleep
+    say("OK CFG IDLE");
+    return;
+  }
   say("ERR CFG unknown: %s", p);
 }
 
@@ -547,6 +592,8 @@ static void command(char* s) {
       else say("power %s", powerOn ? "on" : "off");
       break;
     case 'E': {
+      if (*p == '1') { idleDriversOff = false; lastDataAt = millis(); }   // on by hand: no instant idle switch-off
+      else idleDriversOff = true;                                          // off by hand: a data line wakes them (with the idle setting)
       setDrivers(*p == '1');
       char list[3 * N_MOTORS + 1] = ""; uint8_t n = 0;
       for (uint8_t i = 0; i < N_MOTORS; i++) if (drvOn[i]) { list[n++] = 'M'; list[n++] = '0' + i; list[n++] = ' '; }
@@ -568,6 +615,8 @@ static void command(char* s) {
     case 'P': {                                        // P<n>,<degrees>
       if (!parseMotor(p, a, b) || *p++ != ',') { say("ERR usage P<n|*>,<degrees>"); break; }
       float deg = constrain(atof(p), -30.0f, 360.0f);
+      if (S.idleOff && idleDriversOff) driversWake();
+      lastDataAt = millis();
       for (int i = a; i <= b; i++) { hstate[i] = H_IDLE; setTarget(i, (int32_t)(deg * uPerDeg[i])); }
       say("OK move to %ld deg (x0.1)", (long)(deg * 10.0f));
       break;
@@ -604,11 +653,15 @@ static void command(char* s) {
     case 'H': {                                        // H<n|*>[,<sgthrs>]
       if (!parseMotor(p, a, b)) { say("ERR usage H<n|*>[,<sgthrs>]"); break; }
       if (*p == ',') { uint8_t t = (uint8_t)constrain(atoi(p + 1), 0, 255); for (int i = a; i <= b; i++) S.m[i].sgthrs = t; }
+      if (S.idleOff && idleDriversOff) { idleDriversOff = false; lastDataAt = millis(); setDrivers(true); }   // power them, home only the asked ones
+      lastDataAt = millis();
       for (int i = a; i <= b; i++) homeStart(i);
       say("OK homing started");
       break;
     }
     case 'T':                                          // T: self test, all needles 0 -> full scale -> 0
+      if (S.idleOff && idleDriversOff) driversWake();
+      lastDataAt = millis();
       testStage = 1; testT0 = millis();
       for (uint8_t i = 0; i < N_MOTORS; i++) if (S.m[i].enabled) setTarget(i, sweepU[i]);
       say("OK sweep test");
@@ -618,7 +671,7 @@ static void command(char* s) {
       say("OK entering DFU"); Serial.flush(); delay(100);
       jumpToDfu();
       break;
-    case '?': say("OCTOPUS-GAUGES %s motors=%u cfg=1 power=1 leds=%u", FW_VERSION, N_MOTORS, S.led.count); break;
+    case '?': say("OCTOPUS-GAUGES %s motors=%u cfg=1 power=1 leds=%u idle=1", FW_VERSION, N_MOTORS, S.led.count); break;
     default: say("ERR unknown command. I E Z P D C S G H T U W LED CFG BOOTLOADER ?"); break;
   }
 }
@@ -646,8 +699,13 @@ void setup() {
   }
   motionInit();
   for (uint8_t i = 0; i < N_MOTORS; i++) tmcInit(i);
-  setDrivers(true);
-  for (uint8_t i = 0; i < N_MOTORS; i++) if (S.m[i].enabled && S.m[i].homeOnBoot) homeStart(i);
+  lastDataAt = millis();
+  if (S.idleOff) {
+    idleDriversOff = true;                             // stay unpowered until a game (data line) wakes the drivers
+  } else {
+    setDrivers(true);
+    for (uint8_t i = 0; i < N_MOTORS; i++) if (S.m[i].enabled && S.m[i].homeOnBoot) homeStart(i);
+  }
   ledInit();                                           // the strips light up with the board
 }
 
@@ -667,6 +725,12 @@ void loop() {
     applyData(tmp);
   }
   for (uint8_t i = 0; i < N_MOTORS; i++) homeUpdate(i);
+  if (S.idleOff && !idleDriversOff && !testStage && !anyHoming() && !anyNeedleMoving() &&
+      millis() - lastDataAt > (uint32_t)idleSeconds(S.idleSec) * 1000UL) {      // no game, no test data: no current in the motors
+    idleDriversOff = true;
+    setDrivers(false);
+    say("drivers off: no data for %u s", (unsigned)idleSeconds(S.idleSec));
+  }
   if ((ledColorsChanged || millis() - ledAt >= LED_REFRESH_MS) && !anyNeedleMoving()) ledShow();
   if (powerOn && millis() - powerAt > POWER_TIMEOUT_MS) {   // the PC went away: do not keep the head unit on forever
     setPower(false);

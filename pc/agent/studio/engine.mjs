@@ -7,7 +7,7 @@ import path from 'node:path';
 import { compile, FormulaError } from './expr.mjs';
 import { createNextion, normalizeNextion, directFrames, tunnelLines, tunnelFrame } from './nextion.mjs';
 import { read } from './props.mjs';
-import { BOARD_TYPES, hasHomeOffset, normalizeLeds, ledCommand, normalizeMotor, motorCommand, parseCfg, parseHello, motorDiff } from './board.mjs';
+import { BOARD_TYPES, hasHomeOffset, hasIdle, normalizeSleep, idleCommand, normalizeLeds, ledCommand, normalizeMotor, motorCommand, parseCfg, parseHello, motorDiff } from './board.mjs';
 
 const TICK_MS = 40; // 25 Hz, what the gauge firmware parses at most
 const KEEPALIVE_MS = 500; // an unchanged line is repeated at least this often (gauges park without data)
@@ -74,8 +74,9 @@ export function normalize(cfg) {
       channels: (Array.isArray(d.channels) ? d.channels.slice(0, 32) : []).map(normalizeChannel),
       power: normalizePower(d.power ?? {}),
       leds: normalizeLeds(d.leds ?? {}),
+      sleep: normalizeSleep(d.sleep ?? {}),
     };
-    if (!board) dev.power.enabled = dev.leds.enabled = false; // only a board with the matching firmware has these
+    if (!board) dev.power.enabled = dev.power.manual = dev.leds.enabled = dev.sleep.motors = dev.sleep.leds = false; // only a board with the matching firmware has these
     if (board) {
       // a board with motor sockets: channel n is MOTORn, its scale is the motor's own "full" value
       if (!dev.motors.length) dev.motors = Array.from({ length: 6 }, () => normalizeMotor());
@@ -222,11 +223,19 @@ export function createEngine({ hub, getRaw, dataDir }) {
     hub.write(d.id, `${ledCommand(d.leds)}\n`);
   }
 
+  /** Tells a connected board whether its motors may sleep (CFG IDLE; an older firmware just answers ERR). */
+  function pushIdle(d) {
+    if (!d.board || rt(d.id).state !== 'open' || waiters.has(d.id)) return;
+    hub.write(d.id, `${idleCommand(d.sleep)}\n`);
+  }
+
   function apply(next) {
     revCount++;
     const before = new Map(config.serial.map(d => [d.id, JSON.stringify(d.leds)]));
+    const beforeSleep = new Map(config.serial.map(d => [d.id, JSON.stringify(d.sleep)]));
     config = normalize(next);
     for (const d of config.serial) if (before.get(d.id) !== JSON.stringify(d.leds)) pushLeds(d);
+    for (const d of config.serial) if (beforeSleep.get(d.id) !== JSON.stringify(d.sleep)) pushIdle(d);
     compileAll();
     buildNextions();
     syncPorts();
@@ -270,7 +279,8 @@ export function createEngine({ hub, getRaw, dataDir }) {
       const d = config.serial.find(x => x.id === m.id);
       if (d) { // the board may still be starting: say it twice
         pushLeds(d);
-        setTimeout(() => { const cur = config.serial.find(x => x.id === m.id); if (cur) pushLeds(cur); }, 1500).unref();
+        pushIdle(d);
+        setTimeout(() => { const cur = config.serial.find(x => x.id === m.id); if (cur) { pushLeds(cur); pushIdle(cur); } }, 1500).unref();
       }
     }
     followVia(m.id);
@@ -402,6 +412,18 @@ export function createEngine({ hub, getRaw, dataDir }) {
       const testing = r.test && now < r.test.until;
       // (the manual power switch needs the line even without the game: the board cuts the output after 5 minutes of silence)
       const powerLine = d.board && (d.power.enabled || d.power.manual || r.powerSentOn); // a last "off" after the switch went off
+      // No game and no test: with "motors sleep" no data line goes out at all (the board's drivers then run dry on their
+      // own); only the power output is kept up with the short W command, since a data line would wake the motors.
+      r.asleep = !!(d.board && d.sleep.motors && raw == null && !testing);
+      if (r.asleep) {
+        if (powerLine && r.state === 'open' && !waiters.has(d.id)) {
+          const cmd = `W${evalPower(d, raw, now)}\n`;
+          if (cmd !== r.lastWake || now - (r.lastWakeAt ?? 0) >= 1000) { hub.write(d.id, cmd); r.lastWake = cmd; r.lastWakeAt = now; }
+        }
+        r.lastLine = null; // the next data line (game started) goes out at once
+        continue;
+      }
+      r.lastWake = null;
       if (raw == null && d.idle === 'none' && !testing && !(d.board && (d.power.manual || r.powerSentOn))) continue;
       if (raw == null && d.idle === 'zeros' && !testing) values = d.channels.map(() => 0);
       else if (raw == null && d.idle === 'hold' && r.values.length && !testing) values = r.values;
@@ -440,9 +462,9 @@ export function createEngine({ hub, getRaw, dataDir }) {
         devices: config.serial.map(d => {
           const r = rt(d.id);
           const board = r.board && d.board
-            ? { version: r.board.version, saved: r.board.saved, readAt: r.board.readAt, power: !!r.board.power, differs: motorDiff(d.motors, r.board.motors.slice(0, d.motors.length)) }
+            ? { version: r.board.version, saved: r.board.saved, readAt: r.board.readAt, power: !!r.board.power, idle: !!r.board.idle, differs: motorDiff(d.motors, r.board.motors.slice(0, d.motors.length)) }
             : null;
-          return { id: d.id, state: r.state, msg: r.msg, line: r.line, values: r.values, errors: r.errors, sent: r.sent, rx: r.rx ?? '', board,
+          return { id: d.id, state: r.state, msg: r.msg, line: r.line, values: r.values, errors: r.errors, sent: r.sent, rx: r.rx ?? '', board, asleep: !!r.asleep,
             power: d.board && (d.power.enabled || d.power.manual) ? { on: !!r.powerOn, want: !!r.powerWant, manual: !!d.power.manual, error: r.powerError ?? null, holdLeft: Math.max(0, Math.round(((r.powerHoldUntil ?? 0) - Date.now()) / 1000)) } : null };
         }),
       };
@@ -473,6 +495,7 @@ export function createEngine({ hub, getRaw, dataDir }) {
         const nx = config.nextion.find(n => n.enabled && n.via === id);
         steps.push(`CFG NX en=${nx ? 1 : 0} baud=${nx?.baud ?? 115200}`);
         if (d.leds.enabled) steps.push(ledCommand(d.leds)); // the board keeps the LEDs too, so they light without the PC
+        if (hasIdle(fw)) steps.push(idleCommand(d.sleep)); // and whether its motors sleep without data
         for (const line of steps) {
           const reply = (await exchange(d.id, line, isReply)).at(-1);
           if (!reply.startsWith('OK')) throw new Error(`${reply} (${line.split(' ').slice(0, 2).join(' ')})`);
