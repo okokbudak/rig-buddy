@@ -58,10 +58,15 @@ export function createRadio(onChange) {
           continue;
         }
         for (const st of stations.filter(s => s.host === host)) {
+          // The list says https, yet the game connects to the stream over plain port 80 (TruckersFM: 94.23.156.13:80),
+          // so an address is also known under the other web port
+          const ports = new Set([st.port, 80, 443]);
           for (const a of addrs) {
-            const key = `${a.address}:${st.port}`;
-            if (!byAddress.has(key)) byAddress.set(key, []);
-            byAddress.get(key).push(st);
+            for (const port of ports) {
+              const key = `${a.address}:${port}`;
+              if (!byAddress.has(key)) byAddress.set(key, []);
+              if (!byAddress.get(key).includes(st)) byAddress.get(key).push(st);
+            }
           }
         }
       }
