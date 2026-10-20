@@ -463,6 +463,60 @@ const NX = {
   assert.ok(!w.slice(n).some(x => /^\d/.test(x)), 'no data line after the game ended');
 }
 
+// needles that went astray: homed again when the game starts, after a pause, and by "Home all"
+{
+  const w = [];
+  const ev = new EventEmitter();
+  let raw = null;
+  const h = {
+    events: ev, connected: true,
+    open: id => { queueMicrotask(() => ev.emit('state', { id, state: 'open' })); return true; },
+    close: () => {}, write: (id, data) => { if (id === 'oct') w.push(String(data)); },
+    ports: async () => ({ ports: [] }), probe: async () => ({}),
+  };
+  const eng = createEngine({ hub: h, getRaw: () => raw, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'studio-')) });
+  const c = structuredClone(eng.config);
+  const motors = Array.from({ length: 6 }, (_, i) => ({ enabled: true, home: i < 2, full: 1000 })); // only MOTOR0 and 1 home
+  c.serial = [{ id: 'oct', name: 'Octopus', enabled: true, port: 'COM9', board: 'octopus', idle: 'zeros', motors }];
+  eng.apply(c);
+  assert.deepEqual(eng.config.serial[0].rehome, { start: true, resume: true });
+  const homes = () => w.filter(x => /^H\d\n$/.test(x));
+  const until = async (fn, what, ms = 3000) => {
+    const t0 = Date.now();
+    while (!fn()) {
+      if (Date.now() - t0 > ms) assert.fail(`${what} (lines: ${JSON.stringify(w.slice(-6))})`);
+      await new Promise(r => setTimeout(r, 20));
+    }
+  };
+  await new Promise(r => setTimeout(r, 200));
+  assert.equal(homes().length, 0, 'nothing homes without a game');
+  assert.equal(eng.homeAll('oct'), true);
+  assert.deepEqual(homes(), ['H0\n', 'H1\n'], '"Home all": only the needles set to home');
+  await new Promise(r => setTimeout(r, 3100)); // (a second request inside 3 s is swallowed)
+  w.length = 0;
+  raw = { game: { paused: false }, truck: { engine: { rpm: { value: 1000 } } } };
+  await until(() => homes().length === 2, 'the game starts: the needles home');
+  w.length = 0;
+  raw = { game: { paused: true }, truck: { engine: { rpm: { value: 1000 } } } };
+  await new Promise(r => setTimeout(r, 300));
+  assert.equal(homes().length, 0, 'paused: nothing yet');
+  await new Promise(r => setTimeout(r, 3000));
+  raw = { game: { paused: false }, truck: { engine: { rpm: { value: 1000 } } } };
+  await until(() => homes().length === 2, 'the game continues after a pause: the needles home');
+  // switched off in the editor: nothing homes on its own, the button still works
+  const c2 = structuredClone(eng.config);
+  c2.serial[0].rehome = { start: false, resume: false };
+  c2.rev = eng.rev;
+  eng.apply(c2);
+  await new Promise(r => setTimeout(r, 3100));
+  w.length = 0;
+  raw = { game: { paused: true }, truck: {} };
+  await new Promise(r => setTimeout(r, 200));
+  raw = { game: { paused: false }, truck: {} };
+  await new Promise(r => setTimeout(r, 400));
+  assert.equal(homes().length, 0, 'switched off: no homing after a pause');
+}
+
 // the LED chain: configuration, the board's static copy, the renderer (effects, bars, rules, correction), frames to the board
 {
   const l = normalizeLeds({});

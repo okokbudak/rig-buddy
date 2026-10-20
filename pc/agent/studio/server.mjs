@@ -82,7 +82,7 @@ export function startStudio({ engine, hub, port = Number(process.env.RIGBUDDY_ST
           }
           case 'POST /api/home': {
             const b = JSON.parse(await readBody(req));
-            return send(200, { ok: engine.homeMotor(String(b.id), b.motor) });
+            return send(200, { ok: b.motor === 'all' ? engine.homeAll(String(b.id)) : engine.homeMotor(String(b.id), b.motor) });
           }
           case 'GET /api/led-catalog': return send(200, engine.ledCatalog());
           case 'GET /api/pins': return send(200, { pins: PINS });

@@ -77,6 +77,8 @@ export function normalize(cfg) {
       power: normalizePower(d.power ?? {}),
       leds: normalizeLeds(d.leds ?? {}),
       sleep: normalizeSleep(d.sleep ?? {}),
+      // needles that go astray (alt-tab, pause) find their zero again: when the game starts / when it continues after a pause
+      rehome: { start: d.rehome?.start !== false, resume: d.rehome?.resume !== false },
       pins: board ? normalizePins(d.pins ?? []) : [],
     };
     if (!board) dev.power.enabled = dev.power.manual = dev.leds.enabled = dev.sleep.motors = dev.sleep.leds = false; // only a board with the matching firmware has these
@@ -525,6 +527,15 @@ export function createEngine({ hub, getRaw, dataDir }) {
       // No game and no test: with "motors sleep" no data line goes out at all (the board's drivers then run dry on their
       // own); only the power output is kept up with the short W command, since a data line would wake the motors.
       r.asleep = !!(d.board && d.sleep.motors && raw == null && !testing);
+      if (d.board) {
+        const live = raw != null;
+        const paused = live && !!raw.game?.paused;
+        // the game just started (a board whose motors sleep homes by itself when it wakes) or just continued after a pause
+        if (r.wasLive === false && live && d.rehome.start && !d.sleep.motors) engine.homeAll(d.id);
+        if (r.wasPaused === true && live && !paused && d.rehome.resume) engine.homeAll(d.id);
+        r.wasLive = live;
+        r.wasPaused = paused;
+      }
       if (r.asleep) {
         if (powerLine && r.state === 'open' && !waiters.has(d.id)) {
           const cmd = `W${evalPower(d, raw, now)}\n`;
@@ -638,6 +649,23 @@ export function createEngine({ hub, getRaw, dataDir }) {
       if (hasHomeOffset(rt(id).board?.version ?? '0')) hub.write(id, `CFG M${n} hoff=${Math.round(d.motors[n].hoff * 10)}\n`);
       hub.write(id, `H${n}\n`);
       return true;
+    },
+    /** Every needle that is set to home finds its stop and goes to the zero mark again (editor button, game start, end of a pause). */
+    homeAll(id) {
+      const d = config.serial.find(x => x.id === id);
+      if (!d || !d.board || rt(id).state !== 'open' || waiters.has(id)) return false;
+      const now = Date.now();
+      if (now - (rt(id).lastHomeAll ?? 0) < 3000) return true; // (a pause and a start in a row: once is enough)
+      rt(id).lastHomeAll = now;
+      const fw = rt(id).board?.version ?? '0';
+      let any = false;
+      d.motors.forEach((m, n) => {
+        if (!m.enabled || !m.home) return;
+        if (hasHomeOffset(fw)) hub.write(id, `CFG M${n} hoff=${Math.round(m.hoff * 10)}\n`);
+        hub.write(id, `H${n}\n`);
+        any = true;
+      });
+      return any;
     },
     /** Applies one motor's wanted settings on the board at once (not saved there until "Upload to board"): tuning in a loop. */
     motorLive(id, motor, settings) {
