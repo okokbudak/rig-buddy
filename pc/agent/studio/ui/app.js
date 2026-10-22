@@ -485,20 +485,6 @@ function renderBoard() {
 }
 
 function boardGenericCard(d) {
-  // needles that went astray find their zero again
-  const homeAllMsg = el('span', { class: 'small' });
-  const rh = d.rehome ?? (d.rehome = { start: true, resume: true });
-  const rehomePanel = el('div', { class: 'sockpanel' },
-    el('div', { class: 'ehead' }, el('h3', {}, t('rehome.title'))),
-    el('p', { class: 'muted small' }, t('rehome.lead')),
-    el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: rh.start, onchange: e => { rh.start = e.target.checked; touch(); } }), el('span', {}, t('rehome.start'))),
-    el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: rh.resume, onchange: e => { rh.resume = e.target.checked; touch(); } }), el('span', {}, t('rehome.resume'))),
-    el('div', { class: 'actions' },
-      el('button', { class: 'btn', onclick: async () => {
-        try { const r = await api('POST', '/api/home', { id: d.id, motor: 'all' }); homeAllMsg.textContent = r.ok ? t('board.homing') : t('rehome.none'); } catch (e) { homeAllMsg.textContent = e.message; }
-        setTimeout(() => { homeAllMsg.textContent = ''; }, 4000);
-      } }, icon('refresh'), t('rehome.all')), homeAllMsg));
-
   return el('div', { class: `card ${d.enabled ? '' : 'dim'}`, 'data-board': d.id },
     el('div', { class: 'chead' }, icon('cpu'), el('h2', {}, d.name), el('span', { class: 'badge', 'data-role': 'badge' }), el('span', { class: 'grow' }), el('span', { class: 'muted small' }, d.port || '')),
     el('p', { class: 'muted' }, t('board.generic')),
@@ -600,6 +586,20 @@ function boardPcbCard(d) {
     el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: sl.motors, onchange: e => { sl.motors = e.target.checked; touch(); renderBoard(); paint(); } }), el('span', {}, t('sleep.motors'))),
     sl.motors ? el('div', { class: 'fields' },
       field(t('sleep.delay'), el('input', { type: 'number', class: 'n', min: 5, max: 255, value: sl.motorsDelay, onchange: e => { sl.motorsDelay = Number(e.target.value); touch(); } }), t('sleep.delayHint'))) : null);
+
+  // needles that went astray find their zero again
+  const homeAllMsg = el('span', { class: 'small' });
+  const rh = d.rehome ?? (d.rehome = { start: true, resume: true });
+  const rehomePanel = el('div', { class: 'sockpanel' },
+    el('div', { class: 'ehead' }, el('h3', {}, t('rehome.title'))),
+    el('p', { class: 'muted small' }, t('rehome.lead')),
+    el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: rh.start, onchange: e => { rh.start = e.target.checked; touch(); } }), el('span', {}, t('rehome.start'))),
+    el('label', { class: 'switch' }, el('input', { type: 'checkbox', checked: rh.resume, onchange: e => { rh.resume = e.target.checked; touch(); } }), el('span', {}, t('rehome.resume'))),
+    el('div', { class: 'actions' },
+      el('button', { class: 'btn', onclick: async () => {
+        try { const r = await api('POST', '/api/home', { id: d.id, motor: 'all' }); homeAllMsg.textContent = r.ok ? t('board.homing') : t('rehome.none'); } catch (e) { homeAllMsg.textContent = e.message; }
+        setTimeout(() => { homeAllMsg.textContent = ''; }, 4000);
+      } }, icon('refresh'), t('rehome.all')), homeAllMsg));
 
   return el('div', { class: `card ${d.enabled ? '' : 'dim'}`, 'data-board': d.id },
     el('div', { class: 'chead' },
