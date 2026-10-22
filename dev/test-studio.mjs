@@ -491,7 +491,9 @@ const NX = {
   await new Promise(r => setTimeout(r, 200));
   assert.equal(homes().length, 0, 'nothing homes without a game');
   assert.equal(eng.homeAll('oct'), true);
-  assert.deepEqual(homes(), ['H0\n', 'H1\n'], '"Home all": only the needles set to home');
+  assert.deepEqual(homes(), ['H0\n'], '"Home all": the first needle at once');
+  await until(() => homes().length === 2, 'the next one follows later');
+  assert.deepEqual(homes(), ['H0\n', 'H1\n'], '"Home all": only the needles set to home, one after the other');
   await new Promise(r => setTimeout(r, 3100)); // (a second request inside 3 s is swallowed)
   w.length = 0;
   raw = { game: { paused: false }, truck: { engine: { rpm: { value: 1000 } } } };

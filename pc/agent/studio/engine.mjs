@@ -12,6 +12,7 @@ import { createRenderer, frameHex, EFFECTS, PALETTE_IDS } from './leds.mjs';
 import { PINS, normalizePins, pinConfigCommand, pinOutputValue, isOutputMode, isInputMode } from './pins.mjs';
 
 const TICK_MS = 40; // 25 Hz, what the gauge firmware parses at most
+const HOME_STAGGER_MS = 1500; // "home all": the next needle starts this long after the previous one
 const KEEPALIVE_MS = 500; // an unchanged line is repeated at least this often (gauges park without data)
 const BAUDS = [9600, 19200, 38400, 57600, 115200, 230400, 250000, 500000, 1000000];
 const IDLE = ['zeros', 'hold', 'none'];
@@ -658,14 +659,17 @@ export function createEngine({ hub, getRaw, dataDir }) {
       if (now - (rt(id).lastHomeAll ?? 0) < 3000) return true; // (a pause and a start in a row: once is enough)
       rt(id).lastHomeAll = now;
       const fw = rt(id).board?.version ?? '0';
-      let any = false;
-      d.motors.forEach((m, n) => {
-        if (!m.enabled || !m.home) return;
-        if (hasHomeOffset(fw)) hub.write(id, `CFG M${n} hoff=${Math.round(m.hoff * 10)}\n`);
-        hub.write(id, `H${n}\n`);
-        any = true;
+      // one after the other, not six at once: all drivers homing together may pull the supply down and reset the board
+      const todo = d.motors.map((m, n) => [m, n]).filter(([m]) => m.enabled && m.home);
+      todo.forEach(([m, n], k) => {
+        const go = () => {
+          if (rt(id).state !== 'open') return;
+          if (hasHomeOffset(fw)) hub.write(id, `CFG M${n} hoff=${Math.round(m.hoff * 10)}\n`);
+          hub.write(id, `H${n}\n`);
+        };
+        if (k === 0) go(); else setTimeout(go, k * HOME_STAGGER_MS).unref();
       });
-      return any;
+      return todo.length > 0;
     },
     /** Applies one motor's wanted settings on the board at once (not saved there until "Upload to board"): tuning in a loop. */
     motorLive(id, motor, settings) {
