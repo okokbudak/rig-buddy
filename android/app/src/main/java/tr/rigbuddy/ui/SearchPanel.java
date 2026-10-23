@@ -64,9 +64,12 @@ public final class SearchPanel {
 
     public String type;
 
+    public double routeMeters = -1;
+
     public void setRouteMeters(double meters) {
       subtitle = subtitleBase + " · " + formatKm(meters);
       hasRoute = true;
+      routeMeters = meters;
     }
   }
 
@@ -175,8 +178,11 @@ public final class SearchPanel {
     imm.hideSoftInputFromWindow(input.getWindowToken(), 0);
   }
 
+  private boolean nearbyList; // the current list comes from a "nearest X" chip
+
   private void autocomplete(String q) {
     int seq = ++querySeq;
+    nearbyList = false;
     status.setText(Ui.s(tr.rigbuddy.R.string.search_searching));
     nav.query("app.getAutocompleteOptions", q, (data, error) -> {
       if (seq != querySeq) return; // a newer query is in flight
@@ -186,6 +192,7 @@ public final class SearchPanel {
 
   private void nearby(int poiType, String label) {
     int seq = ++querySeq;
+    nearbyList = true;
     hideKeyboard();
     status.setText(Ui.s(tr.rigbuddy.R.string.search_nearby, label));
     JSONObject in = new JSONObject();
@@ -227,7 +234,17 @@ public final class SearchPanel {
    * distance is the route's, asked for one after the other (the first few).
    */
   private void fetchRouteDistances(int seq, int i) {
-    if (seq != querySeq || i >= results.size() || i >= MAX_ROUTE_DISTANCES) return;
+    if (seq != querySeq) return;
+    if (i >= results.size() || i >= MAX_ROUTE_DISTANCES) {
+      // "nearest" chips: the straight line from the truck does not tell on which side of the road a stop is; the
+      // way by road does (a rest area across the carriageway can be dozens of km away), so the nearest by road first
+      if (nearbyList && i > 0) {
+        java.util.Collections.sort(results, (a, b) -> Double.compare(a.routeMeters < 0 ? Double.MAX_VALUE : a.routeMeters,
+            b.routeMeters < 0 ? Double.MAX_VALUE : b.routeMeters));
+        adapter.notifyDataSetChanged();
+      }
+      return;
+    }
     Result r = results.get(i);
     JSONObject in = new JSONObject();
     try {
@@ -239,7 +256,7 @@ public final class SearchPanel {
       if (seq != querySeq) return;
       JSONArray routes = NavClient.asArray(data);
       if (error == null && routes.length() > 0) {
-        r.setRouteMeters(tr.rigbuddy.nav.Route.parse(tr.rigbuddy.nav.Route.pick(routes, routeStrategy)).distanceMeters * distanceScale);
+        r.setRouteMeters(tr.rigbuddy.nav.Route.parse(tr.rigbuddy.nav.Route.pick(routes, routeStrategy)).metersToStop(r.lon, r.lat) * distanceScale);
         adapter.notifyDataSetChanged();
       }
       fetchRouteDistances(seq, i + 1);

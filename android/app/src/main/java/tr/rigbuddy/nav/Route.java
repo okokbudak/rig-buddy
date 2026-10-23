@@ -164,6 +164,35 @@ public final class Route {
     out.secondsRemaining = secs;
   }
 
+  /**
+   * Meters by road from the start of the route to the stop at (lon, lat). With an active route the server's preview
+   * is the whole route with the stop added as a waypoint (truck -> stop -> destination), so its total
+   * (distanceMeters) is the rest of the trip, not the way to the stop: that read as "700 km" for a rest area 4 km
+   * ahead. The stop is where the segment ends that finishes nearest to it; a one-segment route is just its total.
+   */
+  public double metersToStop(double lon, double lat) {
+    int segments = 0;
+    for (Step s : steps) segments = Math.max(segments, s.segmentIndex + 1);
+    if (segments <= 1) return distanceMeters;
+    double cosLat = Math.cos(Math.toRadians(lat));
+    int bestSeg = segments - 1;
+    double bestDist = Double.MAX_VALUE;
+    for (int si = 0; si < segments; si++) {
+      Step last = null;
+      for (Step s : steps) if (s.segmentIndex == si) last = s; // the segment's final step
+      if (last == null || last.lonLat == null || last.lonLat.length < 2) continue;
+      double dx = (last.lonLat[last.lonLat.length - 2] - lon) * cosLat, dy = last.lonLat[last.lonLat.length - 1] - lat;
+      double d = dx * dx + dy * dy;
+      if (d < bestDist) {
+        bestDist = d;
+        bestSeg = si;
+      }
+    }
+    double meters = 0;
+    for (Step s : steps) if (s.segmentIndex <= bestSeg) meters += s.distanceMeters;
+    return meters;
+  }
+
   private static double[] cumulative(double[] ll) {
     int n = ll.length / 2;
     double[] cum = new double[Math.max(n, 1)];

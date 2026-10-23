@@ -1141,7 +1141,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     nav.query("app.previewRoutes", input, (data, error) -> {
       JSONArray routes = NavClient.asArray(data);
       if (error != null || routes.length() == 0 || pendingDest != r) return;
-      r.setRouteMeters(Route.parse(Route.pick(routes, routeStrategyPref())).distanceMeters * distanceScale());
+      r.setRouteMeters(Route.parse(Route.pick(routes, routeStrategyPref())).metersToStop(r.lon, r.lat) * distanceScale());
       destSubtitle.setText(r.subtitle);
     });
   }
