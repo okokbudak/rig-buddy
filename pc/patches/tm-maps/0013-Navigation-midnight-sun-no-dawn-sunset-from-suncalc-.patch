@@ -1,0 +1,32 @@
+From 0b511aa202f5159939c206564cc2131f3e242be3 Mon Sep 17 00:00:00 2001
+From: Orhan <spitintomyjar@protonmail.com>
+Date: Sat, 24 Oct 2026 02:12:58 +0300
+Subject: [PATCH 13/13] Navigation: midnight sun - no dawn/sunset from suncalc
+ in the far north must not stop the server
+
+On the game's fixed June 21 suncalc returns invalid dates for dawn (and sunset) north of about 63 degrees. The assertion then threw on every telemetry frame and the clients reconnected endlessly (Scandinavia). Go by the sun's altitude when either date is invalid.
+---
+ packages/apis/navigation/domain/actor/game-state.ts | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/packages/apis/navigation/domain/actor/game-state.ts b/packages/apis/navigation/domain/actor/game-state.ts
+index c1fd878..cc68d04 100644
+--- a/packages/apis/navigation/domain/actor/game-state.ts
++++ b/packages/apis/navigation/domain/actor/game-state.ts
+@@ -99,6 +99,13 @@ export function toThemeMode(
+   const sunsetTime = sunset.getTime();
+   const dawnTime = dawn.getTime();
+ 
++  // In the far north (Scandinavia) the game's fixed date is within the midnight sun: the sun never sets, and suncalc
++  // answers with invalid dates instead of a dawn and a sunset. Go by where the sun is then.
++  if (Number.isNaN(dawnTime) || Number.isNaN(sunsetTime)) {
++    const sunUp = SunCalc.getPosition(now, lat, lng).altitude > (-0.833 * Math.PI) / 180;
++    return sunUp ? 'light' : 'dark';
++  }
++
+   // sanity check: suncalc always returns times where dawn < sunset
+   // (i.e., it never returns a dawn for the next day, after sunset)
+   assert(
+-- 
+2.43.0
+

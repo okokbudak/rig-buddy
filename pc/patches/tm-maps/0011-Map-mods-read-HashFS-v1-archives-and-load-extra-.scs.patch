@@ -1,7 +1,7 @@
 From 0531d52ed3994a05da4858a8a188e1a550650630 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
 Date: Fri, 25 Sep 2026 00:46:22 +0300
-Subject: [PATCH 11/12] Map mods: read HashFS v1 archives and load extra .scs
+Subject: [PATCH 11/13] Map mods: read HashFS v1 archives and load extra .scs
  (--mod), tolerate what mods do differently
 
 Reads version-1 archives (how mods are packed), adds parser --mod (loaded after

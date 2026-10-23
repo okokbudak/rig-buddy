@@ -1,7 +1,7 @@
 From 0f2fb3d6318985eed0d810c344b1c8a11fc40c05 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
 Date: Fri, 18 Sep 2026 01:49:13 +0300
-Subject: [PATCH 09/12] Read the icon texture format ETS2 1.61 added, and
+Subject: [PATCH 09/13] Read the icon texture format ETS2 1.61 added, and
  survive the next one
 
 ETS2 1.61 stores some POI icons as B8G8R8X8_UNORM_SRGB (93). It is the same

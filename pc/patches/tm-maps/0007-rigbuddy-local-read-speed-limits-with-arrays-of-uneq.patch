@@ -1,7 +1,7 @@
 From 248e0c2d4206040d77e9296d970f3bff6e4be8bd Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?Orhan=20K=C3=B6kbudak?= <spitintomyjar@protonmail.com>
 Date: Wed, 16 Sep 2026 02:08:12 +0300
-Subject: [PATCH 07/12] rigbuddy-local: read speed limits with arrays of
+Subject: [PATCH 07/13] rigbuddy-local: read speed limits with arrays of
  unequal length
 
 Since the ATS update of September 2026 one state's truck speed limits list three road classes but only two max limits; the parser asserted equal lengths and the whole ATS parse failed. A missing value now falls back to the plain limit, with a warning.
