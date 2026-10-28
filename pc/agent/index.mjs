@@ -5,6 +5,8 @@
 //   GET  /profile         -> profile/economy summary from the latest save
 //   GET  /jobs            -> freight-market offers, nearest pickup first
 //   GET  /explored        -> {game, count, uids, hasUid}: roads/junctions the player has driven (from the save), as the uids the map tiles carry
+//   GET  /media           -> the PC's music player: {active, app, title, artist, album, status, position, duration, shuffle, repeat, can*}
+//   POST /media {action}  -> playpause | play | pause | next | previous | shuffle | repeat; answers with the new state
 //   GET  /sound           -> {games: [{id, name, mods: [{name, active, guids}]}]}: the sound plugin's mods per game
 //   POST /sound {game, mod, active} -> switches a sound mod on or off (the plugin loads it within a second)
 //   GET  /tiles           -> {"ets2": {size, version}}: map files the app can download
@@ -22,6 +24,7 @@ import tst from 'trucksim-telemetry';
 import { WebSocketServer } from 'ws';
 import { createRadio } from './radio.mjs';
 import { findLatestSave, loadSave } from './save.mjs';
+import { mediaCommand, mediaState } from './media.mjs';
 import { setSoundMod, soundState } from './sound.mjs';
 
 const PORT = Number(process.env.AGENT_PORT || 62843);
@@ -294,6 +297,29 @@ const server = http.createServer((req, res) => {
     res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(body));
   };
+  if (url.pathname === '/media') {
+    // the PC's music player: GET what plays, POST {action: playpause|play|pause|next|previous|shuffle|repeat}
+    if (req.method === 'GET') {
+      mediaState().then(s => send(200, s), () => send(200, { active: false }));
+      return;
+    }
+    if (req.method === 'POST') {
+      let size = 0;
+      const chunks = [];
+      req.on('data', c => { size += c.length; if (size > 1024) req.destroy(); else chunks.push(c); });
+      req.on('end', () => {
+        let action;
+        try {
+          action = String(JSON.parse(Buffer.concat(chunks).toString('utf8')).action);
+        } catch {
+          return send(400, { error: 'bad request' });
+        }
+        mediaCommand(action).then(s => (s ? send(200, s) : send(404, { error: 'unknown action' })), () => send(502, { error: 'player' }));
+      });
+      return;
+    }
+    return send(405, { error: 'method' });
+  }
   if (url.pathname === '/sound') {
     // the sound mods of the sound plugin: GET the list per game, POST {game, mod, active} switches one on or off
     if (req.method === 'GET') return send(200, soundState());

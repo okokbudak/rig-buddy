@@ -241,4 +241,9 @@
     <string name="sound_none">No sound plugin found on the PC yet. Start Rig Buddy on the PC once with the game installed.</string>
     <string name="sound_no_mods">No sound mods yet. Add them in the Sound mods window on the PC.</string>
     <string name="sound_no_guids">No .bank.guids file: this mod plays nothing</string>
+    <string name="rail_music">Music</string>
+    <string name="music_title">Music</string>
+    <string name="music_nothing">Nothing is playing</string>
+    <string name="music_nothing_hint">Start a player on the PC: Spotify, YouTube or YouTube Music in a browser, Apple Music, VLC ...</string>
+    <string name="music_unknown">Unknown title</string>
 </resources>

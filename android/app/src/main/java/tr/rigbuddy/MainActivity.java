@@ -76,6 +76,7 @@ import tr.rigbuddy.ui.HomeScreen;
 import tr.rigbuddy.ui.JobsScreen;
 import tr.rigbuddy.ui.ManeuverIconView;
 import tr.rigbuddy.ui.ProfileScreen;
+import tr.rigbuddy.ui.MusicScreen;
 import tr.rigbuddy.ui.RadioScreen;
 import tr.rigbuddy.ui.SearchPanel;
 import tr.rigbuddy.ui.SoundScreen;
@@ -135,6 +136,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private ProfileScreen profile;
   private RadioScreen radioScreen;
   private SoundScreen soundScreen;
+  private MusicScreen musicScreen;
   private FrameLayout screenHost;
   private String screen = "home";
   private final Map<String, View> screenViews = new HashMap<>();
@@ -365,12 +367,14 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     profile = new ProfileScreen(this, agent, (p, err) -> home.setProfile(p, err));
     radioScreen = new RadioScreen(this);
     soundScreen = new SoundScreen(this, agent);
+    musicScreen = new MusicScreen(this, agent);
     addScreen("home", home.view());
     addScreen("radio", radioScreen.view());
     addScreen("vehicle", vehicle.view());
     addScreen("jobs", jobs.view());
     addScreen("profile", profile.view());
     addScreen("sound", soundScreen.view());
+    addScreen("music", musicScreen.view());
     screenViews.put("map", findViewById(R.id.root));
 
     LinearLayout rail = findViewById(R.id.rail);
@@ -380,6 +384,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     addRailButton(rail, "vehicle", R.drawable.ic_truck, Ui.s(R.string.rail_vehicle));
     addRailButton(rail, "jobs", R.drawable.ic_work, Ui.s(R.string.rail_jobs));
     addRailButton(rail, "profile", R.drawable.ic_person, Ui.s(R.string.rail_profile));
+    addRailButton(rail, "music", R.drawable.ic_music, Ui.s(R.string.rail_music));
     addRailButton(rail, "sound", R.drawable.ic_sound, Ui.s(R.string.rail_sound));
     rail.addView(Ui.spacer(this), Ui.hweight(1));
     // no settings button: the clock and the NAV / PC lights at the bottom open the settings
@@ -481,7 +486,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   }
 
   // --- swiping between the screens, with one dot per screen under them -------------
-  private static final String[] SCREEN_ORDER = {"home", "map", "radio", "vehicle", "jobs", "profile", "sound"};
+  private static final String[] SCREEN_ORDER = {"home", "map", "radio", "vehicle", "jobs", "profile", "music", "sound"};
   private GestureDetector swipeDetector;
   private LinearLayout pageDots;
 
@@ -632,6 +637,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     }
     if ("profile".equals(name)) profile.onShown();
     if ("sound".equals(name)) soundScreen.onShown();
+    musicScreen.setActive("music".equals(name)); // polls the PC player only while the screen is shown
     if (isMap) hideSystemUi();
   }
 

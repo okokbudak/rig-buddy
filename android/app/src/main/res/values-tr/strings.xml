@@ -239,4 +239,9 @@
     <string name="sound_none">PC\'de henüz ses plugin\'i bulunamadı. Oyun kuruluyken Rig Buddy\'yi PC\'de bir kez çalıştırın.</string>
     <string name="sound_no_mods">Henüz ses modu yok. PC\'deki Ses modları penceresinden ekleyin.</string>
     <string name="sound_no_guids">.bank.guids dosyası yok: bu mod ses çalmaz</string>
+    <string name="rail_music">Müzik</string>
+    <string name="music_title">Müzik</string>
+    <string name="music_nothing">Şu an bir şey çalmıyor</string>
+    <string name="music_nothing_hint">PC\'de bir oynatıcı başlatın: Spotify, tarayıcıda YouTube ya da YouTube Music, Apple Music, VLC ...</string>
+    <string name="music_unknown">Bilinmeyen parça</string>
 </resources>
