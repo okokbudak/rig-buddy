@@ -244,4 +244,12 @@
     <string name="music_nothing">Şu an bir şey çalmıyor</string>
     <string name="music_nothing_hint">PC\'de bir oynatıcı başlatın: Spotify, tarayıcıda YouTube ya da YouTube Music, Apple Music, VLC ...</string>
     <string name="music_unknown">Bilinmeyen parça</string>
+    <string name="sound_levels">Ses seviyeleri</string>
+    <string name="lv_master">Ana ses</string>
+    <string name="lv_engine">Motor</string>
+    <string name="lv_exhaust">Egzoz</string>
+    <string name="lv_turbo">Turbo</string>
+    <string name="lv_interior">Kabin içi</string>
+    <string name="lv_navigation">Navigasyon sesi</string>
+    <string name="lv_outside">Dış ses (camlar kapalıyken)</string>
 </resources>

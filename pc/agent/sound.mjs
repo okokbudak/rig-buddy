@@ -65,7 +65,33 @@ function selected(folder) {
   }
 }
 
-/** { games: [{id, name, mods: [{name, active, guids}]}] }: the games that have the sound plugin's folder. */
+// The volumes of sound_levels.txt (the plugin applies a change within a second): key -> the plugin's default
+export const LEVELS = {
+  master: 0.5,
+  engine: 0.5,
+  exhaust: 0.5,
+  turbo: 0.5,
+  interior: 0.75,
+  navigation: 0.75,
+  exterior_when_windows_closed: 0.75,
+};
+const MAX_LEVEL = 1.5;
+
+function readLevelsFile(folder) {
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(folder, 'sound_levels.txt'), 'utf8'));
+    return j && typeof j === 'object' && !Array.isArray(j) ? j : {};
+  } catch {
+    return {};
+  }
+}
+
+function levels(folder) {
+  const j = readLevelsFile(folder);
+  return Object.fromEntries(Object.entries(LEVELS).map(([k, d]) => [k, typeof j[k] === 'number' ? j[k] : d]));
+}
+
+/** { games: [{id, name, mods: [{name, active, guids}], levels: {master, engine, ...}}] }: the games that have the sound plugin's folder. */
 export function soundState() {
   const games = [];
   for (const [id, g] of Object.entries(GAMES)) {
@@ -75,6 +101,7 @@ export function soundState() {
     games.push({
       id,
       name: g.name,
+      levels: levels(folder),
       mods: banks(folder).map(name => ({
         name,
         active: on.has(name.toLowerCase()),
@@ -83,6 +110,18 @@ export function soundState() {
     });
   }
   return { games };
+}
+
+/** Sets one volume (0 to 1.5) in sound_levels.txt, keeping the other keys of the file. Returns the new state, or null. */
+export function setSoundLevel(gameId, key, value) {
+  if (!GAMES[gameId] || !Object.hasOwn(LEVELS, key) || typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const folder = folderOf(gameId);
+  if (!folder) return null;
+  const j = readLevelsFile(folder);
+  j[key] = Math.round(Math.min(MAX_LEVEL, Math.max(0, value)) * 100) / 100;
+  if (typeof j.config_version !== 'number') j.config_version = 2; // an older file would be "upgraded" (halved) by the plugin
+  fs.writeFileSync(path.join(folder, 'sound_levels.txt'), JSON.stringify(j, null, 4));
+  return soundState();
 }
 
 /**

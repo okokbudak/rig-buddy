@@ -5,6 +5,7 @@ import android.view.Gravity;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.Switch;
 import android.widget.TextView;
 
@@ -80,13 +81,61 @@ public final class SoundScreen {
       JSONArray mods = game.optJSONArray("mods");
       if (mods == null || mods.length() == 0) {
         list.addView(Ui.text(c, Ui.s(R.string.sound_no_mods), 15, Ui.TEXT2, false));
-        continue;
+      } else {
+        for (int m = 0; m < mods.length(); m++) {
+          JSONObject mod = mods.optJSONObject(m);
+          if (mod != null) list.addView(row(game.optString("id"), mod), Ui.matchWrap());
+        }
       }
-      for (int m = 0; m < mods.length(); m++) {
-        JSONObject mod = mods.optJSONObject(m);
-        if (mod != null) list.addView(row(game.optString("id"), mod), Ui.matchWrap());
+      JSONObject levels = game.optJSONObject("levels");
+      if (levels != null) {
+        list.addView(Ui.text(c, Ui.s(R.string.sound_levels), 15, Ui.TEXT2, true), Ui.margins(Ui.matchWrap(), c, 0, 14, 0, 2));
+        for (int i = 0; i < LEVEL_KEYS.length; i++) {
+          list.addView(level(game.optString("id"), LEVEL_KEYS[i], LEVEL_LABELS[i], levels.optDouble(LEVEL_KEYS[i], 0.5)), Ui.matchWrap());
+        }
       }
     }
+  }
+
+  // the volumes of the sound plugin (sound_levels.txt), in the order they are shown
+  private static final String[] LEVEL_KEYS = {"master", "engine", "exhaust", "turbo", "interior", "navigation", "exterior_when_windows_closed"};
+  private static final int[] LEVEL_LABELS = {R.string.lv_master, R.string.lv_engine, R.string.lv_exhaust, R.string.lv_turbo,
+      R.string.lv_interior, R.string.lv_navigation, R.string.lv_outside};
+
+  /** One volume: a label with its percentage and a slider from 0 to 150 %. It is sent when the finger lets go. */
+  private LinearLayout level(String gameId, String key, int labelRes, double value) {
+    LinearLayout box = Ui.column(c);
+    box.setPadding(0, Ui.dp(c, 6), 0, Ui.dp(c, 2));
+    LinearLayout head = Ui.row(c);
+    TextView label = Ui.text(c, Ui.s(labelRes), 17, Ui.TEXT, false);
+    TextView percent = Ui.text(c, 17, Ui.TEXT2, false);
+    head.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+    head.addView(percent);
+    box.addView(head);
+    SeekBar bar = new SeekBar(c);
+    bar.setMax(150);
+    bar.setProgress((int) Math.round(value * 100));
+    percent.setText(bar.getProgress() + " %");
+    bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+      @Override public void onProgressChanged(SeekBar s, int progress, boolean fromUser) {
+        percent.setText(progress + " %");
+      }
+
+      @Override public void onStartTrackingTouch(SeekBar s) {}
+
+      @Override public void onStopTrackingTouch(SeekBar s) {
+        JSONObject body = new JSONObject();
+        try {
+          body.put("game", gameId).put("level", key).put("value", s.getProgress() / 100.0);
+        } catch (JSONException e) {
+          throw new IllegalStateException(e);
+        }
+        // no redraw with the answer: the slider already shows the value; only a failure is said
+        agent.post("/sound", body, (json, error) -> status.setText(error != null ? error : ""));
+      }
+    });
+    box.addView(bar, Ui.matchWrap());
+    return box;
   }
 
   private LinearLayout row(String gameId, JSONObject mod) {

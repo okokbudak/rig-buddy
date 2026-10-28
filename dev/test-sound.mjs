@@ -37,5 +37,26 @@ assert.equal(setSoundMod('ats', 'v8', true), null, 'unknown game / not installed
 assert.equal(setSoundMod('nope', 'v8', true), null);
 assert.equal(fs.readFileSync(path.join(folder, 'selected.bank.txt'), 'utf8'), 'alpha\nv8', 'refused requests change nothing');
 
+// volumes (sound_levels.txt)
+const { setSoundLevel, LEVELS } = await import('../pc/agent/sound.mjs');
+assert.equal(soundState().games[0].levels.turbo, LEVELS.turbo, 'no file yet: the plugin defaults');
+s = setSoundLevel('ets2', 'turbo', 0.8);
+assert.equal(s.games[0].levels.turbo, 0.8);
+assert.equal(s.games[0].levels.master, LEVELS.master, 'the other volumes stay');
+let file = JSON.parse(fs.readFileSync(path.join(folder, 'sound_levels.txt'), 'utf8'));
+assert.equal(file.turbo, 0.8);
+assert.equal(file.config_version, 2, 'a file without a version gets one (the plugin would halve the values of an old one)');
+fs.writeFileSync(path.join(folder, 'sound_levels.txt'), JSON.stringify({ master: 0.3, engine: 0.4, unknown_key: 'kept', config_version: 2 }));
+s = setSoundLevel('ets2', 'engine', 9);
+assert.equal(s.games[0].levels.engine, 1.5, 'clamped to 150 %');
+assert.equal(setSoundLevel('ets2', 'master', -4).games[0].levels.master, 0, 'and not below 0');
+file = JSON.parse(fs.readFileSync(path.join(folder, 'sound_levels.txt'), 'utf8'));
+assert.equal(file.unknown_key, 'kept', 'keys of the file that are not volumes stay');
+assert.equal(setSoundLevel('ets2', '__proto__', 1), null, 'only known volumes');
+assert.equal(setSoundLevel('ets2', 'constructor', 1), null);
+assert.equal(setSoundLevel('ets2', 'turbo', 'loud'), null);
+assert.equal(setSoundLevel('ets2', 'turbo', NaN), null);
+assert.equal(setSoundLevel('ats', 'turbo', 1), null, 'a game that is not installed');
+
 fs.rmSync(game, { recursive: true, force: true });
 console.log('sound: all tests passed');

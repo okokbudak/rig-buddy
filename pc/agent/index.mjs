@@ -25,7 +25,7 @@ import { WebSocketServer } from 'ws';
 import { createRadio } from './radio.mjs';
 import { findLatestSave, loadSave } from './save.mjs';
 import { mediaCommand, mediaState } from './media.mjs';
-import { setSoundMod, soundState } from './sound.mjs';
+import { setSoundLevel, setSoundMod, soundState } from './sound.mjs';
 
 const PORT = Number(process.env.AGENT_PORT || 62843);
 const TELEMETRY_HZ = 5;
@@ -330,7 +330,9 @@ const server = http.createServer((req, res) => {
       req.on('end', () => {
         try {
           const b = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-          const state = setSoundMod(String(b.game), String(b.mod), !!b.active);
+          const state = b.level !== undefined
+            ? setSoundLevel(String(b.game), String(b.level), Number(b.value)) // a volume: {game, level, value}
+            : setSoundMod(String(b.game), String(b.mod), !!b.active);          // a mod on or off: {game, mod, active}
           return state ? send(200, state) : send(404, { error: 'no such game or sound mod' });
         } catch {
           return send(400, { error: 'bad request' });

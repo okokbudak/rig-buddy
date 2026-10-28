@@ -246,4 +246,12 @@
     <string name="music_nothing">Nothing is playing</string>
     <string name="music_nothing_hint">Start a player on the PC: Spotify, YouTube or YouTube Music in a browser, Apple Music, VLC ...</string>
     <string name="music_unknown">Unknown title</string>
+    <string name="sound_levels">Volumes</string>
+    <string name="lv_master">Master</string>
+    <string name="lv_engine">Engine</string>
+    <string name="lv_exhaust">Exhaust</string>
+    <string name="lv_turbo">Turbo</string>
+    <string name="lv_interior">Inside the cab</string>
+    <string name="lv_navigation">Navigation voice</string>
+    <string name="lv_outside">Outside, windows closed</string>
 </resources>
