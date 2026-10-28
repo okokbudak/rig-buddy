@@ -53,6 +53,20 @@ if (-not $SkipInstaller) {
   Copy-Item (Join-Path (Split-Path $node) 'LICENSE') "$app\licenses\node.js-LICENSE.txt"
   # raw file, not the API: the API's anonymous rate limit is often used up on shared CI machines
   Get-File 'https://raw.githubusercontent.com/truckermudgeon/scs-sdk-plugin/HEAD/LICENSE' "$app\licenses\scs-sdk-plugin-LICENSE.txt"
+  # the FMOD sound plugin (ts-fmod-plugin, MIT): the newest release, as the author ships it (SoundMods.cs puts it into the games)
+  $fmodZip = Join-Path $out 'ts-fmod-plugin.zip'
+  Get-File 'https://github.com/dariowouters/ts-fmod-plugin/releases/latest/download/plugin_files.zip' $fmodZip
+  Expand-Archive $fmodZip "$app\plugin\fmod" -Force
+  foreach ($f in 'ts-fmod-plugin.dll', 'ETS2\master.bank', 'ATS\master.bank') {
+    if (-not (Test-Path "$app\plugin\fmod\$f")) { throw "ts-fmod-plugin release: $f missing (the package layout changed?)" }
+  }
+  Write-Host ("  ts-fmod-plugin: sha256 {0}" -f (Get-FileHash $fmodZip).Hash.ToLower())
+  Get-File 'https://raw.githubusercontent.com/dariowouters/ts-fmod-plugin/HEAD/LICENSE.md' "$app\licenses\ts-fmod-plugin-LICENSE.txt"
+  Set-Content "$app\licenses\ts-fmod-plugin-NOTICE.txt" -Encoding UTF8 -Value @(
+    'The sound plugin (plugin\fmod\ts-fmod-plugin.dll) is ts-fmod-plugin by Dario Wouters, MIT license (see ts-fmod-plugin-LICENSE.txt),',
+    'https://github.com/dariowouters/ts-fmod-plugin. It is installed unchanged into the games.',
+    '',
+    'FMOD Studio by Firelight Technologies Pty Ltd.')
   $size = (Get-ChildItem $app -Recurse -File | Measure-Object Length -Sum).Sum / 1MB
   Write-Host ("  {0:N0} MB staged" -f $size)
 

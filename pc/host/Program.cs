@@ -16,6 +16,7 @@ static class Program
     {
         if (args.Length > 0 && args[0] == "--install-plugin") return InstallPlugin();
         if (args.Length > 0 && args[0] == "--fix-plugin") return PluginCheck.CopyMissing() == 0 ? 0 : 1;
+        if (args.Length > 0 && args[0] == "--sync-sound") return SoundMods.Sync() == 0 ? 0 : 1; // installer: the sound plugin into the games
         if (args.Length > 0 && Commands.Contains(args[0]))
         {
             string? reply = ControlPort.Send(string.Join(' ', args).TrimStart('-'));
@@ -55,6 +56,8 @@ static class Program
         try { bridge.Start(); }
         catch (Exception e) { Console.WriteLine($"bridge: disabled ({e.Message}); is another Rig Buddy running?"); }
         Discovery.Start();
+        // the sound plugin that came with this version: back into the games if a game update removed it, and updated
+        Task.Run(() => { try { SoundMods.Sync(); } catch (Exception e) { Console.WriteLine($"sound plugin: {e.Message}"); } });
 
         var sup = new Supervisor(paths);
         // new map data: the server reloads it (or starts, on the first build)
@@ -103,6 +106,7 @@ static class Program
             case "quit": app.Post(app.Exit); return "ok";
             case "show": app.Post(app.ShowWindow); return "ok";
             case "logs": app.Post(app.ShowLogs); return "ok";
+            case "sound": app.Post(app.ShowSound); return "ok";
             case "restart": sup.Restart(svc); return "ok";
             case "stop" when svc != null: sup.SetEnabled(svc, false); return "ok";
             case "start" when svc != null: sup.SetEnabled(svc, true); return "ok";

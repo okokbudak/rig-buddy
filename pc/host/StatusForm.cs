@@ -26,7 +26,7 @@ sealed class StatusForm : Form
     readonly FeatureRow _nav, _vehicle, _jobs, _radio, _devices;
     readonly List<(NodeService Svc, FeatureRow Row)> _svcRows = new();
     readonly CheckBox _autostart;
-    readonly Button _restartAll, _gameEts2, _gameAts, _modsPick, _modsClear, _mapButton, _themeButton, _langButton, _logs, _exit;
+    readonly Button _soundButton, _restartAll, _gameEts2, _gameAts, _modsPick, _modsClear, _mapButton, _themeButton, _langButton, _logs, _exit;
     readonly Button[] _plain; // flat buttons that only follow the palette
     readonly List<(Control Control, Func<Palette, Color> Fore)> _labels = new();
     readonly System.Windows.Forms.Timer _timer = new() { Interval = 100 };
@@ -195,8 +195,10 @@ sealed class StatusForm : Form
         {
             if (MessageBox.Show(this, L.T("win.exit_ask"), "Rig Buddy", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes) _app.Exit();
         };
-        Controls.AddRange([_logs, _exit]);
-        _plain = [_restartAll, _modsPick, _modsClear, _mapButton, _themeButton, _langButton, _logs, .. _svcButtons];
+        _soundButton = Btn(L.T("sound.open"), 192, 564, 200);
+        _soundButton.Click += (_, _) => _app.ShowSound();
+        Controls.AddRange([_logs, _soundButton, _exit]);
+        _plain = [_restartAll, _modsPick, _modsClear, _mapButton, _themeButton, _langButton, _logs, _soundButton, .. _svcButtons];
 
         // at the very bottom, only while a game has lost the telemetry plugin
         _fixPanel = new RoundedPanel { Location = new Point(16, Height0), Size = new Size(Width0 - 32, 52), Visible = false };

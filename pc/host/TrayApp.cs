@@ -109,6 +109,8 @@ sealed class TrayApp : ApplicationContext
             modsClear.Enabled = n > 0;
             modsMenu.Enabled = _maps.State is not MapState.Building;
         };
+        var sound = new ToolStripMenuItem(L.T("sound.open"));
+        sound.Click += (_, _) => ShowSound();
         var logs = new ToolStripMenuItem(L.T("tray.logs"));
         logs.Click += (_, _) => ShowLogs();
         var theme = Choices(L.T("tray.theme"), Theme.Choices.Select(c => (c.Value, L.T(c.Label))),
@@ -119,7 +121,7 @@ sealed class TrayApp : ApplicationContext
         _autostart.Click += (_, _) => SetAutostart(_autostart.Checked);
         var exit = new ToolStripMenuItem(L.T("tray.exit"));
         exit.Click += (_, _) => Exit();
-        _menu.Items.AddRange([restart, map, game, modsMenu, logs, theme, language, _autostart, new ToolStripSeparator(), exit]);
+        _menu.Items.AddRange([restart, map, game, modsMenu, sound, logs, theme, language, _autostart, new ToolStripSeparator(), exit]);
         _menu.Opening += (_, _) =>
         {
             _autostart.Checked = AutostartEnabled(); // the window may have changed it
@@ -184,6 +186,19 @@ sealed class TrayApp : ApplicationContext
     public void ShowWindow() => _window.ShowInFront();
 
     public void ShowLogs() => _logs.ShowInFront();
+
+    SoundForm? _sound;
+
+    /** The sound mods window (the sound plugin's list of mods); one at a time. */
+    public void ShowSound()
+    {
+        if (_sound == null || _sound.IsDisposed)
+        {
+            _sound = new SoundForm();
+            _sound.FormClosed += (_, _) => _sound = null;
+        }
+        _sound.ShowInFront();
+    }
 
     /** Runs `action` on the UI thread (for calls from the control port). */
     public void Post(Action action) => _ui.Post(_ => action(), null);

@@ -118,7 +118,7 @@ Type: filesandordirs; Name: "{app}\dist"
 Source: "{#SourceDir}\RigBuddy.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#SourceDir}\node\*"; DestDir: "{app}\node"; Flags: ignoreversion recursesubdirs
 Source: "{#SourceDir}\dist\*"; DestDir: "{app}\dist"; Flags: ignoreversion recursesubdirs
-Source: "{#SourceDir}\plugin\*"; DestDir: "{app}\plugin"; Flags: ignoreversion
+Source: "{#SourceDir}\plugin\*"; DestDir: "{app}\plugin"; Flags: ignoreversion recursesubdirs
 Source: "{#SourceDir}\licenses\*"; DestDir: "{app}\licenses"; Flags: ignoreversion
 
 [Icons]
@@ -142,6 +142,8 @@ Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Rig Buddy (Node.js)"" dir=in action=allow profile=private,domain protocol=TCP localport=62840,62843 program=""{app}\node\node.exe"""; Flags: runhidden; StatusMsg: "{cm:StatusFirewall}"
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Rig Buddy (discovery)"" dir=in action=allow profile=private,domain protocol=UDP localport=62846 program=""{app}\RigBuddy.exe"""; Flags: runhidden; StatusMsg: "{cm:StatusFirewall}"
 Filename: "{app}\RigBuddy.exe"; Parameters: "--install-plugin"; Flags: runhidden; Tasks: plugin; StatusMsg: "{cm:StatusPlugin}"
+; the FMOD sound plugin (dariowouters/ts-fmod-plugin) that ships with this version, into the games (the app also keeps it current)
+Filename: "{app}\RigBuddy.exe"; Parameters: "--sync-sound"; Flags: runhidden; Tasks: plugin; StatusMsg: "{cm:StatusPlugin}"
 Filename: "{app}\RigBuddy.exe"; Description: "{cm:LaunchProgram,Rig Buddy}"; Flags: nowait postinstall skipifsilent runasoriginaluser
 
 [UninstallRun]
