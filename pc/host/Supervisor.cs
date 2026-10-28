@@ -136,7 +136,13 @@ sealed class Supervisor
             Title = "svc.agent",
             WorkDir = Cwd("agent", Path.Combine(paths.Root, @"pc\agent")),
             Args = dist != null ? [Path.Combine(dist, @"agent\index.mjs")] : [Path.Combine(paths.Root, @"pc\agent\index.mjs")],
-            Env = new() { ["RIGBUDDY_DATA"] = data },
+            // the version (to tell whether GitHub has a newer one) and whether it may ask GitHub at all
+            Env = new()
+            {
+                ["RIGBUDDY_DATA"] = data,
+                ["RIGBUDDY_VERSION"] = UpdateCheck.Current,
+                ["RIGBUDDY_UPDATE_CHECK"] = UpdateCheck.Enabled ? "1" : "0",
+            },
             HealthUrl = "http://127.0.0.1:62843/health",
             BeforeStart = dist != null ? null
                 : () => CopyShim(shim, Path.Combine(paths.Root, @"pc\agent\node_modules\trucksim-telemetry\build\Release")),

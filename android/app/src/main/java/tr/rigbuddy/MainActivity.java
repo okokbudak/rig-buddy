@@ -343,6 +343,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
           profile.load();
           syncTiles();
           refreshExplored();
+          checkUpdate();
         } else {
           scheduleRediscovery();
         }
@@ -1477,7 +1478,9 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   }
 
   private void showSettings() {
-    String[] items = {
+    String latest = prefs.getString("updateLatest", null);
+    boolean update = latest != null && newerThan(latest, BuildConfig.VERSION_NAME);
+    String[] base = {
         Ui.s(R.string.set_pc_address, host()),
         Ui.s(R.string.set_repair),
         Ui.s(R.string.set_theme, themeLabel(Ui.themeSetting(prefs))),
@@ -1485,6 +1488,11 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
         Ui.s(R.string.set_route_strategy, routeStrategyLabel(prefs.getString("routeStrategy", ROUTE_STRATEGIES[0]))),
         Ui.s(R.string.set_explore, Ui.s(exploreWanted() ? R.string.explore_on : R.string.explore_off)),
     };
+    String[] items = base;
+    if (update) {
+      items = java.util.Arrays.copyOf(base, base.length + 1);
+      items[base.length] = Ui.s(R.string.set_update, latest);
+    }
     new AlertDialog.Builder(this)
         .setTitle(Ui.s(R.string.set_title))
         .setItems(items, (d, which) -> {
@@ -1495,16 +1503,67 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
           } else if (which == 2) showThemeDialog();
           else if (which == 3) showLanguageDialog();
           else if (which == 4) showRouteStrategyDialog();
-          else {
+          else if (which == 5) {
             // explored roads on/off: orange-yellow / grey like the game's own map, or the plain white roads
             prefs.edit().putBoolean("explore", !exploreWanted()).apply();
             exploreHintShown = false;
             loadStyle();
             refreshExplored();
+          } else {
+            openUpdatePage();
           }
         })
         .setNegativeButton(Ui.s(R.string.btn_close), null)
         .show();
+  }
+
+  // --- is there a newer Rig Buddy on GitHub? The PC agent asks GitHub (the tablet in the truck may be offline) ---
+
+  private long lastUpdateCheckMs;
+
+  private void checkUpdate() {
+    long now = SystemClock.uptimeMillis();
+    if (lastUpdateCheckMs != 0 && now - lastUpdateCheckMs < 3 * 3600 * 1000L) return;
+    lastUpdateCheckMs = now;
+    agent.get("/update", (json, error) -> {
+      if (json == null) return;
+      String latest = json.optString("latest", "");
+      if (latest.isEmpty() || !newerThan(latest, BuildConfig.VERSION_NAME)) {
+        prefs.edit().remove("updateLatest").remove("updateUrl").apply();
+        return;
+      }
+      prefs.edit().putString("updateLatest", latest).putString("updateUrl", json.optString("url", "")).apply();
+      if (!latest.equals(prefs.getString("updateNotified", ""))) { // once per version
+        prefs.edit().putString("updateNotified", latest).apply();
+        flashMessage(Ui.s(R.string.update_app_available, latest));
+      }
+    });
+  }
+
+  /** "0.6.3" is newer than "0.6.2": the numeric parts compared, a missing part is 0. */
+  private static boolean newerThan(String a, String b) {
+    String[] x = a.replaceFirst("^v", "").split("\\."), y = b.replaceFirst("^v", "").split("\\.");
+    for (int i = 0; i < Math.max(x.length, y.length); i++) {
+      int p, q;
+      try {
+        p = i < x.length ? Integer.parseInt(x[i].replaceAll("\\D.*", "")) : 0;
+        q = i < y.length ? Integer.parseInt(y[i].replaceAll("\\D.*", "")) : 0;
+      } catch (NumberFormatException e) {
+        return false;
+      }
+      if (p != q) return p > q;
+    }
+    return false;
+  }
+
+  private void openUpdatePage() {
+    String url = prefs.getString("updateUrl", "");
+    if (!url.startsWith("https://github.com/okokbudak/rig-buddy/")) url = "https://github.com/okokbudak/rig-buddy/releases/latest";
+    try {
+      startActivity(new android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)));
+    } catch (RuntimeException e) {
+      flashMessage(url); // no browser on the device: at least show the address
+    }
   }
 
   private static final String[] THEMES = {"system", "light", "dark"};

@@ -20,7 +20,7 @@ sealed class TrayApp : ApplicationContext
     readonly System.Windows.Forms.Timer _timer = new() { Interval = 1000 };
     readonly SynchronizationContext _ui;
     ContextMenuStrip _menu = null!;
-    ToolStripMenuItem _problem = null!, _game = null!, _pair = null!, _address = null!, _autostart = null!;
+    ToolStripMenuItem _problem = null!, _game = null!, _pair = null!, _address = null!, _autostart = null!, _update = null!;
     readonly Dictionary<NodeService, ToolStripMenuItem> _svcItems = new();
     StatusForm _window = null!;
     LogForm _logs = null!;
@@ -51,6 +51,12 @@ sealed class TrayApp : ApplicationContext
                 Balloon(L.T("plugin.missing", string.Join(", ", missing.Select(m => m.Game))), ToolTipIcon.Warning);
         };
         startupCheck.Start();
+        UpdateCheck.Changed += fresh => Post(() =>
+        {
+            RefreshUpdateItem();
+            if (fresh && UpdateCheck.Available is { } a) Balloon(L.T("update.balloon", a.Version));
+        });
+        UpdateCheck.Start();
         Refresh();
 
         // started with Windows: stay in the tray unless something needs attention
@@ -73,7 +79,10 @@ sealed class TrayApp : ApplicationContext
         open.Click += (_, _) => ShowWindow();
         _problem = new ToolStripMenuItem { Visible = false, ForeColor = Color.Firebrick };
         _problem.Click += (_, _) => OpenPath("https://github.com/okokbudak/rig-buddy#readme");
-        _menu.Items.AddRange([open, _problem, new ToolStripSeparator()]);
+        // a newer release on GitHub: shown only then; opens its page
+        _update = new ToolStripMenuItem { Visible = false, ForeColor = Color.SeaGreen, Font = new Font(_menu.Font, FontStyle.Bold) };
+        _update.Click += (_, _) => { if (UpdateCheck.Available is { } a) OpenPath(a.Url); };
+        _menu.Items.AddRange([open, _problem, _update, new ToolStripSeparator()]);
         _svcItems.Clear();
         foreach (var s in _sup.Services)
         {
@@ -121,7 +130,15 @@ sealed class TrayApp : ApplicationContext
         _autostart.Click += (_, _) => SetAutostart(_autostart.Checked);
         var exit = new ToolStripMenuItem(L.T("tray.exit"));
         exit.Click += (_, _) => Exit();
-        _menu.Items.AddRange([restart, map, game, modsMenu, sound, logs, theme, language, _autostart, new ToolStripSeparator(), exit]);
+        var updateCheck = new ToolStripMenuItem(L.T("update.check")) { CheckOnClick = true, Checked = UpdateCheck.Enabled, ToolTipText = L.T("update.check_hint") };
+        updateCheck.Click += (_, _) =>
+        {
+            UpdateCheck.Enabled = updateCheck.Checked; // off: nothing is sent to GitHub (the agent is told at its next start)
+            _sup.Restart("agent");
+            if (updateCheck.Checked) UpdateCheck.CheckNow();
+        };
+        _menu.Items.AddRange([restart, map, game, modsMenu, sound, logs, theme, language, _autostart, updateCheck, new ToolStripSeparator(), exit]);
+        RefreshUpdateItem();
         _menu.Opening += (_, _) =>
         {
             _autostart.Checked = AutostartEnabled(); // the window may have changed it
@@ -186,6 +203,13 @@ sealed class TrayApp : ApplicationContext
     public void ShowWindow() => _window.ShowInFront();
 
     public void ShowLogs() => _logs.ShowInFront();
+
+    void RefreshUpdateItem()
+    {
+        var a = UpdateCheck.Available;
+        _update.Visible = a != null;
+        if (a != null) _update.Text = L.T("update.available", a.Version);
+    }
 
     SoundForm? _sound;
 

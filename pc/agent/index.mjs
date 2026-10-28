@@ -5,6 +5,7 @@
 //   GET  /profile         -> profile/economy summary from the latest save
 //   GET  /jobs            -> freight-market offers, nearest pickup first
 //   GET  /explored        -> {game, count, uids, hasUid}: roads/junctions the player has driven (from the save), as the uids the map tiles carry
+//   GET  /update          -> {latest, url, name, current, newer}: the newest Rig Buddy release on GitHub (cached, asked from the PC)
 //   GET  /media           -> the PC's music player: {active, app, title, artist, album, status, position, duration, shuffle, repeat, can*}
 //   POST /media {action}  -> playpause | play | pause | next | previous | shuffle | repeat; answers with the new state
 //   GET  /sound           -> {games: [{id, name, mods: [{name, active, guids}]}]}: the sound plugin's mods per game
@@ -26,6 +27,7 @@ import { createRadio } from './radio.mjs';
 import { findLatestSave, loadSave } from './save.mjs';
 import { mediaCommand, mediaState } from './media.mjs';
 import { setSoundLevel, setSoundMod, soundState } from './sound.mjs';
+import { updateInfo } from './update.mjs';
 
 const PORT = Number(process.env.AGENT_PORT || 62843);
 const TELEMETRY_HZ = 5;
@@ -297,6 +299,12 @@ const server = http.createServer((req, res) => {
     res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(body));
   };
+  if (url.pathname === '/update') {
+    // is there a newer Rig Buddy on GitHub: {latest, url, name, current, newer} (asked at most every 6 hours)
+    if (req.method !== 'GET') return send(405, { error: 'method' });
+    updateInfo().then(i => send(200, i), () => send(200, { latest: null, newer: false }));
+    return;
+  }
   if (url.pathname === '/media') {
     // the PC's music player: GET what plays, POST {action: playpause|play|pause|next|previous|shuffle|repeat}
     if (req.method === 'GET') {

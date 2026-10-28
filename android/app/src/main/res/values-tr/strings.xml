@@ -252,4 +252,6 @@
     <string name="lv_interior">Kabin içi</string>
     <string name="lv_navigation">Navigasyon sesi</string>
     <string name="lv_outside">Dış ses (camlar kapalıyken)</string>
+    <string name="update_app_available">Rig Buddy %1$s yayınlandı. Uygulamayı ve PC programını güncelleyin (Ayarlar).</string>
+    <string name="set_update">Yeni sürüm %1$s: indirme sayfasını aç</string>
 </resources>
