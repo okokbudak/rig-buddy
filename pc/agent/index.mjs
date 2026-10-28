@@ -44,6 +44,15 @@ function summarize(t) {
     paused: t.game.paused,
     gameTime: t.game.time.value, // minutes since day 0
     scale: t.game.scale,
+    // the truck's place at 5 Hz (the navigation server only pushes ~2 Hz): game metres as in its positionUpdate
+    // (x = game X, z = game Z), heading in turns, speed in m/s; t = this PC's clock when it was read
+    position: {
+      x: tr.position.X,
+      z: tr.position.Z,
+      heading: tr.orientation.heading,
+      speedMs: tr.speed.value,
+      t: Date.now(),
+    },
     truck: {
       brand: tr.brand?.name ?? tr.make?.name ?? '',
       model: tr.model?.name ?? '',

@@ -15,6 +15,10 @@ import tr.rigbuddy.geo.Projection;
 public final class TruckTracker {
   /** Must exceed the push interval (500 ms) plus network jitter. */
   private static final long DELAY_MS = 600;
+  /** The agent's samples come every 200 ms: a shorter delay keeps the marker close to the truck. */
+  private static final long AGENT_DELAY_MS = 380;
+  /** The agent stream counts as running while a sample came within this time. */
+  private static final long AGENT_FRESH_MS = 1500;
   private static final long MAX_EXTRAPOLATE_MS = 1000;
   private static final double TELEPORT_METERS = 150;
   private static final int CAPACITY = 8;
@@ -56,6 +60,32 @@ public final class TruckTracker {
     return count > 0;
   }
 
+  /** Where the samples come from: 0 none yet, 1 the navigation server (~2 Hz), 2 the PC agent (5 Hz). */
+  private int source;
+  private long lastAgentMs;
+
+  /** Is the agent's faster position stream arriving? Then the server's positions are not needed. */
+  private boolean agentFresh(long now) {
+    return source == 2 && now - lastAgentMs < AGENT_FRESH_MS;
+  }
+
+  /**
+   * Feeds the PC agent's position (telemetry.position, 5 Hz): x, z in game metres, heading in turns, speed in m/s,
+   * tAgentMs = the PC's clock when it was read. More samples than the server's ~2 Hz make turns and junctions smooth.
+   */
+  public void onAgentSample(String g, double x, double z, double heading, double speed, boolean pausedNow, double tAgentMs) {
+    if (Double.isNaN(x) || Double.isNaN(z) || Double.isNaN(tAgentMs)) return;
+    if (!g.equals(game)) {
+      game = g;
+      projection = "ats".equals(g) ? Projection.ATS : Projection.ETS2;
+      count = 0;
+    }
+    paused = pausedNow;
+    long now = SystemClock.uptimeMillis();
+    lastAgentMs = now;
+    feed(2, tAgentMs, x, z, heading, speed, now);
+  }
+
   /** Feeds a GameState (positionUpdate.data). */
   public void onPositionUpdate(JSONObject s) {
     JSONObject pos = s.optJSONObject("position");
@@ -71,19 +101,29 @@ public final class TruckTracker {
     speedLimitKph = limit != null ? limit.optDouble("kph", 0) : 0;
     scale = s.optDouble("scale", 0);
 
+    long now = SystemClock.uptimeMillis();
+    if (agentFresh(now)) return; // the speed limit, scale and pause still come from here; the positions from the agent
+
     double t = s.optDouble("t");
     // GameState positions are in map space: x = game X, y = game Z (south),
     // z = elevation. (Telemetry's X/Y/Z get remapped server-side.)
     double x = pos.optDouble("x"), z = pos.optDouble("y");
-    long now = SystemClock.uptimeMillis();
+    feed(1, t, x, z, s.optDouble("heading"), s.optDouble("speed"), now);
+  }
 
+  private void feed(int from, double t, double x, double z, double heading, double speed, long now) {
+    if (from != source) { // another clock: start over with the new source
+      source = from;
+      count = 0;
+      lastRenderT = Double.NEGATIVE_INFINITY;
+    }
     if (count > 0) {
       Sample last = ring[head];
       boolean teleported = Math.hypot(x - last.x, z - last.z) > TELEPORT_METERS;
       if (t <= last.t && !teleported) {
         // paused or duplicate: keep the latest pose but refresh speed/heading
-        last.heading = s.optDouble("heading");
-        last.speed = s.optDouble("speed");
+        last.heading = heading;
+        last.speed = speed;
         clockOffset = now - last.t; // freeze render time at the newest sample
         return;
       }
@@ -102,8 +142,8 @@ public final class TruckTracker {
     n.t = t;
     n.x = x;
     n.z = z;
-    n.heading = s.optDouble("heading");
-    n.speed = s.optDouble("speed");
+    n.heading = heading;
+    n.speed = speed;
     count = Math.min(count + 1, CAPACITY);
   }
 
@@ -112,7 +152,7 @@ public final class TruckTracker {
     out.valid = count > 0;
     if (!out.valid) return;
     Sample newest = ring[head];
-    double t = paused ? newest.t : nowMs - clockOffset - DELAY_MS;
+    double t = paused ? newest.t : nowMs - clockOffset - (source == 2 ? AGENT_DELAY_MS : DELAY_MS);
     if (t < lastRenderT) t = lastRenderT; // never step backwards
     lastRenderT = t;
 

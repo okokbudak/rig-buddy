@@ -108,6 +108,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private NavClient nav;
   private final TruckTracker tracker = new TruckTracker();
   private final TruckTracker.Pose pose = new TruckTracker.Pose();
+  private boolean serverPositionSeen; // the navigation server has sent at least one position
   private final Route.Progress progress = new Route.Progress();
   private final Map<String, LocalTileServer> tileServers = new HashMap<>();
   private TileDownloader tiles;
@@ -309,6 +310,11 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
           lastTelemetryAt = SystemClock.uptimeMillis();
           JSONObject truck = t.optJSONObject("truck");
           lastSpeedKph = truck != null ? truck.optDouble("speedKph", 0) : 0;
+          JSONObject p = t.optJSONObject("position");
+          if (p != null) {
+            tracker.onAgentSample(t.optString("game", "ets2"), p.optDouble("x", Double.NaN), p.optDouble("z", Double.NaN),
+                p.optDouble("heading"), p.optDouble("speedMs"), t.optBoolean("paused"), p.optDouble("t", Double.NaN));
+          }
         }
         home.onTelemetry(t);
         if ("vehicle".equals(screen)) vehicle.onTelemetry(t);
@@ -978,7 +984,9 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
       case "positionUpdate":
         if (data instanceof JSONObject) {
           lastPositionAt = SystemClock.uptimeMillis();
-          boolean first = !tracker.hasData() || staleBinding;
+          // (not tracker.hasData(): the agent's position stream may have filled the tracker before the server's first one)
+          boolean first = !serverPositionSeen || staleBinding;
+          serverPositionSeen = true;
           if (first) Log.i(TAG, "first positionUpdate: " + data);
           tracker.onPositionUpdate((JSONObject) data);
           // The server only says "stale" once; a position coming in again means the game is back.
