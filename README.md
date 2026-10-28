@@ -54,9 +54,9 @@ truck.
 - **Dashboard hardware:** gauges, LEDs and Nextion displays are driven by the separate
   program [SimRig Studio](https://github.com/okokbudak/simrig-studio) (it used to be part of
   Rig Buddy).
-- **Sound mods:** the FMOD sound plugin [ts-fmod-plugin](https://github.com/dariowouters/ts-fmod-plugin) (by
-  Dario Wouters, MIT) comes with Rig Buddy and is put into your games for you; a window lists your sound mods
-  and which ones to load (tray menu / window: **Sound mods…**). No separate plugin to download.
+- **Sound mods:** Rig Buddy has its own sound plugin for FMOD sound mods (`rigbuddy-sound.dll`, based on
+  [ts-fmod-plugin](https://github.com/dariowouters/ts-fmod-plugin) by Dario Wouters, MIT; source in `pc/sound-plugin`).
+  It is put into your games for you; the **Sound mods…** window picks the mods, and changes load while the game runs.
 - **Any Android device:** Phone, tablet or car head unit (Android 5.0 or
   later). Light and dark theme, following your device's theme automatically.
 
@@ -312,9 +312,9 @@ araç ekranı gerçek bir kamyonun multimedya sistemi gibi davranır.
 - **Gösterge donanımı:** göstergeler, LED'ler ve Nextion ekranlar artık ayrı program olan
   [SimRig Studio](https://github.com/okokbudak/simrig-studio) ile sürülür (eskiden Rig Buddy'nin
   içindeydi).
-- **Ses modları:** FMOD ses plugin'i [ts-fmod-plugin](https://github.com/dariowouters/ts-fmod-plugin) (Dario Wouters,
-  MIT) Rig Buddy ile birlikte gelir ve oyunlarınıza kendiliğinden konur; bir pencere ses modlarınızı ve hangilerinin
-  yükleneceğini gösterir (simge menüsü / pencere: **Ses modları…**). Ayrıca plugin indirmek gerekmez.
+- **Ses modları:** Rig Buddy'nin FMOD ses modları için kendi ses plugin'i var (`rigbuddy-sound.dll`; Dario Wouters'ın
+  [ts-fmod-plugin](https://github.com/dariowouters/ts-fmod-plugin) projesine dayanır, MIT; kaynak `pc/sound-plugin`).
+  Oyunlarınıza kendiliğinden konur; **Ses modları…** penceresinden modları seçersiniz, değişiklik oyun açıkken yüklenir.
 - **Her Android cihazda:** Telefon, tablet ya da araç multimedya ekranı
   (Android 5.0 ve üzeri). Açık ve koyu tema, cihazınızın temasına kendiliğinden uyar.
 

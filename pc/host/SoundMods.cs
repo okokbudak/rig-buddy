@@ -1,10 +1,11 @@
-// The FMOD sound plugin (dariowouters/ts-fmod-plugin, MIT) rides along with Rig Buddy: a second game plugin, next to the
-// telemetry plugin, that loads FMOD sound mods (.bank files) into the game. The installer ships one tested copy per
-// Rig Buddy release (plugin\fmod\ next to the exe); this puts it into each game, keeps it current, and writes the list of
-// sound mods to load (selected.bank.txt). Everything the user added (mods, selected list, sound levels) is left alone.
+// Rig Buddy's sound plugin (pc\sound-plugin: rigbuddy-sound.dll, based on dariowouters/ts-fmod-plugin, MIT) rides along
+// with Rig Buddy: a second game plugin, next to the telemetry plugin, that plays FMOD sound mods (.bank files) in the
+// game. The installer ships it (plugin\sound\ next to the exe); this puts it into each game, keeps it current, and writes
+// the list of sound mods to load (selected.bank.txt). The plugin watches that list and the sound levels and loads changes
+// while the game runs. Everything the user added (mods, the list, sound levels) is left alone.
 //
-// The plugin reads the game's memory and only loads on the game version it was made for; on another version it stays
-// out of the way, and a new Rig Buddy release brings the new one.
+// Rig Buddy 0.4.0 put the original ts-fmod-plugin.dll into the games: that copy (and only that one) is taken out again,
+// and the mods / list / levels from its folder are copied over to the new plugin's folder.
 
 using System.Security.Cryptography;
 using Microsoft.Win32;
@@ -12,10 +13,14 @@ using Microsoft.Win32;
 static class SoundMods
 {
     const string Key = @"Software\Rig Buddy";
+    const string Dll = "rigbuddy-sound.dll";
+    const string Folder = "rigbuddy-sound";
+    /** SHA-256 of the ts-fmod-plugin.dll (1.61) Rig Buddy 0.4.0 installed. */
+    const string OldDllSha256 = "6c0a32f2c58e3bd02c413bfd30ace994286ef1c5e433b904af43e7b759074450";
 
-    static string Bundle => Path.Combine(AppContext.BaseDirectory, @"plugin\fmod");
+    static string Bundle => Path.Combine(AppContext.BaseDirectory, @"plugin\sound");
 
-    public static bool Shipped => File.Exists(Path.Combine(Bundle, "ts-fmod-plugin.dll"));
+    public static bool Shipped => File.Exists(Path.Combine(Bundle, Dll));
 
     /** On by default; off removes the plugin from the games (only the copy Rig Buddy put there). */
     public static bool Enabled
@@ -46,7 +51,14 @@ static class SoundMods
     static string Plugins(Game g) => Path.Combine(g.Dir, @"bin\win_x64\plugins");
 
     /** The plugin's own folder in a game: sound mods, selected.bank.txt, sound_levels.txt. */
-    public static string FolderOf(Game g) => Path.Combine(Plugins(g), "ts-fmod-plugin");
+    public static string FolderOf(Game g) => Path.Combine(Plugins(g), Folder);
+
+    /** A ts-fmod-plugin the user installed by hand (not Rig Buddy's): with both, every sound plays twice. */
+    public static bool ForeignPlugin(Game g)
+    {
+        string old = Path.Combine(Plugins(g), "ts-fmod-plugin.dll");
+        return File.Exists(old) && !HashIs(old, OldDllSha256);
+    }
 
     /** Puts the shipped plugin into every game (or takes it out when switched off). Returns how many games could not be done (game running, no rights). */
     public static int Sync()
@@ -57,11 +69,12 @@ static class SoundMods
         {
             try
             {
-                string dll = Path.Combine(Plugins(g), "ts-fmod-plugin.dll");
-                string shippedDll = Path.Combine(Bundle, "ts-fmod-plugin.dll");
+                string dll = Path.Combine(Plugins(g), Dll);
+                string shippedDll = Path.Combine(Bundle, Dll);
+                MoveFromOldPlugin(g);
                 if (!Enabled)
                 {
-                    // only our own copy: a plugin the user installed by hand is not ours to delete
+                    // only our own copy: a plugin the user put there by hand is not ours to delete
                     if (File.Exists(dll) && SameFile(shippedDll, dll)) File.Delete(dll);
                     continue;
                 }
@@ -70,14 +83,9 @@ static class SoundMods
                 CopyIfDifferent(shippedDll, dll);
                 CopyIfDifferent(Path.Combine(Bundle, g.Master, "master.bank"), Path.Combine(dir, "master.bank"));
                 string selected = Path.Combine(dir, "selected.bank.txt");
-                string shippedSelected = Path.Combine(Bundle, @"ts-fmod-plugin\selected.bank.txt");
-                if (!File.Exists(selected))
-                {
-                    if (File.Exists(shippedSelected)) File.Copy(shippedSelected, selected);
-                    else File.WriteAllText(selected, Placeholder);
-                }
+                if (!File.Exists(selected)) File.WriteAllText(selected, ""); // no mod yet: the plugin stays loaded and waits
                 string levels = Path.Combine(dir, "sound_levels.txt");
-                string shippedLevels = Path.Combine(Bundle, @"ts-fmod-plugin\sound_levels.txt");
+                string shippedLevels = Path.Combine(Bundle, "sound_levels.txt");
                 if (!File.Exists(levels) && File.Exists(shippedLevels)) File.Copy(shippedLevels, levels);
             }
             catch (Exception e)
@@ -87,6 +95,30 @@ static class SoundMods
             }
         }
         return failed;
+    }
+
+    /** Rig Buddy 0.4.0's ts-fmod-plugin: its mods, list and levels come over, its DLL goes (when it is the one we installed). */
+    static void MoveFromOldPlugin(Game g)
+    {
+        string oldDll = Path.Combine(Plugins(g), "ts-fmod-plugin.dll");
+        string oldDir = Path.Combine(Plugins(g), "ts-fmod-plugin");
+        if (!File.Exists(oldDll) || !HashIs(oldDll, OldDllSha256)) return;
+        string dir = FolderOf(g);
+        Directory.CreateDirectory(dir);
+        if (Directory.Exists(oldDir))
+        {
+            foreach (string f in Directory.GetFiles(oldDir))
+            {
+                string name = Path.GetFileName(f);
+                if (name.Equals("master.bank", StringComparison.OrdinalIgnoreCase)) continue;
+                bool mod = name.EndsWith(".bank", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".bank.guids", StringComparison.OrdinalIgnoreCase);
+                bool setting = name is "selected.bank.txt" or "sound_levels.txt";
+                string to = Path.Combine(dir, name);
+                if ((mod || setting) && !File.Exists(to)) File.Copy(f, to);
+            }
+        }
+        File.Delete(oldDll); // the old folder (the user's files) stays where it is
+        Console.WriteLine($"sound plugin: {g.Name}: ts-fmod-plugin from Rig Buddy 0.4.0 replaced by {Dll}");
     }
 
     /** Sound mods (.bank files) in a game's plugin folder, without master.bank. */
@@ -109,14 +141,11 @@ static class SoundMods
         return File.ReadAllLines(file).Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
     }
 
-    /** What the plugin's own package puts in selected.bank.txt ("no mod yet"); an empty file is not something the author ships. */
-    const string Placeholder = "the_sound_mod_you_want_to_use";
-
+    /** Writes the list; the plugin notices within a second and loads it, also while the game runs. */
     public static void SaveSelected(Game g, IEnumerable<string> names)
     {
         Directory.CreateDirectory(FolderOf(g));
-        var list = names.ToList();
-        File.WriteAllText(Path.Combine(FolderOf(g), "selected.bank.txt"), string.Join("\n", list.Count > 0 ? list : new List<string> { Placeholder }));
+        File.WriteAllText(Path.Combine(FolderOf(g), "selected.bank.txt"), string.Join("\n", names));
     }
 
     /** Copies a sound mod (its .bank and the .bank.guids next to it) into the plugin folder. Returns the mod's name. */
@@ -144,9 +173,15 @@ static class SoundMods
         var fa = new FileInfo(a);
         var fb = new FileInfo(b);
         if (!fa.Exists || !fb.Exists || fa.Length != fb.Length) return false;
+        return Sha256(a) == Sha256(b);
+    }
+
+    static bool HashIs(string file, string sha256) => Sha256(file) == sha256;
+
+    static string Sha256(string file)
+    {
         using var sha = SHA256.Create();
-        using var sa = File.Open(a, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        using var sb = File.Open(b, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        return sha.ComputeHash(sa).AsSpan().SequenceEqual(sha.ComputeHash(sb));
+        using var s = File.Open(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        return Convert.ToHexString(sha.ComputeHash(s)).ToLowerInvariant();
     }
 }

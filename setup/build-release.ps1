@@ -53,18 +53,19 @@ if (-not $SkipInstaller) {
   Copy-Item (Join-Path (Split-Path $node) 'LICENSE') "$app\licenses\node.js-LICENSE.txt"
   # raw file, not the API: the API's anonymous rate limit is often used up on shared CI machines
   Get-File 'https://raw.githubusercontent.com/truckermudgeon/scs-sdk-plugin/HEAD/LICENSE' "$app\licenses\scs-sdk-plugin-LICENSE.txt"
-  # the FMOD sound plugin (ts-fmod-plugin, MIT): the newest release, as the author ships it (SoundMods.cs puts it into the games)
-  $fmodZip = Join-Path $out 'ts-fmod-plugin.zip'
-  Get-File 'https://github.com/dariowouters/ts-fmod-plugin/releases/latest/download/plugin_files.zip' $fmodZip
-  Expand-Archive $fmodZip "$app\plugin\fmod" -Force
-  foreach ($f in 'ts-fmod-plugin.dll', 'ETS2\master.bank', 'ATS\master.bank') {
-    if (-not (Test-Path "$app\plugin\fmod\$f")) { throw "ts-fmod-plugin release: $f missing (the package layout changed?)" }
-  }
-  Write-Host ("  ts-fmod-plugin: sha256 {0}" -f (Get-FileHash $fmodZip).Hash.ToLower())
-  Get-File 'https://raw.githubusercontent.com/dariowouters/ts-fmod-plugin/HEAD/LICENSE.md' "$app\licenses\ts-fmod-plugin-LICENSE.txt"
-  Set-Content "$app\licenses\ts-fmod-plugin-NOTICE.txt" -Encoding UTF8 -Value @(
-    'The sound plugin (plugin\fmod\ts-fmod-plugin.dll) is ts-fmod-plugin by Dario Wouters, MIT license (see ts-fmod-plugin-LICENSE.txt),',
-    'https://github.com/dariowouters/ts-fmod-plugin. It is installed unchanged into the games.',
+  # Rig Buddy's sound plugin (pc\sound-plugin, built before this script; SoundMods.cs puts it into the games)
+  $sp = "$Root\pc\sound-plugin"
+  if (-not (Test-Path "$sp\dist\rigbuddy-sound.dll")) { throw 'pc\sound-plugin\dist\rigbuddy-sound.dll missing: build pc\sound-plugin\rigbuddy-sound.sln first (Release|x64)' }
+  New-Item -ItemType Directory -Force "$app\plugin\sound\ETS2", "$app\plugin\sound\ATS" | Out-Null
+  Copy-Item "$sp\dist\rigbuddy-sound.dll" "$app\plugin\sound\"
+  Copy-Item "$sp\game-files\ETS2\master.bank" "$app\plugin\sound\ETS2\"
+  Copy-Item "$sp\game-files\ATS\master.bank" "$app\plugin\sound\ATS\"
+  Copy-Item "$sp\game-files\sound_levels.txt" "$app\plugin\sound\"
+  Copy-Item "$sp\LICENSE.md" "$app\licenses\rigbuddy-sound-LICENSE.txt"
+  Set-Content "$app\licenses\rigbuddy-sound-NOTICE.txt" -Encoding UTF8 -Value @(
+    'The sound plugin (plugin\sound\rigbuddy-sound.dll) is based on ts-fmod-plugin by Dario Wouters,',
+    'https://github.com/dariowouters/ts-fmod-plugin, MIT license (see rigbuddy-sound-LICENSE.txt).',
+    'Rig Buddy renamed it and added live reloading of the sound mods; the source is in pc/sound-plugin of the Rig Buddy repository.',
     '',
     'FMOD Studio by Firelight Technologies Pty Ltd.')
   $size = (Get-ChildItem $app -Recurse -File | Measure-Object Length -Sum).Sum / 1MB

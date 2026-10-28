@@ -75,6 +75,19 @@ jobs:
           $v = $env:VERSION_INPUT -replace '^v', ''
           if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "bad version '$env:VERSION_INPUT'" }
           "APP_VERSION=$v" >> $env:GITHUB_ENV
+      - name: sound plugin (rigbuddy-sound.dll, C++)
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw 'no Visual Studio with the C++ tools on this runner' }
+          # the toolset of the Visual Studio that is there (17 = 2022 -> v143, 18 = 2026 -> v145)
+          $major = [int]((& $vswhere -latest -property installationVersion) -split '\.')[0]
+          $toolset = if ($major -ge 18) { 'v145' } else { 'v143' }
+          Write-Host "MSBuild $msbuild, toolset $toolset"
+          & $msbuild pc/sound-plugin/rigbuddy-sound.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=$toolset /m /v:m /nologo
+          if ($LASTEXITCODE -ne 0) { throw "sound plugin build failed ($LASTEXITCODE)" }
+          if (-not (Test-Path pc/sound-plugin/dist/rigbuddy-sound.dll)) { throw 'rigbuddy-sound.dll was not built' }
       - name: setup (Node, Gradle, tm-maps, fonts)
         shell: pwsh
         run: ./setup/setup-pc.ps1 -SkipPlugin -SkipFirewall

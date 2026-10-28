@@ -1,6 +1,6 @@
 // "Sound mods" window: which FMOD sound mods the sound plugin loads in each game, add mods, open the folder / the sound
-// levels file, switch the plugin off. Writes selected.bank.txt in the plugin's folder (the plugin reads it when the game
-// starts, or on `sdk reload` in the game's console).
+// levels file, switch the plugin off. Writes selected.bank.txt in the plugin's folder; the plugin (rigbuddy-sound.dll)
+// notices the change within a second and loads the mods, also while the game runs.
 
 sealed class SoundForm : Form
 {
@@ -98,7 +98,7 @@ sealed class SoundForm : Form
         if (alsoCheck != null && !selected.Contains(alsoCheck, StringComparer.OrdinalIgnoreCase)) selected.Add(alsoCheck);
         foreach (string s in selected) _list.Items.Add(s, true);
         foreach (string b in banks.Where(b => !selected.Contains(b, StringComparer.OrdinalIgnoreCase))) _list.Items.Add(b, false);
-        _status.Text = banks.Count == 0 ? L.T("sound.empty") : "";
+        _status.Text = SoundMods.ForeignPlugin(g) ? L.T("sound.foreign") : banks.Count == 0 ? L.T("sound.empty") : "";
     }
 
     void AddMods()
