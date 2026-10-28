@@ -132,10 +132,15 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 [Run]
 ; firewall: the Node services (TCP 62840 navigation, 62843 agent) and the PC
 ; discovery (UDP 62846), private networks only; re-created on every install
+; Every rule of these two programs goes first: also the "block" rules Windows creates when its firewall prompt is closed
+; with the X (a block overrides our allow rules), and rules left by an older install path.
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=all program=""{app}\node\node.exe"""; Flags: runhidden; StatusMsg: "{cm:StatusFirewall}"
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=all program=""{app}\RigBuddy.exe"""; Flags: runhidden; StatusMsg: "{cm:StatusFirewall}"
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Rig Buddy (Node.js)"""; Flags: runhidden; StatusMsg: "{cm:StatusFirewall}"
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Rig Buddy (discovery)"""; Flags: runhidden; StatusMsg: "{cm:StatusFirewall}"
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Rig Buddy (Node.js)"" dir=in action=allow profile=private protocol=TCP localport=62840,62843 program=""{app}\node\node.exe"""; Flags: runhidden; StatusMsg: "{cm:StatusFirewall}"
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Rig Buddy (discovery)"" dir=in action=allow profile=private protocol=UDP localport=62846 program=""{app}\RigBuddy.exe"""; Flags: runhidden; StatusMsg: "{cm:StatusFirewall}"
+; private and domain networks (a "Public" one is handled by the app: it says so and switches the network on one click)
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Rig Buddy (Node.js)"" dir=in action=allow profile=private,domain protocol=TCP localport=62840,62843 program=""{app}\node\node.exe"""; Flags: runhidden; StatusMsg: "{cm:StatusFirewall}"
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""Rig Buddy (discovery)"" dir=in action=allow profile=private,domain protocol=UDP localport=62846 program=""{app}\RigBuddy.exe"""; Flags: runhidden; StatusMsg: "{cm:StatusFirewall}"
 Filename: "{app}\RigBuddy.exe"; Parameters: "--install-plugin"; Flags: runhidden; Tasks: plugin; StatusMsg: "{cm:StatusPlugin}"
 Filename: "{app}\RigBuddy.exe"; Description: "{cm:LaunchProgram,Rig Buddy}"; Flags: nowait postinstall skipifsilent runasoriginaluser
 

@@ -33,9 +33,11 @@ sealed class StatusForm : Form
     readonly RoundedPanel _fixPanel;
     readonly Label _fixText;
     readonly Button _fixButton;
-    DateTime _nextPluginCheck, _nextModsRead;
+    DateTime _nextPluginCheck, _nextModsRead, _nextNetCheck;
     int _modCount;
-    bool _restartGame, _fixShown;
+    bool _restartGame, _fixShown, _netChecking;
+    volatile NetworkCheck.Problem? _netProblem; // the phones' network is "Public": the firewall rules do not cover it
+    bool _fixForNetwork;                         // what the Fix button does right now
     string? _fixFailed;
     double _shown;
     DateTime _copiedUntil;
@@ -205,6 +207,15 @@ sealed class StatusForm : Form
         _fixButton.Click += async (_, _) =>
         {
             _fixButton.Enabled = false;
+            if (_fixForNetwork && _netProblem is { } net)
+            {
+                await Task.Run(() => NetworkCheck.MakePrivate(net));
+                _fixButton.Enabled = true;
+                _nextNetCheck = DateTime.MinValue;
+                _nextPluginCheck = DateTime.MinValue;
+                CheckPlugin();
+                return;
+            }
             bool ok = await Task.Run(PluginCheck.Fix);
             _fixButton.Enabled = true;
             _restartGame = ok && PluginCheck.GameRunning();
@@ -334,11 +345,14 @@ sealed class StatusForm : Form
     {
         if (DateTime.UtcNow < _nextPluginCheck) return;
         _nextPluginCheck = DateTime.UtcNow.AddSeconds(3);
+        CheckNetwork();
         var problems = PluginCheck.Find();
         var p = Theme.Current;
         bool show = true;
+        _fixForNetwork = false;
         if (problems.Count > 0)
         {
+            _fixButton.Text = L.T("plugin.fix");
             Set(_fixText, _fixFailed ?? L.T("plugin.missing", string.Join(", ", problems.Select(x => x.Game))), p.Red);
             _fixButton.Visible = true;
         }
@@ -346,6 +360,14 @@ sealed class StatusForm : Form
         {
             Set(_fixText, L.T("plugin.restart"), p.Orange); // the game only loads plugins as it starts
             _fixButton.Visible = false;
+        }
+        else if (_netProblem is { } net)
+        {
+            // the phones' network is "Public": Rig Buddy's firewall rules are for private networks only
+            _fixForNetwork = true;
+            _fixButton.Text = L.T("net.fix");
+            Set(_fixText, L.T("net.public", net.Name), p.Orange);
+            _fixButton.Visible = true;
         }
         else
         {
@@ -359,6 +381,19 @@ sealed class StatusForm : Form
             _fixShown = show;
             ClientSize = new Size(ClientSize.Width, LogicalToDeviceUnits(show ? Height0 + FixExtra : Height0));
         }
+    }
+
+    /** Every half minute, in the background: is the network the phones are on a "Public" one? */
+    void CheckNetwork()
+    {
+        if (_netChecking || DateTime.UtcNow < _nextNetCheck) return;
+        _nextNetCheck = DateTime.UtcNow.AddSeconds(30);
+        _netChecking = true;
+        Task.Run(() =>
+        {
+            try { _netProblem = NetworkCheck.FindPublicLan(); }
+            finally { _netChecking = false; }
+        });
     }
 
     void Refresh2()

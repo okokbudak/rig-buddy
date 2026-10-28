@@ -83,7 +83,7 @@ game you start, its map and data are shown.
 |---|---|
 | **PC** | Windows 10 or 11; Euro Truck Simulator 2 and/or American Truck Simulator on Steam |
 | **Device** | A phone, tablet or car head unit with Android 5.0 or later |
-| **Network** | PC and device on the same Wi-Fi network (the network type in Windows must be "Private") |
+| **Network** | PC and device on the same Wi-Fi network (the installer opens the firewall for private networks; if Windows calls your network "Public", the Rig Buddy window says so and fixes it with one click) |
 
 ## Installation
 
@@ -147,7 +147,7 @@ Studio settings on its first start.
 
 | Problem | What to do |
 |---|---|
-| The app can't find the PC | Make sure the PC and the device are on the same Wi-Fi network and that the network type in Windows is "Private". On guest networks devices often can't see each other; enter the address from the PC window by hand. |
+| The app can't find the PC | Make sure the PC and the device are on the same Wi-Fi network and that the network type in Windows is "Private" (if it is "Public", the Rig Buddy window shows a bar with a **Make private** button). On guest networks devices often can't see each other; enter the address from the PC window by hand. |
 | Connected, but no data | Make sure the game is running. The PC window should say "Trip computer: Receiving game data". If it doesn't, run the installer again to reinstall the telemetry plugin. |
 | The PC window says "No game found" | Rig Buddy looks for the games in your Steam libraries. Make sure ETS2 or ATS is installed through Steam. |
 | "Map could not be prepared" | Click **Try again** in the window. If it keeps failing, share the map log from the **Logs** window on the [Issues](../../issues) page. At least 3 GB of free disk space is needed. |
@@ -340,7 +340,7 @@ o oyunun haritası ve bilgileri gelir.
 |---|---|
 | **PC** | Windows 10 veya 11; Steam'de Euro Truck Simulator 2 ve/veya American Truck Simulator |
 | **Cihaz** | Android 5.0 veya üzeri bir telefon, tablet ya da araç multimedya ekranı |
-| **Ağ** | PC ile cihazın aynı Wi-Fi ağında olması (Windows'ta ağ türü "Özel" olmalıdır) |
+| **Ağ** | PC ile cihazın aynı Wi-Fi ağında olması (kurulum güvenlik duvarını özel ağlar için kendisi açar; Windows ağınıza "Genel" derse Rig Buddy penceresi uyarır ve tek tıkla düzeltir) |
 
 ### Kurulum
 
@@ -409,7 +409,7 @@ Studio ayarlarınızı devralır.
 
 | Sorun | Ne yapmalı? |
 |---|---|
-| Uygulama PC'yi bulamıyor | PC ile cihazın aynı Wi-Fi ağında olduğundan emin olun. Windows'ta ağ türü "Özel" olmalıdır. Misafir ağlarında cihazlar birbirini göremeyebilir; bu durumda PC penceresindeki adresi elle girin. |
+| Uygulama PC'yi bulamıyor | PC ile cihazın aynı Wi-Fi ağında olduğundan emin olun. Windows'ta ağ türü "Özel" olmalıdır ("Genel" ise Rig Buddy penceresinde **Özel yap** düğmeli bir uyarı çıkar). Misafir ağlarında cihazlar birbirini göremeyebilir; bu durumda PC penceresindeki adresi elle girin. |
 | Bağlantı var ama veri gelmiyor | Oyunun açık olduğundan emin olun. PC penceresinde "Araç bilgisayarı: Oyundan veri geliyor" yazmalıdır. Yazmıyorsa kurulumu yeniden çalıştırarak telemetri eklentisini tekrar yükleyin. |
 | PC penceresinde "Oyun bulunamadı" yazıyor | Rig Buddy oyunları Steam kütüphanelerinizde arar. ETS2 ya da ATS'nin Steam üzerinden kurulu olduğundan emin olun. |
 | "Harita hazırlanamadı" | Penceredeki **Tekrar dene** bağlantısına tıklayın. Sorun sürerse **Loglar** penceresindeki harita kaydını [Issues](../../issues) sayfasında paylaşın. Diskte en az 3 GB boş alan olmalıdır. |
