@@ -16,6 +16,7 @@ static class Program
     {
         if (args.Length > 0 && args[0] == "--install-plugin") return InstallPlugin();
         if (args.Length > 0 && args[0] == "--fix-plugin") return PluginCheck.CopyMissing() == 0 ? 0 : 1;
+        if (args.Length > 0 && args[0] == "--fix-save") { SaveFormat.Ensure(); return 0; } // installer: text saves for Rig Buddy
         if (args.Length > 0 && args[0] == "--sync-sound") return SoundMods.Sync() == 0 ? 0 : 1; // installer: the sound plugin into the games
         if (args.Length > 0 && Commands.Contains(args[0]))
         {
@@ -58,6 +59,7 @@ static class Program
         Discovery.Start();
         // the sound plugin that came with this version: back into the games if a game update removed it, and updated
         Task.Run(() => { try { SoundMods.Sync(); } catch (Exception e) { Console.WriteLine($"sound plugin: {e.Message}"); } });
+        SaveFormat.Watch(); // the saves must be text (g_save_format "2"): set when a game is not running
 
         var sup = new Supervisor(paths);
         // new map data: the server reloads it (or starts, on the first build)
