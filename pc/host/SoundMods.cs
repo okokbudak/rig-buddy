@@ -223,6 +223,24 @@ static class SoundMods
         return names;
     }
 
+    /**
+     * Takes a sound mod out: it leaves selected.bank.txt first (the plugin lets go of it within a second), then its
+     * ".bank" and ".bank.guids" are deleted from the plugin folder. Nothing else is touched: only files of that name in
+     * that folder. Throws IOException when the game still holds the bank (the list is already updated then).
+     */
+    public static void RemoveMod(Game g, string name)
+    {
+        if (name.Length == 0 || name != Path.GetFileName(name) || name.Equals("master", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException(name);
+        string dir = FolderOf(g);
+        SaveSelected(g, Selected(g).Where(s => !s.Equals(name, StringComparison.OrdinalIgnoreCase)));
+        foreach (string f in new[] { name + ".bank", name + ".bank.guids" })
+        {
+            string path = Path.Combine(dir, f);
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
     /** The plugin finds a mod's sounds through its ".bank.guids" list; without it the mod loads but plays nothing. */
     public static bool HasGuids(Game g, string name) => File.Exists(Path.Combine(FolderOf(g), name + ".bank.guids"));
 

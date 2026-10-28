@@ -40,6 +40,7 @@ sealed class SoundForm : Form
         _hint.Text = L.T("sound.hint");
 
         var add = Add(L.T("sound.add"), AddMods);
+        var remove = Add(L.T("sound.remove"), Remove);
         var up = Add(L.T("sound.up"), () => Move(-1));
         var down = Add(L.T("sound.down"), () => Move(1));
         var folder = Add(L.T("sound.folder"), () => { if (Current is { } g) TrayApp.OpenPath(SoundMods.FolderOf(g)); });
@@ -48,7 +49,7 @@ sealed class SoundForm : Form
             if (Current is { } g) TrayApp.OpenPath(Path.Combine(SoundMods.FolderOf(g), "sound_levels.txt"));
         });
         var save = Add(L.T("sound.save"), Save);
-        _bar.Controls.AddRange([add, up, down, folder, levels, save, _status]);
+        _bar.Controls.AddRange([add, remove, up, down, folder, levels, save, _status]);
 
         BuildLevels();
 
@@ -210,6 +211,19 @@ sealed class SoundForm : Form
         var noGuids = chosen.Where(n => !SoundMods.HasGuids(g, n)).ToList();
         if (noGuids.Count > 0) _status.Text = L.T("sound.no_guids", string.Join(", ", noGuids));
         else if (problem != null) _status.Text = problem;
+    }
+
+    void Remove()
+    {
+        if (Current is not { } g || _list.SelectedItem is not string name) return;
+        if (MessageBox.Show(this, L.T("sound.remove_confirm", name), L.T("sound.title"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        string? problem = null;
+        try { SoundMods.RemoveMod(g, name); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { problem = L.T("sound.remove_failed", name); }
+        catch (Exception e) { problem = e.Message; }
+        Reload();
+        if (problem != null) _status.Text = problem;
+        else _status.Text = L.T("sound.removed", name);
     }
 
     void Move(int delta)
