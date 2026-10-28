@@ -8,6 +8,8 @@
 // and the mods / list / levels from its folder are copied over to the new plugin's folder.
 
 using System.Security.Cryptography;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Win32;
 
 static class SoundMods
@@ -139,6 +141,46 @@ static class SoundMods
         string file = Path.Combine(FolderOf(g), "selected.bank.txt");
         if (!File.Exists(file)) return [];
         return File.ReadAllLines(file).Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+    }
+
+    /** The volumes in sound_levels.txt: key, the plugin's default (0 to 1.5 in the file; the sliders show percent). */
+    public static readonly (string Key, double Default)[] LevelKeys =
+    [
+        ("master", 0.5), ("engine", 0.5), ("exhaust", 0.5), ("turbo", 0.5), ("interior", 0.75), ("navigation", 0.75),
+        ("exterior_when_windows_closed", 0.75),
+    ];
+    const double MaxLevel = 1.5;
+
+    static JsonObject ReadLevelsFile(Game g)
+    {
+        try
+        {
+            return JsonNode.Parse(File.ReadAllText(Path.Combine(FolderOf(g), "sound_levels.txt"))) as JsonObject ?? new JsonObject();
+        }
+        catch (Exception)
+        {
+            return new JsonObject(); // no file or a broken one: the defaults
+        }
+    }
+
+    public static Dictionary<string, double> ReadLevels(Game g)
+    {
+        var json = ReadLevelsFile(g);
+        var levels = new Dictionary<string, double>();
+        foreach (var (key, def) in LevelKeys)
+            levels[key] = json[key] is JsonValue v && v.TryGetValue(out double d) ? d : def;
+        return levels;
+    }
+
+    /** Sets one volume in sound_levels.txt (the other keys stay); the plugin applies it within a second, in the running game too. */
+    public static void SetLevel(Game g, string key, double value)
+    {
+        if (!LevelKeys.Any(k => k.Key == key)) return;
+        var json = ReadLevelsFile(g);
+        json[key] = Math.Round(Math.Clamp(value, 0, MaxLevel), 2);
+        if (json["config_version"] == null) json["config_version"] = 2; // an old file would be "upgraded" (halved) by the plugin
+        Directory.CreateDirectory(FolderOf(g));
+        File.WriteAllText(Path.Combine(FolderOf(g), "sound_levels.txt"), json.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }
 
     /** Writes the list; the plugin notices within a second and loads it, also while the game runs. */
