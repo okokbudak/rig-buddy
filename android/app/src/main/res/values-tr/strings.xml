@@ -233,4 +233,10 @@
     <string name="explore_on">açık (turuncu-sarı)</string>
     <string name="explore_off">kapalı</string>
     <string name="explore_need_map">Keşfedilen yol renkleri için yeni üretilmiş bir harita gerekir: haritayı PC\'de yeniden üret (sonra yeniden indirilir).</string>
+    <string name="rail_sound">Ses</string>
+    <string name="sound_title">Ses modları</string>
+    <string name="sound_hint">Oyunun ses modlarını açın ya da kapatın. Değişiklik çalışan oyuna bir saniye içinde ulaşır.</string>
+    <string name="sound_none">PC\'de henüz ses plugin\'i bulunamadı. Oyun kuruluyken Rig Buddy\'yi PC\'de bir kez çalıştırın.</string>
+    <string name="sound_no_mods">Henüz ses modu yok. PC\'deki Ses modları penceresinden ekleyin.</string>
+    <string name="sound_no_guids">.bank.guids dosyası yok: bu mod ses çalmaz</string>
 </resources>

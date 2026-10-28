@@ -235,4 +235,10 @@
     <string name="explore_on">on (orange-yellow)</string>
     <string name="explore_off">off</string>
     <string name="explore_need_map">The explored-roads colours need a newly built map: rebuild the map on the PC (it is then downloaded again).</string>
+    <string name="rail_sound">Sound</string>
+    <string name="sound_title">Sound mods</string>
+    <string name="sound_hint">Switch the sound mods of the game on or off. The change reaches the running game within a second.</string>
+    <string name="sound_none">No sound plugin found on the PC yet. Start Rig Buddy on the PC once with the game installed.</string>
+    <string name="sound_no_mods">No sound mods yet. Add them in the Sound mods window on the PC.</string>
+    <string name="sound_no_guids">No .bank.guids file: this mod plays nothing</string>
 </resources>

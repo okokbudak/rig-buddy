@@ -1,0 +1,102 @@
+// The sound mods of Rig Buddy's sound plugin (rigbuddy-sound.dll) for the app: which FMOD sound mods each game has and
+// which are on, and switching one on or off. "On" means the mod is in selected.bank.txt, which the plugin watches and
+// loads while the game runs (pc/sound-plugin). The folder is <game>\bin\win_x64\plugins\rigbuddy-sound.
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const GAMES = {
+  ets2: { name: 'Euro Truck Simulator 2', dir: 'Euro Truck Simulator 2', env: 'ETS2_DIR' },
+  ats: { name: 'American Truck Simulator', dir: 'American Truck Simulator', env: 'ATS_DIR' },
+};
+
+function steamLibraries() {
+  let steam = process.env.STEAM_PATH;
+  if (!steam) {
+    try {
+      const out = execFileSync('reg', ['query', 'HKCU\\Software\\Valve\\Steam', '/v', 'SteamPath'], { encoding: 'utf8', windowsHide: true });
+      steam = /SteamPath\s+REG_SZ\s+(.+)/.exec(out)?.[1].trim();
+    } catch {
+      // no Steam
+    }
+  }
+  steam ||= 'C:/Program Files (x86)/Steam';
+  const libs = [steam];
+  try {
+    const vdf = fs.readFileSync(path.join(steam, 'steamapps', 'libraryfolders.vdf'), 'utf8');
+    for (const m of vdf.matchAll(/"path"\s+"([^"]+)"/g)) libs.push(m[1].replace(/\\\\/g, '\\'));
+  } catch {
+    // no library list
+  }
+  return [...new Set(libs)];
+}
+
+function gameDir(id) {
+  const g = GAMES[id];
+  if (process.env[g.env]) return process.env[g.env];
+  for (const lib of steamLibraries()) {
+    const dir = path.join(lib, 'steamapps', 'common', g.dir);
+    if (fs.existsSync(path.join(dir, 'base.scs'))) return dir;
+  }
+  return null;
+}
+
+function folderOf(id) {
+  const dir = gameDir(id);
+  if (!dir) return null;
+  const folder = path.join(dir, 'bin', 'win_x64', 'plugins', 'rigbuddy-sound');
+  return fs.existsSync(folder) ? folder : null;
+}
+
+/** Mod names in a plugin folder: every .bank except master.bank (and string banks). */
+function banks(folder) {
+  return fs.readdirSync(folder)
+    .filter(f => /\.bank$/i.test(f))
+    .map(f => f.slice(0, -5))
+    .filter(n => n.toLowerCase() !== 'master' && !/\.strings$/i.test(n))
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function selected(folder) {
+  try {
+    return fs.readFileSync(path.join(folder, 'selected.bank.txt'), 'utf8').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/** { games: [{id, name, mods: [{name, active, guids}]}] }: the games that have the sound plugin's folder. */
+export function soundState() {
+  const games = [];
+  for (const [id, g] of Object.entries(GAMES)) {
+    const folder = folderOf(id);
+    if (!folder) continue;
+    const on = new Set(selected(folder).map(s => s.toLowerCase()));
+    games.push({
+      id,
+      name: g.name,
+      mods: banks(folder).map(name => ({
+        name,
+        active: on.has(name.toLowerCase()),
+        guids: fs.existsSync(path.join(folder, `${name}.bank.guids`)), // without it the mod loads but plays nothing
+      })),
+    });
+  }
+  return { games };
+}
+
+/**
+ * Switches one mod on or off (it is added to / taken out of selected.bank.txt; the others stay as they are, in order).
+ * Returns the new state, or null when the game or the mod is unknown.
+ */
+export function setSoundMod(gameId, mod, active) {
+  if (!GAMES[gameId] || typeof mod !== 'string') return null;
+  const folder = folderOf(gameId);
+  if (!folder) return null;
+  const name = banks(folder).find(n => n.toLowerCase() === mod.toLowerCase()); // only a mod that is really there
+  if (!name) return null;
+  const rest = selected(folder).filter(s => s.toLowerCase() !== name.toLowerCase());
+  if (active) rest.push(name);
+  fs.writeFileSync(path.join(folder, 'selected.bank.txt'), rest.join('\n'));
+  return soundState();
+}
