@@ -258,4 +258,5 @@
     <string name="set_update">New version %1$s: open the download page</string>
     <string name="music_volume_app">Player volume</string>
     <string name="music_volume_system">PC volume (this player has none of its own)</string>
+    <string name="job_cancelled">The job was cancelled: its route is closed.</string>
 </resources>

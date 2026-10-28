@@ -45,9 +45,32 @@ sealed class TelemetryBridge
         MemoryMappedViewAccessor? view = null;
         bool? lastAvailable = null;
         var scratch = new byte[MmfSize];
+        bool gameRunning = false;
+        DateTime nextProcessCheck = DateTime.MinValue;
 
         while (true)
         {
+            // Once this program has the plugin's shared memory open, Windows keeps it alive after the game closes, with
+            // the last values in it: reading it would say "game running" for ever. So no game process, no game.
+            if (DateTime.UtcNow >= nextProcessCheck)
+            {
+                gameRunning = PluginCheck.GameRunning();
+                nextProcessCheck = DateTime.UtcNow.AddSeconds(1);
+            }
+            if (!gameRunning)
+            {
+                if (view != null || lastAvailable != false)
+                {
+                    view?.Dispose(); view = null;
+                    mmf?.Dispose(); mmf = null;
+                    _state.Publish(null);
+                    Console.WriteLine("bridge: waiting for game (no game process)");
+                    lastAvailable = false;
+                }
+                GameConnected = false;
+                await Task.Delay(IntervalMs);
+                continue;
+            }
             try
             {
                 if (view == null)

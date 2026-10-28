@@ -156,6 +156,8 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   /** Delivery node of the job taken in the game; the map's route button drives there. */
   private String jobDestNode;
   private boolean pickingRoute;
+  private boolean jobSeen;         // the PC has reported a job (telemetry)
+  private long jobGoneSinceMs;     // since when it reports none
 
   /** Short side, in dp, the screens are designed for (head units: 720). */
   private static final int MIN_SHORT_SIDE_DP = 600;
@@ -312,6 +314,17 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
           lastTelemetryAt = SystemClock.uptimeMillis();
           JSONObject truck = t.optJSONObject("truck");
           lastSpeedKph = truck != null ? truck.optDouble("speedKph", 0) : 0;
+          if (t.optJSONObject("job") != null) {
+            jobSeen = true;
+            jobGoneSinceMs = 0;
+          } else if (jobSeen) {
+            long nowMs = SystemClock.uptimeMillis();
+            if (jobGoneSinceMs == 0) jobGoneSinceMs = nowMs;
+            else if (nowMs - jobGoneSinceMs > 5000) { // gone for 5 s: cancelled (a brief gap while loading is not)
+              jobSeen = false;
+              onJobGone();
+            }
+          }
           JSONObject p = t.optJSONObject("position");
           if (p != null) {
             tracker.onAgentSample(t.optString("game", "ets2"), p.optDouble("x", Double.NaN), p.optDouble("z", Double.NaN),
@@ -1021,8 +1034,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
           jobDestNode = node;
           if (node != null && !node.equals(requestedDestNode)) routeTo(node);
         } else {
-          jobDestNode = null;
-          requestedDestNode = null;
+          onJobGone();
         }
         break;
       case "themeModeUpdate":
@@ -1176,6 +1188,20 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     if (route == null) return;
     Log.i(TAG, "arrived, clearing route");
     cancelRoute();
+  }
+
+  /**
+   * The job taken in the game is gone (cancelled). The route to its destination goes with it; a route the user chose
+   * himself (search, a pin on the map) stays.
+   */
+  private void onJobGone() {
+    String was = jobDestNode;
+    jobDestNode = null;
+    if (was != null && was.equals(requestedDestNode) && route != null) {
+      cancelRoute();
+      flashMessage(Ui.s(R.string.job_cancelled));
+    }
+    requestedDestNode = null;
   }
 
   private void cancelRoute() {

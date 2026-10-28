@@ -256,4 +256,5 @@
     <string name="set_update">Yeni sürüm %1$s: indirme sayfasını aç</string>
     <string name="music_volume_app">Oynatıcının sesi</string>
     <string name="music_volume_system">PC sesi (bu oynatıcının kendi sesi yok)</string>
+    <string name="job_cancelled">İş iptal edildi: rotası kapatıldı.</string>
 </resources>
