@@ -23,6 +23,8 @@ them; the plugin uses the FMOD libraries that come with the game.
 - **No mod, no failure:** an empty or missing `selected.bank.txt`, a mod that cannot be loaded or one without its
   `.bank.guids` file is skipped (and logged) instead of keeping the whole plugin from loading, so a mod picked later
   can still be loaded live.
+- **Names with spaces:** `selected.bank.txt` is read one mod per line (the original split at every space, so a mod
+  called `Pipe Mod` could not be loaded). The `.bank.guids` file still has to carry the same name as the `.bank`.
 - **Fix:** the sound-levels file path was kept as a reference to a temporary.
 
 ## Game updates

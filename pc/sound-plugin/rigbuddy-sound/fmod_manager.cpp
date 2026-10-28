@@ -37,8 +37,15 @@ bool fmod_manager::load_selected_bank(const std::filesystem::path& plugin_files_
 
     FMOD::Studio::Bank* bank;
     int i = 0;
-    while (selected_bank_file >> bank_name)
+    // Rig Buddy: one mod per line, so a name may contain spaces ("Pipe Mod"); the original split at every space
+    while (std::getline(selected_bank_file, bank_name))
     {
+        while (!bank_name.empty() && (bank_name.back() == '\r' || bank_name.back() == ' ' || bank_name.back() == '\t'))
+            bank_name.pop_back();
+        const auto first = bank_name.find_first_not_of(" \t");
+        if (first == std::string::npos) continue; // empty line
+        bank_name.erase(0, first);
+
         auto bank_file_path = plugin_files_dir;
         bank_file_path.append(bank_name).concat(".bank");
 
