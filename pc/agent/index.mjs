@@ -7,7 +7,8 @@
 //   GET  /explored        -> {game, count, uids, hasUid}: roads/junctions the player has driven (from the save), as the uids the map tiles carry
 //   GET  /update          -> {latest, url, name, current, newer}: the newest Rig Buddy release on GitHub (cached, asked from the PC)
 //   GET  /media           -> the PC's music player: {active, app, title, artist, album, status, position, duration, shuffle, repeat, can*}
-//   POST /media {action}  -> playpause | play | pause | next | previous | shuffle | repeat; answers with the new state
+//   POST /media {action[, value]} -> playpause | play | pause | next | previous | shuffle | repeat | mute | volume (value 0-100);
+//                                    answers with the new state (volume, muted, volumeScope: the player's own or the PC's)
 //   GET  /sound           -> {games: [{id, name, mods: [{name, active, guids}]}]}: the sound plugin's mods per game
 //   POST /sound {game, mod, active} -> switches a sound mod on or off (the plugin loads it within a second)
 //   GET  /tiles           -> {"ets2": {size, version}}: map files the app can download
@@ -316,13 +317,15 @@ const server = http.createServer((req, res) => {
       const chunks = [];
       req.on('data', c => { size += c.length; if (size > 1024) req.destroy(); else chunks.push(c); });
       req.on('end', () => {
-        let action;
+        let action, value;
         try {
-          action = String(JSON.parse(Buffer.concat(chunks).toString('utf8')).action);
+          const b = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          action = String(b.action);
+          value = b.value === undefined ? undefined : Number(b.value);
         } catch {
           return send(400, { error: 'bad request' });
         }
-        mediaCommand(action).then(s => (s ? send(200, s) : send(404, { error: 'unknown action' })), () => send(502, { error: 'player' }));
+        mediaCommand(action, value).then(s => (s ? send(200, s) : send(404, { error: 'unknown action' })), () => send(502, { error: 'player' }));
       });
       return;
     }

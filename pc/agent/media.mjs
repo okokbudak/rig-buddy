@@ -4,7 +4,7 @@
 import net from 'node:net';
 
 const CONTROL_PORT = Number(process.env.RIGBUDDY_CONTROL_PORT || 62845);
-export const MEDIA_ACTIONS = new Set(['playpause', 'play', 'pause', 'next', 'previous', 'shuffle', 'repeat']);
+export const MEDIA_ACTIONS = new Set(['playpause', 'play', 'pause', 'next', 'previous', 'shuffle', 'repeat', 'mute', 'volume']);
 
 function ask(line) {
   return new Promise(resolve => {
@@ -36,10 +36,18 @@ export async function mediaState() {
   }
 }
 
-/** Sends a command (one of MEDIA_ACTIONS) and returns the new state; null for an action that does not exist. */
-export async function mediaCommand(action) {
+/**
+ * Sends a command (one of MEDIA_ACTIONS) and returns the new state; null for an action that does not exist or a volume
+ * that is not a whole number from 0 to 100. "volume" is the player's own volume (or the PC's when the player has none).
+ */
+export async function mediaCommand(action, value) {
   if (!MEDIA_ACTIONS.has(action)) return null;
-  await ask(`media ${action}`);
+  if (action === 'volume') {
+    if (!Number.isInteger(value) || value < 0 || value > 100) return null;
+    await ask(`media volume ${value}`);
+  } else {
+    await ask(`media ${action}`);
+  }
   await new Promise(r => setTimeout(r, 150)); // the player needs a moment to show the new state
   return mediaState();
 }

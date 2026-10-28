@@ -32,6 +32,13 @@ s = await mediaCommand('playpause');
 assert.deepEqual(seen.slice(-2), ['media playpause', 'media'], 'the command, then the state');
 assert.equal(s.status, 'paused');
 
+assert.ok((await mediaCommand('volume', 40)) !== null);
+assert.equal(seen.at(-2), 'media volume 40', 'the volume goes to the PC program as a whole number');
+assert.ok((await mediaCommand('mute')) !== null);
+assert.equal(seen.at(-2), 'media mute');
+for (const bad of [101, -1, 12.5, NaN, undefined, '50']) assert.equal(await mediaCommand('volume', bad), null, `volume ${bad} is refused`);
+assert.ok(!seen.some(c => c.startsWith('media volume') && c !== 'media volume 40'), 'bad volumes never reach the PC program');
+
 assert.equal(await mediaCommand('format-c'), null, 'only known actions');
 assert.equal(await mediaCommand('../../x'), null);
 assert.ok(MEDIA_ACTIONS.has('next') && MEDIA_ACTIONS.has('repeat'));

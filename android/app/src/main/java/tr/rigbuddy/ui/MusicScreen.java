@@ -8,6 +8,7 @@ import android.view.View;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.SeekBar;
 import android.widget.TextView;
 
 import org.json.JSONException;
@@ -31,6 +32,10 @@ public final class MusicScreen {
   private final TextView app, title, artist, elapsed, total, status;
   private final ProgressBar progress;
   private final ImageView shuffle, prev, play, next, repeat;
+  private final ImageView muteButton;
+  private final SeekBar volumeBar;
+  private final TextView volumeText, volumeLabel;
+  private boolean dragging; // the volume slider is under the finger: a poll must not move it
   private boolean active; // the screen is showing
   private boolean busy;   // a command is on its way: do not let a poll answer paint over it
 
@@ -82,6 +87,42 @@ public final class MusicScreen {
       controls.addView(b, Ui.margins(new LinearLayout.LayoutParams(Ui.dp(c, size(b)), Ui.dp(c, size(b))), c, 10, 0, 10, 0));
     }
     card.addView(controls, Ui.margins(Ui.matchWrap(), c, 0, 18, 0, 6));
+
+    // the volume of the player (or of the PC when the player has none of its own): mute button, slider, percent
+    LinearLayout vol = Ui.row(c);
+    vol.setGravity(Gravity.CENTER_VERTICAL);
+    muteButton = new ImageView(c);
+    muteButton.setImageResource(R.drawable.ic_sound);
+    muteButton.setScaleType(ImageView.ScaleType.CENTER);
+    muteButton.setBackground(Ui.rounded(Ui.CARD_PRESSED, Ui.dp(c, 22)));
+    muteButton.setColorFilter(Ui.TEXT);
+    muteButton.setOnClickListener(v -> command("mute", -1));
+    vol.addView(muteButton, new LinearLayout.LayoutParams(Ui.dp(c, 44), Ui.dp(c, 44)));
+    volumeBar = new SeekBar(c);
+    volumeBar.setMax(100);
+    volumeBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+      @Override public void onProgressChanged(SeekBar s, int progress, boolean fromUser) {
+        volumeText.setText(progress + " %");
+      }
+
+      @Override public void onStartTrackingTouch(SeekBar s) {
+        dragging = true;
+      }
+
+      @Override public void onStopTrackingTouch(SeekBar s) {
+        dragging = false;
+        command("volume", s.getProgress());
+      }
+    });
+    vol.addView(volumeBar, new LinearLayout.LayoutParams(0, ViewGroupWrap(), 1f));
+    volumeText = Ui.text(c, 16, Ui.TEXT2, false);
+    volumeText.setMinWidth(Ui.dp(c, 52));
+    volumeText.setGravity(Gravity.END);
+    vol.addView(volumeText);
+    card.addView(vol, Ui.margins(Ui.matchWrap(), c, 0, 6, 0, 0));
+    volumeLabel = Ui.text(c, 13, Ui.TEXT2, false);
+    card.addView(volumeLabel, Ui.margins(Ui.matchWrap(), c, 54, 0, 0, 0));
+
     status = Ui.text(c, 14, Ui.TEXT2, false);
     status.setGravity(Gravity.CENTER);
     card.addView(status, Ui.matchWrap());
@@ -105,7 +146,7 @@ public final class MusicScreen {
     b.setTag(sizeDp); // read back by size()
     b.setBackground(Ui.rounded(Ui.CARD_PRESSED, Ui.dp(c, sizeDp) / 2f));
     b.setColorFilter(Ui.TEXT);
-    b.setOnClickListener(v -> command(action));
+    b.setOnClickListener(v -> command(action, -1));
     return b;
   }
 
@@ -129,11 +170,12 @@ public final class MusicScreen {
     });
   }
 
-  private void command(String action) {
+  private void command(String action, int value) {
     busy = true;
     JSONObject body = new JSONObject();
     try {
       body.put("action", action);
+      if (value >= 0) body.put("value", value);
     } catch (JSONException e) {
       throw new IllegalStateException(e);
     }
@@ -169,6 +211,10 @@ public final class MusicScreen {
       enable(next, false);
       enable(repeat, false);
       play.setImageResource(R.drawable.ic_play);
+      enable(volumeBar, false);
+      enable(muteButton, false);
+      volumeText.setText("");
+      volumeLabel.setText("");
       return;
     }
     title.setTextSize(38);
@@ -195,9 +241,21 @@ public final class MusicScreen {
     String rep = s.optString("repeat", "none");
     repeat.setImageResource("track".equals(rep) ? R.drawable.ic_repeat_one : R.drawable.ic_repeat);
     repeat.setColorFilter("none".equals(rep) ? Ui.TEXT : Ui.ACCENT);
+
+    int volume = s.optInt("volume", -1);
+    boolean muted = s.optBoolean("muted");
+    enable(volumeBar, volume >= 0);
+    enable(muteButton, volume >= 0);
+    if (volume >= 0 && !dragging) {
+      volumeBar.setProgress(volume);
+      volumeText.setText(volume + " %");
+    }
+    muteButton.setImageResource(muted ? R.drawable.ic_volume_off : R.drawable.ic_sound);
+    muteButton.setColorFilter(muted ? Ui.RED : Ui.TEXT);
+    volumeLabel.setText(volume < 0 ? "" : Ui.s("app".equals(s.optString("volumeScope")) ? R.string.music_volume_app : R.string.music_volume_system));
   }
 
-  private static void enable(ImageView b, boolean on) {
+  private static void enable(View b, boolean on) {
     b.setEnabled(on);
     b.setAlpha(on ? 1f : 0.35f);
   }

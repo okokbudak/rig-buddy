@@ -105,7 +105,7 @@ static class Program
         // the app's music controls (through the agent): "media" = the state of the player as JSON, "media <action>" = a command
         if (verb == "media")
         {
-            if (svc != null && !MediaControl.Command(svc)) return "error: the player did not take the command";
+            if (svc != null && !MediaControl.Command(svc, parts.Length > 2 ? parts[2] : null)) return "error: the player did not take the command";
             return MediaControl.State();
         }
         if (svc != null && sup.Find(svc) == null) return $"error: unknown service '{svc}' (server, agent, telemetry)";

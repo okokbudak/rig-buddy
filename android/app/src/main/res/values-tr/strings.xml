@@ -254,4 +254,6 @@
     <string name="lv_outside">Dış ses (camlar kapalıyken)</string>
     <string name="update_app_available">Rig Buddy %1$s yayınlandı. Uygulamayı ve PC programını güncelleyin (Ayarlar).</string>
     <string name="set_update">Yeni sürüm %1$s: indirme sayfasını aç</string>
+    <string name="music_volume_app">Oynatıcının sesi</string>
+    <string name="music_volume_system">PC sesi (bu oynatıcının kendi sesi yok)</string>
 </resources>

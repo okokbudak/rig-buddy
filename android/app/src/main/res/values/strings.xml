@@ -256,4 +256,6 @@
     <string name="lv_outside">Outside, windows closed</string>
     <string name="update_app_available">Rig Buddy %1$s is out. Update the app and the PC program (Settings).</string>
     <string name="set_update">New version %1$s: open the download page</string>
+    <string name="music_volume_app">Player volume</string>
+    <string name="music_volume_system">PC volume (this player has none of its own)</string>
 </resources>

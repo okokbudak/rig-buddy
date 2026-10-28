@@ -47,9 +47,13 @@ static class MediaControl
             position += Math.Max(0, (DateTimeOffset.UtcNow - tl.LastUpdatedTime).TotalSeconds);
         }
         if (duration > 0) position = Math.Min(position, duration);
+        var volume = MediaVolume.Get(s.SourceAppUserModelId);
         return new
         {
             active = true,
+            volume = volume?.Percent ?? -1,           // -1: not known
+            muted = volume?.Muted ?? false,
+            volumeScope = volume?.Scope ?? "",        // "app": the player's own volume, "system": the PC's
             app = AppName(s.SourceAppUserModelId),
             title = props.Title ?? "",
             artist = props.Artist ?? "",
@@ -68,11 +72,19 @@ static class MediaControl
         };
     }
 
-    /** playpause | play | pause | next | previous | shuffle | repeat. Returns true when the player took the command. */
-    public static bool Command(string action)
+    /** playpause | play | pause | next | previous | shuffle | repeat | mute | volume (arg = 0-100). Returns true when it took the command. */
+    public static bool Command(string action, string? arg = null)
     {
         try
         {
+            if (action is "mute" or "volume")
+            {
+                var current = Current().GetAwaiter().GetResult();
+                if (current == null) return false;
+                string app = current.SourceAppUserModelId;
+                if (action == "mute") return MediaVolume.ToggleMute(app);
+                return int.TryParse(arg, out int percent) && percent is >= 0 and <= 100 && MediaVolume.Set(app, percent);
+            }
             return CommandAsync(action).GetAwaiter().GetResult();
         }
         catch (Exception e)
