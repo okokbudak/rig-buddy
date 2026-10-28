@@ -85,6 +85,8 @@ jobs:
           $major = [int]((& $vswhere -latest -property installationVersion) -split '\.')[0]
           $toolset = if ($major -ge 18) { 'v145' } else { 'v143' }
           Write-Host "MSBuild $msbuild, toolset $toolset"
+          # the post-build step copies the DLL into dist\ (build output, not in the repository)
+          New-Item -ItemType Directory -Force pc/sound-plugin/dist | Out-Null
           & $msbuild pc/sound-plugin/rigbuddy-sound.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=$toolset /m /v:m /nologo
           if ($LASTEXITCODE -ne 0) { throw "sound plugin build failed ($LASTEXITCODE)" }
           if (-not (Test-Path pc/sound-plugin/dist/rigbuddy-sound.dll)) { throw 'rigbuddy-sound.dll was not built' }
