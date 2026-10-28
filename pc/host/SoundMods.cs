@@ -168,7 +168,7 @@ static class SoundMods
                 bool bank = path.EndsWith(".bank", StringComparison.OrdinalIgnoreCase);
                 if (!bank && !path.EndsWith(".bank.guids", StringComparison.OrdinalIgnoreCase)) continue;
                 string target = Path.Combine(dir, Path.GetFileName(path)); // GetFileName: nothing from the archive can leave the folder
-                entry.ExtractToFile(target, overwrite: true);
+                System.IO.Compression.ZipFileExtensions.ExtractToFile(entry, target, overwrite: true);
                 if (bank) names.Add(Path.GetFileNameWithoutExtension(path));
             }
             return names;
