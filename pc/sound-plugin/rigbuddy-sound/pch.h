@@ -16,6 +16,7 @@
 #include <fstream>
 
 #include <cassert>
+#include <cmath>
 #include <unordered_map>
 
 #include "fmod/fmod_studio.hpp"
