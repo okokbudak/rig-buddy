@@ -2,6 +2,7 @@ package tr.rigbuddy.ui;
 
 import android.content.Context;
 import android.view.Gravity;
+import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -98,7 +99,7 @@ public final class SoundScreen {
     if (!mod.optBoolean("guids", true)) {
       texts.addView(Ui.text(c, Ui.s(R.string.sound_no_guids), 13, Ui.RED, false));
     }
-    row.addView(texts, Ui.hweight(1));
+    row.addView(texts, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)); // (Ui.hweight is for columns: it made the height 0)
 
     Switch sw = new Switch(c);
     sw.setChecked(mod.optBoolean("active"));
