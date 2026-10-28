@@ -106,10 +106,38 @@ export function soundState() {
         name,
         active: on.has(name.toLowerCase()),
         guids: fs.existsSync(path.join(folder, `${name}.bank.guids`)), // without it the mod loads but plays nothing
+        provides: provides(folder, name),
       })),
     });
   }
   return { games };
+}
+
+/**
+ * What a mod has, read from its .bank.guids (one "{guid} event:/engine/exhaust" line per bank object): how many sounds
+ * each volume can act on. interior = cabin sounds (indicator, wipers, windows, ...), navigation = the navigator's
+ * voice, engine / exhaust / turbo = that part of the engine, outside = everything heard from outside (engine, effects,
+ * horn, retarder, other trucks' engines). A volume whose count is 0 changes nothing with that mod. null: no guids file.
+ */
+export function provides(folder, name) {
+  let text;
+  try {
+    text = fs.readFileSync(path.join(folder, `${name}.bank.guids`), 'utf8');
+  } catch {
+    return null;
+  }
+  const p = { interior: 0, navigation: 0, engine: 0, exhaust: 0, turbo: 0, outside: 0 };
+  for (const m of text.matchAll(/event:\/([^\s]+)/g)) {
+    const e = m[1].toLowerCase();
+    const top = e.split('/')[0];
+    if (top === 'interior' || top === 'cabin') p.interior++;
+    else if (e.includes('navigation')) p.navigation++;
+    else p.outside++;
+    if (e === 'engine/engine') p.engine++;
+    if (e === 'engine/exhaust') p.exhaust++;
+    if (e.includes('turbo')) p.turbo++;
+  }
+  return p;
 }
 
 /** Sets one volume (0 to 1.5) in sound_levels.txt, keeping the other keys of the file. Returns the new state, or null. */

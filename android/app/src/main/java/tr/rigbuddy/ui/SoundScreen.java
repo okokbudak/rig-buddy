@@ -91,7 +91,8 @@ public final class SoundScreen {
       if (levels != null) {
         list.addView(Ui.text(c, Ui.s(R.string.sound_levels), 15, Ui.TEXT2, true), Ui.margins(Ui.matchWrap(), c, 0, 14, 0, 2));
         for (int i = 0; i < LEVEL_KEYS.length; i++) {
-          list.addView(level(game.optString("id"), LEVEL_KEYS[i], LEVEL_LABELS[i], levels.optDouble(LEVEL_KEYS[i], 0.5)), Ui.matchWrap());
+          boolean none = nothingToChange(mods, LEVEL_PROVIDES[i]);
+          list.addView(level(game.optString("id"), LEVEL_KEYS[i], LEVEL_LABELS[i], levels.optDouble(LEVEL_KEYS[i], 0.5), none), Ui.matchWrap());
         }
       }
     }
@@ -102,10 +103,43 @@ public final class SoundScreen {
   private static final int[] LEVEL_LABELS = {R.string.lv_master, R.string.lv_engine, R.string.lv_exhaust, R.string.lv_turbo,
       R.string.lv_interior, R.string.lv_navigation, R.string.lv_outside};
 
+  // what each volume acts on in a mod's "provides" (null: the whole output, always something)
+  private static final String[] LEVEL_PROVIDES = {null, "engine", "exhaust", "turbo", "interior", "navigation", "outside"};
+
+  /**
+   * True when the mods that are on are all known (they have a guids file) and none has a sound this volume acts on:
+   * moving it would change nothing. With no mod on, or one of unknown content, it is not claimed.
+   */
+  private static boolean nothingToChange(JSONArray mods, String kind) {
+    if (kind == null || mods == null) return false;
+    boolean anyOn = false;
+    for (int m = 0; m < mods.length(); m++) {
+      JSONObject mod = mods.optJSONObject(m);
+      if (mod == null || !mod.optBoolean("active")) continue;
+      anyOn = true;
+      JSONObject has = mod.optJSONObject("provides");
+      if (has == null || has.optInt(kind, 0) > 0) return false;
+    }
+    return anyOn;
+  }
+
+  /** What the mod has, in a line: the cabin sounds and the navigator's voice, and the engine parts. */
+  private String contents(JSONObject has) {
+    StringBuilder b = new StringBuilder();
+    b.append(Ui.s(R.string.sound_has_cabin, has.optInt("interior")));
+    b.append("  ·  ").append(Ui.s(R.string.sound_has_nav, has.optInt("navigation")));
+    String engine = (has.optInt("engine") > 0 ? Ui.s(R.string.lv_engine) + " " : "")
+        + (has.optInt("exhaust") > 0 ? Ui.s(R.string.lv_exhaust) + " " : "")
+        + (has.optInt("turbo") > 0 ? Ui.s(R.string.lv_turbo) : "");
+    if (!engine.trim().isEmpty()) b.append("  ·  ").append(engine.trim());
+    return b.toString();
+  }
+
   /** One volume: a label with its percentage and a slider from 0 to 150 %. It is sent when the finger lets go. */
-  private LinearLayout level(String gameId, String key, int labelRes, double value) {
+  private LinearLayout level(String gameId, String key, int labelRes, double value, boolean none) {
     LinearLayout box = Ui.column(c);
     box.setPadding(0, Ui.dp(c, 6), 0, Ui.dp(c, 2));
+    if (none) box.setAlpha(0.55f); // still adjustable: the list may be wrong, or a mod may be switched on later
     LinearLayout head = Ui.row(c);
     TextView label = Ui.text(c, Ui.s(labelRes), 17, Ui.TEXT, false);
     TextView percent = Ui.text(c, 17, Ui.TEXT2, false);
@@ -135,6 +169,7 @@ public final class SoundScreen {
       }
     });
     box.addView(bar, Ui.matchWrap());
+    if (none) box.addView(Ui.text(c, Ui.s(R.string.sound_level_none), 13, Ui.TEXT2, false));
     return box;
   }
 
@@ -147,6 +182,8 @@ public final class SoundScreen {
     texts.addView(Ui.text(c, name, 20, Ui.TEXT, false));
     if (!mod.optBoolean("guids", true)) {
       texts.addView(Ui.text(c, Ui.s(R.string.sound_no_guids), 13, Ui.RED, false));
+    } else if (mod.optJSONObject("provides") != null) {
+      texts.addView(Ui.text(c, contents(mod.optJSONObject("provides")), 13, Ui.TEXT2, false));
     }
     row.addView(texts, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)); // (Ui.hweight is for columns: it made the height 0)
 

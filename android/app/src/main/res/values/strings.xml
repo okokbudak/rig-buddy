@@ -259,4 +259,7 @@
     <string name="music_volume_app">Player volume</string>
     <string name="music_volume_system">PC volume (this player has none of its own)</string>
     <string name="job_cancelled">The job was cancelled: its route is closed.</string>
+    <string name="sound_has_cabin">Cabin sounds: %1$d</string>
+    <string name="sound_has_nav">Navigator: %1$d</string>
+    <string name="sound_level_none">The mods that are on have no sound of this kind: this volume changes nothing.</string>
 </resources>

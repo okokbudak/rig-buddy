@@ -257,4 +257,7 @@
     <string name="music_volume_app">Oynatıcının sesi</string>
     <string name="music_volume_system">PC sesi (bu oynatıcının kendi sesi yok)</string>
     <string name="job_cancelled">İş iptal edildi: rotası kapatıldı.</string>
+    <string name="sound_has_cabin">Kabin sesleri: %1$d</string>
+    <string name="sound_has_nav">Navigasyon: %1$d</string>
+    <string name="sound_level_none">Açık modlarda bu türde ses yok: bu kaydırıcı bir şeyi değiştirmez.</string>
 </resources>

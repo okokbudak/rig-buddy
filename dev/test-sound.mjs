@@ -37,6 +37,16 @@ assert.equal(setSoundMod('ats', 'v8', true), null, 'unknown game / not installed
 assert.equal(setSoundMod('nope', 'v8', true), null);
 assert.equal(fs.readFileSync(path.join(folder, 'selected.bank.txt'), 'utf8'), 'alpha\nv8', 'refused requests change nothing');
 
+// what a mod has (from its .bank.guids)
+fs.writeFileSync(path.join(folder, 'v8.bank.guids'), [
+  '{1} bank:/v8', '{2} bus:/cabin/interior', '{3} event:/engine/engine', '{4} event:/engine/exhaust', '{5} event:/engine/turbo_whistle',
+  '{6} event:/interior/stick_wipers', '{7} event:/interior/blinker_on', '{8} event:/horn/horn_01', '{9} event:/navigation/turn_left',
+].join('\n'));
+s = soundState();
+assert.deepEqual(s.games[0].mods.find(m => m.name === 'v8').provides,
+  { interior: 2, navigation: 1, engine: 1, exhaust: 1, turbo: 1, outside: 4 }, 'the sounds each volume can act on');
+assert.equal(s.games[0].mods.find(m => m.name === 'Pipe Mod').provides, null, 'no guids file: unknown');
+
 // volumes (sound_levels.txt)
 const { setSoundLevel, LEVELS } = await import('../pc/agent/sound.mjs');
 assert.equal(soundState().games[0].levels.turbo, LEVELS.turbo, 'no file yet: the plugin defaults');
