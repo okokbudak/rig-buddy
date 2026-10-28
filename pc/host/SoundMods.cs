@@ -148,17 +148,41 @@ static class SoundMods
         File.WriteAllText(Path.Combine(FolderOf(g), "selected.bank.txt"), string.Join("\n", names));
     }
 
-    /** Copies a sound mod (its .bank and the .bank.guids next to it) into the plugin folder. Returns the mod's name. */
-    public static string AddMod(Game g, string bankFile)
+    /**
+     * Adds a sound mod to the plugin folder and returns the names of the banks it brought. A ".scs" mod archive (a zip)
+     * is opened and the banks under sound/truck/ come out with their ".bank.guids"; a ".bank" is copied with the
+     * ".bank.guids" next to it, if there is one.
+     */
+    public static List<string> AddMod(Game g, string file)
     {
         string dir = FolderOf(g);
         Directory.CreateDirectory(dir);
-        string name = Path.GetFileNameWithoutExtension(bankFile);
-        File.Copy(bankFile, Path.Combine(dir, name + ".bank"), overwrite: true);
-        string guids = bankFile + ".guids";
+        var names = new List<string>();
+        if (file.EndsWith(".scs", StringComparison.OrdinalIgnoreCase))
+        {
+            using var zip = System.IO.Compression.ZipFile.OpenRead(file);
+            foreach (var entry in zip.Entries)
+            {
+                string path = entry.FullName.Replace('\\', '/');
+                if (!path.StartsWith("sound/truck/", StringComparison.OrdinalIgnoreCase)) continue;
+                bool bank = path.EndsWith(".bank", StringComparison.OrdinalIgnoreCase);
+                if (!bank && !path.EndsWith(".bank.guids", StringComparison.OrdinalIgnoreCase)) continue;
+                string target = Path.Combine(dir, Path.GetFileName(path)); // GetFileName: nothing from the archive can leave the folder
+                entry.ExtractToFile(target, overwrite: true);
+                if (bank) names.Add(Path.GetFileNameWithoutExtension(path));
+            }
+            return names;
+        }
+        string name = Path.GetFileNameWithoutExtension(file);
+        File.Copy(file, Path.Combine(dir, name + ".bank"), overwrite: true);
+        string guids = file + ".guids";
         if (File.Exists(guids)) File.Copy(guids, Path.Combine(dir, name + ".bank.guids"), overwrite: true);
-        return name;
+        names.Add(name);
+        return names;
     }
+
+    /** The plugin finds a mod's sounds through its ".bank.guids" list; without it the mod loads but plays nothing. */
+    public static bool HasGuids(Game g, string name) => File.Exists(Path.Combine(FolderOf(g), name + ".bank.guids"));
 
     static void CopyIfDifferent(string from, string to)
     {

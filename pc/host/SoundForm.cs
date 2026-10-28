@@ -107,15 +107,22 @@ sealed class SoundForm : Form
         using var dlg = new OpenFileDialog
         {
             Title = L.T("sound.add"),
-            Filter = "FMOD sound bank (*.bank)|*.bank",
+            Filter = "Sound mods (*.scs;*.bank)|*.scs;*.bank|SCS mod archive (*.scs)|*.scs|FMOD sound bank (*.bank)|*.bank",
             Multiselect = true,
         };
         if (dlg.ShowDialog(this) != DialogResult.OK) return;
         var chosen = new List<string>();
+        string? problem = null;
         foreach (string f in dlg.FileNames)
         {
-            try { chosen.Add(SoundMods.AddMod(g, f)); }
-            catch (Exception e) { _status.Text = e.Message; }
+            try
+            {
+                var added = SoundMods.AddMod(g, f);
+                if (added.Count == 0) problem = L.T("sound.none_in_scs", Path.GetFileName(f));
+                chosen.AddRange(added);
+            }
+            catch (InvalidDataException) { problem = L.T("sound.not_zip", Path.GetFileName(f)); }
+            catch (Exception e) { problem = e.Message; }
         }
         Reload();
         foreach (string name in chosen)
@@ -123,6 +130,9 @@ sealed class SoundForm : Form
             int i = _list.Items.IndexOf(name);
             if (i >= 0) _list.SetItemChecked(i, true);
         }
+        var noGuids = chosen.Where(n => !SoundMods.HasGuids(g, n)).ToList();
+        if (noGuids.Count > 0) _status.Text = L.T("sound.no_guids", string.Join(", ", noGuids));
+        else if (problem != null) _status.Text = problem;
     }
 
     void Move(int delta)
@@ -148,7 +158,8 @@ sealed class SoundForm : Form
         try
         {
             SoundMods.SaveSelected(g, names);
-            _status.Text = L.T("sound.saved");
+            var noGuids = names.Where(n => !SoundMods.HasGuids(g, n)).ToList();
+            _status.Text = noGuids.Count > 0 ? L.T("sound.no_guids", string.Join(", ", noGuids)) : L.T("sound.saved");
         }
         catch (Exception e)
         {
