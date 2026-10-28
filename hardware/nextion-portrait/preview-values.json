@@ -1,0 +1,576 @@
+[
+  {
+    "page": "page1",
+    "id": "clock",
+    "k": "text",
+    "value": "14:32",
+    "color": "#CFD6DF"
+  },
+  {
+    "page": "page1",
+    "id": "day",
+    "k": "text",
+    "value": "Çar",
+    "color": "#CFD6DF"
+  },
+  {
+    "page": "page1",
+    "id": "blinkL",
+    "k": "lamp",
+    "value": true,
+    "color": null
+  },
+  {
+    "page": "page1",
+    "id": "blinkR",
+    "k": "lamp",
+    "value": false,
+    "color": null
+  },
+  {
+    "page": "page1",
+    "id": "gear",
+    "k": "text",
+    "value": "12",
+    "color": "#8A96A3"
+  },
+  {
+    "page": "page1",
+    "id": "speed",
+    "k": "text",
+    "value": "86",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page1",
+    "id": "limitSign",
+    "k": "lamp",
+    "value": true,
+    "color": null
+  },
+  {
+    "page": "page1",
+    "id": "limit",
+    "k": "text",
+    "value": "90",
+    "color": "#111111"
+  },
+  {
+    "page": "page1",
+    "id": "cruise",
+    "k": "text",
+    "value": "85",
+    "color": "#5AA9FF"
+  },
+  {
+    "page": "page1",
+    "id": "ret1",
+    "k": "lamp",
+    "value": true,
+    "color": null
+  },
+  {
+    "page": "page1",
+    "id": "ret2",
+    "k": "lamp",
+    "value": true,
+    "color": null
+  },
+  {
+    "page": "page1",
+    "id": "ret3",
+    "k": "lamp",
+    "value": false,
+    "color": null
+  },
+  {
+    "page": "page1",
+    "id": "ret4",
+    "k": "lamp",
+    "value": false,
+    "color": null
+  },
+  {
+    "page": "page1",
+    "id": "dest",
+    "k": "text",
+    "value": "248 km · 3:05",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page1",
+    "id": "range",
+    "k": "text",
+    "value": "910 km",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page1",
+    "id": "lamp_park",
+    "k": "lamp",
+    "value": false,
+    "color": null
+  },
+  {
+    "page": "page1",
+    "id": "lamp_battery",
+    "k": "lamp",
+    "value": false,
+    "color": null
+  },
+  {
+    "page": "page1",
+    "id": "lamp_air",
+    "k": "lamp",
+    "value": true,
+    "color": null
+  },
+  {
+    "page": "page1",
+    "id": "lamp_fuel",
+    "k": "lamp",
+    "value": false,
+    "color": null
+  },
+  {
+    "page": "page1",
+    "id": "lamp_lowbeam",
+    "k": "lamp",
+    "value": true,
+    "color": null
+  },
+  {
+    "page": "page1",
+    "id": "lamp_highbeam",
+    "k": "lamp",
+    "value": false,
+    "color": null
+  },
+  {
+    "page": "page2",
+    "id": "clock",
+    "k": "text",
+    "value": "14:32",
+    "color": "#CFD6DF"
+  },
+  {
+    "page": "page2",
+    "id": "day",
+    "k": "text",
+    "value": "Çar",
+    "color": "#CFD6DF"
+  },
+  {
+    "page": "page2",
+    "id": "gearspeed",
+    "k": "text",
+    "value": "12 · 86",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page2",
+    "id": "city",
+    "k": "text",
+    "value": "Ankara",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page2",
+    "id": "company",
+    "k": "text",
+    "value": "Tree-Et Lojistik",
+    "color": "#CFD6DF"
+  },
+  {
+    "page": "page2",
+    "id": "origin",
+    "k": "text",
+    "value": "İstanbul · Posped",
+    "color": "#CFD6DF"
+  },
+  {
+    "page": "page2",
+    "id": "progress",
+    "k": "bar",
+    "value": 44.888888888888886,
+    "color": "#5AA9FF"
+  },
+  {
+    "page": "page2",
+    "id": "kmLeft",
+    "k": "text",
+    "value": "248 km",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page2",
+    "id": "eta",
+    "k": "text",
+    "value": "3:05 sa",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page2",
+    "id": "cargo",
+    "k": "text",
+    "value": "Elektronik · 18 t",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page2",
+    "id": "due",
+    "k": "text",
+    "value": "6:40",
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page2",
+    "id": "income",
+    "k": "text",
+    "value": "12480 EUR",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page2",
+    "id": "trailer",
+    "k": "text",
+    "value": "Krone · 34 TR 4512",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page2",
+    "id": "rest",
+    "k": "text",
+    "value": "2:15",
+    "color": "#F2A83B"
+  },
+  {
+    "page": "page3",
+    "id": "clock",
+    "k": "text",
+    "value": "14:32",
+    "color": "#CFD6DF"
+  },
+  {
+    "page": "page3",
+    "id": "day",
+    "k": "text",
+    "value": "Çar",
+    "color": "#CFD6DF"
+  },
+  {
+    "page": "page3",
+    "id": "gearspeed",
+    "k": "text",
+    "value": "12 · 86",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page3",
+    "id": "sys0",
+    "k": "text",
+    "value": "56% · 910 km",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page3",
+    "id": "sysbar0",
+    "k": "bar",
+    "value": 56,
+    "color": "#F2A83B"
+  },
+  {
+    "page": "page3",
+    "id": "sys1",
+    "k": "text",
+    "value": "89%",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page3",
+    "id": "sysbar1",
+    "k": "bar",
+    "value": 89,
+    "color": "#5AA9FF"
+  },
+  {
+    "page": "page3",
+    "id": "sys2",
+    "k": "text",
+    "value": "8.4 bar",
+    "color": "#FF5A4E"
+  },
+  {
+    "page": "page3",
+    "id": "sysbar2",
+    "k": "bar",
+    "value": 64.61538461538461,
+    "color": "#FF5A4E"
+  },
+  {
+    "page": "page3",
+    "id": "sys3",
+    "k": "text",
+    "value": "86 °C",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page3",
+    "id": "sysbar3",
+    "k": "bar",
+    "value": 71.66666666666667,
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page3",
+    "id": "sys4",
+    "k": "text",
+    "value": "92 °C",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page3",
+    "id": "sysbar4",
+    "k": "bar",
+    "value": 61.33333333333333,
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page3",
+    "id": "sys5",
+    "k": "text",
+    "value": "4.1 bar",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page3",
+    "id": "sysbar5",
+    "k": "bar",
+    "value": 51.2797775,
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page3",
+    "id": "sys6",
+    "k": "text",
+    "value": "27.6 V",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page3",
+    "id": "sysbar6",
+    "k": "bar",
+    "value": 80.00000000000001,
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page3",
+    "id": "sys7",
+    "k": "text",
+    "value": "372 °C",
+    "color": "#FF5A4E"
+  },
+  {
+    "page": "page3",
+    "id": "sysbar7",
+    "k": "bar",
+    "value": 93,
+    "color": "#FF5A4E"
+  },
+  {
+    "page": "page4",
+    "id": "clock",
+    "k": "text",
+    "value": "14:32",
+    "color": "#CFD6DF"
+  },
+  {
+    "page": "page4",
+    "id": "day",
+    "k": "text",
+    "value": "Çar",
+    "color": "#CFD6DF"
+  },
+  {
+    "page": "page4",
+    "id": "gearspeed",
+    "k": "text",
+    "value": "12 · 86",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page4",
+    "id": "dt0bar",
+    "k": "bar",
+    "value": 3,
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dt0",
+    "k": "text",
+    "value": "3%",
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dt1bar",
+    "k": "bar",
+    "value": 2,
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dt1",
+    "k": "text",
+    "value": "2%",
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dt2bar",
+    "k": "bar",
+    "value": 15,
+    "color": "#F2A83B"
+  },
+  {
+    "page": "page4",
+    "id": "dt2",
+    "k": "text",
+    "value": "15%",
+    "color": "#F2A83B"
+  },
+  {
+    "page": "page4",
+    "id": "dt3bar",
+    "k": "bar",
+    "value": 5,
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dt3",
+    "k": "text",
+    "value": "5%",
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dt4bar",
+    "k": "bar",
+    "value": 7.000000000000001,
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dt4",
+    "k": "text",
+    "value": "7%",
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dr0bar",
+    "k": "bar",
+    "value": 1,
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dr0",
+    "k": "text",
+    "value": "1%",
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dr1bar",
+    "k": "bar",
+    "value": 4,
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dr1",
+    "k": "text",
+    "value": "4%",
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dr2bar",
+    "k": "bar",
+    "value": 1,
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dr2",
+    "k": "text",
+    "value": "1%",
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dr3bar",
+    "k": "bar",
+    "value": 0,
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "dr3",
+    "k": "text",
+    "value": "0%",
+    "color": "#3FD17A"
+  },
+  {
+    "page": "page4",
+    "id": "odo",
+    "k": "text",
+    "value": "Kilometre: 128430 km",
+    "color": "#8A96A3"
+  },
+  {
+    "page": "page5",
+    "id": "offclock",
+    "k": "text",
+    "value": "14:32",
+    "color": "#3A414B"
+  },
+  {
+    "page": "page6",
+    "id": "clock",
+    "k": "text",
+    "value": "14:32",
+    "color": "#CFD6DF"
+  },
+  {
+    "page": "page6",
+    "id": "day",
+    "k": "text",
+    "value": "Çar",
+    "color": "#CFD6DF"
+  },
+  {
+    "page": "page6",
+    "id": "gearspeed",
+    "k": "text",
+    "value": "12 · 86",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page6",
+    "id": "wtitle",
+    "k": "text",
+    "value": "DÜŞÜK HAVA BASINCI",
+    "color": "#FFFFFF"
+  },
+  {
+    "page": "page6",
+    "id": "wdetail",
+    "k": "text",
+    "value": "8.4 bar · durmadan önce bekle",
+    "color": "#CFD6DF"
+  }
+]

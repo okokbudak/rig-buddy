@@ -1,10 +1,10 @@
 // The Rig Buddy window: start-up progress, the PC address to type into the app, what
-// is working, and everything the tray menu offers (services, game and map mods, Studio,
+// is working, and everything the tray menu offers (services, game and map mods,
 // theme, language, autostart, logs, exit). Closing it only hides it; the app keeps
 // running in the tray. Colors come from Theme.
 //
 // Layout (two columns, design units at 96 dpi):
-//   header   logo, name, version                        [ Open Studio ]
+//   header   logo, name, version
 //   left     progress / PC address / features
 //   right    services / map (game, mods, update)        / preferences
 //   bottom   [ Logs ]                                         [ Exit ]
@@ -26,7 +26,7 @@ sealed class StatusForm : Form
     readonly FeatureRow _nav, _vehicle, _jobs, _radio, _devices;
     readonly List<(NodeService Svc, FeatureRow Row)> _svcRows = new();
     readonly CheckBox _autostart;
-    readonly Button _studio, _restartAll, _gameEts2, _gameAts, _modsPick, _modsClear, _mapButton, _themeButton, _langButton, _logs, _exit;
+    readonly Button _restartAll, _gameEts2, _gameAts, _modsPick, _modsClear, _mapButton, _themeButton, _langButton, _logs, _exit;
     readonly Button[] _plain; // flat buttons that only follow the palette
     readonly List<(Control Control, Func<Palette, Color> Fore)> _labels = new();
     readonly System.Windows.Forms.Timer _timer = new() { Interval = 100 };
@@ -68,12 +68,6 @@ sealed class StatusForm : Form
         Controls.Add(logo);
         Controls.Add(Lbl("Rig Buddy", 80, 18, 16F, p => p.Text1, bold: true));
         Controls.Add(Lbl(L.T("win.subtitle", Application.ProductVersion.Split('+')[0]), 82, 50, 9F, p => p.Text2));
-        _studio = Btn("↗  " + L.T("win.studio"), 512, 24, 176);
-        _studio.Height = 40;
-        _studio.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
-        _studio.Click += (_, _) => _app.OpenStudio();
-        tips.SetToolTip(_studio, L.T("tray.studio"));
-        Controls.Add(_studio);
 
         // ---- left column --------------------------------------------------------------
         // start-up progress
@@ -301,10 +295,6 @@ sealed class StatusForm : Form
         foreach (var b in _plain) StyleButton(b);
         StyleButton(_fixButton);
         // the two prominent buttons
-        _studio.BackColor = p.Accent;
-        _studio.ForeColor = p.Dark ? p.Bg : Color.White;
-        _studio.FlatAppearance.BorderColor = p.Accent;
-        _studio.FlatAppearance.MouseOverBackColor = ControlPaint.Light(p.Accent, 0.15f);
         StyleButton(_exit);
         _exit.ForeColor = p.Red;
         StyleGame(_gameEts2, GameChoice.Setting == "ets2");

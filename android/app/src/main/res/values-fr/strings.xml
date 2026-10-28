@@ -223,17 +223,6 @@
     <string name="veh_limit">Limite %1$d</string>
     <string name="veh_cruise_on">Régulateur  %1$d %2$s</string>
     <string name="veh_cruise_off">Régulateur désactivé</string>
-    <string name="rail_led">LED</string>
-    <string name="led_title">Bandes LED</string>
-    <string name="led_sync">Studio pilote les LED (synchro avec le jeu)</string>
-    <string name="led_brightness">Luminosité</string>
-    <string name="led_sleep">Éteintes sans jeu</string>
-    <string name="led_presets">PRÉRÉGLAGES</string>
-    <string name="led_no_presets">Aucun préréglage. Enregistrez-en dans l’onglet LED de Studio.</string>
-    <string name="led_none">Aucune carte LED n’est configurée dans Studio.</string>
-    <string name="led_offline">Carte non connectée</string>
-    <string name="led_lit">Allumées</string>
-    <string name="led_dark">Éteintes</string>
     <string name="set_explore">Routes explorées : %1$s</string>
     <string name="explore_on">activé (orange-jaune)</string>
     <string name="explore_off">désactivé</string>

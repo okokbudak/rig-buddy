@@ -17,8 +17,6 @@ static class PortCheck
         (62841, ProtocolType.Tcp, true),  // telemetry bridge
         (62843, ProtocolType.Tcp, true),  // agent
         (62845, ProtocolType.Tcp, true),  // control port (RigBuddy.exe --quit and friends)
-        (62847, ProtocolType.Tcp, false), // serial ports for Studio
-        (62850, ProtocolType.Tcp, false), // Studio page
         (62846, ProtocolType.Udp, false), // the app finds the PC with this
     ];
 

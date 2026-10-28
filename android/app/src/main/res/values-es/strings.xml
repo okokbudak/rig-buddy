@@ -223,17 +223,6 @@
     <string name="veh_limit">Límite %1$d</string>
     <string name="veh_cruise_on">Control de crucero  %1$d %2$s</string>
     <string name="veh_cruise_off">Control de crucero apagado</string>
-    <string name="rail_led">LED</string>
-    <string name="led_title">Tiras LED</string>
-    <string name="led_sync">Studio controla los LED (sincronizado con el juego)</string>
-    <string name="led_brightness">Brillo</string>
-    <string name="led_sleep">Apagados sin juego</string>
-    <string name="led_presets">AJUSTES GUARDADOS</string>
-    <string name="led_no_presets">Aún no hay ajustes guardados. Guárdalos en la pestaña LED de Studio.</string>
-    <string name="led_none">No hay ninguna placa LED configurada en Studio.</string>
-    <string name="led_offline">Placa no conectada</string>
-    <string name="led_lit">Encendido</string>
-    <string name="led_dark">Apagado</string>
     <string name="set_explore">Carreteras exploradas: %1$s</string>
     <string name="explore_on">activado (naranja-amarillo)</string>
     <string name="explore_off">desactivado</string>

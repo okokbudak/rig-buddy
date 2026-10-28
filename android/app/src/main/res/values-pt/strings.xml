@@ -223,17 +223,6 @@
     <string name="veh_limit">Limite %1$d</string>
     <string name="veh_cruise_on">Piloto automático  %1$d %2$s</string>
     <string name="veh_cruise_off">Piloto automático desligado</string>
-    <string name="rail_led">LED</string>
-    <string name="led_title">Fitas de LED</string>
-    <string name="led_sync">O Studio controla os LEDs (sincronizado com o jogo)</string>
-    <string name="led_brightness">Brilho</string>
-    <string name="led_sleep">Apagados sem jogo</string>
-    <string name="led_presets">PREDEFINIÇÕES</string>
-    <string name="led_no_presets">Ainda não há predefinições. Salve algumas na aba LED do Studio.</string>
-    <string name="led_none">Nenhuma placa de LED configurada no Studio.</string>
-    <string name="led_offline">Placa não conectada</string>
-    <string name="led_lit">Acesos</string>
-    <string name="led_dark">Apagados</string>
     <string name="set_explore">Estradas exploradas: %1$s</string>
     <string name="explore_on">ativado (laranja-amarelo)</string>
     <string name="explore_off">desativado</string>

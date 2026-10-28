@@ -54,8 +54,6 @@ static class Program
         var bridge = new TelemetryBridge();
         try { bridge.Start(); }
         catch (Exception e) { Console.WriteLine($"bridge: disabled ({e.Message}); is another Rig Buddy running?"); }
-        try { new SerialHub().Start(); }
-        catch (Exception e) { Console.WriteLine($"serial hub: disabled ({e.Message})"); }
         Discovery.Start();
 
         var sup = new Supervisor(paths);
@@ -105,7 +103,6 @@ static class Program
             case "quit": app.Post(app.Exit); return "ok";
             case "show": app.Post(app.ShowWindow); return "ok";
             case "logs": app.Post(app.ShowLogs); return "ok";
-            case "studio": app.Post(app.OpenStudio); return "ok";
             case "restart": sup.Restart(svc); return "ok";
             case "stop" when svc != null: sup.SetEnabled(svc, false); return "ok";
             case "start" when svc != null: sup.SetEnabled(svc, true); return "ok";

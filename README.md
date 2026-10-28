@@ -51,9 +51,9 @@ truck.
   offer and the route is planned for you.
 - **Profile:** Your money, level, company, garages, trucks and drivers.
 - **Radio:** The station and song of the in-game radio.
-- **Rig Buddy Studio:** Drive your own dashboard hardware, such as analog
-  gauges and Nextion touch displays, from the game's data, and set it all up
-  on a web page on your PC (see "4. Optional: your own dashboard hardware").
+- **Dashboard hardware:** gauges, LEDs and Nextion displays are driven by the separate
+  program [SimRig Studio](https://github.com/okokbudak/simrig-studio) (it used to be part of
+  Rig Buddy).
 - **Any Android device:** Phone, tablet or car head unit (Android 5.0 or
   later). Light and dark theme, following your device's theme automatically.
 
@@ -118,24 +118,10 @@ the Jobs screen and its route is planned for you.
 
 ### 4. Optional: your own dashboard hardware
 
-**Rig Buddy Studio** turns the game's data into numbers for gauges and
-displays you build yourself. Open it with **Open Studio** in the Rig Buddy
-window (or the tray icon's menu); it is a web page that only your own PC can
-open (`http://127.0.0.1:62850`).
-
-- **Cockpit:** each gauge is a formula on the game's data, for example
-  `truck.speed.kph * 10` or `x.fuelPercent`, with its range and a live needle.
-  The numbers go out as plain lines (`v0,v1,v2`) over a USB serial port, up to
-  25 times a second. Any board that reads such lines works.
-- **Board:** for a gauge board with the matching firmware, see and set each
-  motor socket and save the settings to the board.
-- **Display:** a Nextion touch display: pages, touch areas and what each field
-  shows, drawn from formulas. Only what changed is sent.
-- **Connections** lists the serial ports; **Game data** lists everything the
-  game reports, live, to build formulas from.
-
-Close any other program that uses the same COM port (SimHub, for example): a
-port can only be used by one program at a time.
+Gauges, LED strips and Nextion displays for your rig are driven by **[SimRig Studio](https://github.com/okokbudak/simrig-studio)**,
+a separate program with its own installer. Until Rig Buddy 0.2.11 it was built in; since 0.3.0 it is not (the
+Studio page, the serial ports and the app's LED screen are gone from Rig Buddy). SimRig Studio takes over your
+Studio settings on its first start.
 
 ## Good to know
 
@@ -196,7 +182,6 @@ translations is a big help too; see "Translations" below.
 | `setup/` | Development setup, Node bundling (`bundle.mjs`), release scripts and the Inno Setup installer script |
 | `art/` | App icon (`rigbuddy.svg`) and `MakeIcon.java`, which renders the Android/Windows icons |
 | `dev/` | Simulation, deployment and protocol test tools; `dev/demo/` runs Rig Buddy with demo data for screenshots |
-| `hardware/` | Dashboard hardware that Studio drives: firmware for an Octopus Pro gauge controller and a portrait Nextion display (see `hardware/README.md`) |
 
 Created during setup and not part of the repository: `vendor/` (Node, Gradle,
 tm-maps), `data/` (data built from the game), `bin/` (RigBuddy.exe), `logs/`
@@ -321,10 +306,9 @@ araç ekranı gerçek bir kamyonun multimedya sistemi gibi davranır.
 - **Profil:** Paranız, seviyeniz, şirketiniz, garajlarınız, kamyonlarınız ve
   şoförleriniz.
 - **Radyo:** Oyun içi radyonun istasyon ve şarkı bilgisi.
-- **Rig Buddy Studio:** Kendi yaptığınız gösterge paneli donanımını, örneğin
-  analog göstergeleri ve Nextion dokunmatik ekranları oyunun verileriyle
-  sürün ve hepsini PC'nizdeki bir web sayfasından ayarlayın ("4. İsteğe bağlı:
-  kendi gösterge paneliniz" bölümüne bakın).
+- **Gösterge donanımı:** göstergeler, LED'ler ve Nextion ekranlar artık ayrı program olan
+  [SimRig Studio](https://github.com/okokbudak/simrig-studio) ile sürülür (eskiden Rig Buddy'nin
+  içindeydi).
 - **Her Android cihazda:** Telefon, tablet ya da araç multimedya ekranı
   (Android 5.0 ve üzeri). Açık ve koyu tema, cihazınızın temasına kendiliğinden uyar.
 
@@ -393,24 +377,10 @@ ekranında bir ilanı seçtiğinizde rotası kendiliğinden çizilir.
 
 #### 4. İsteğe bağlı: kendi gösterge paneliniz
 
-**Rig Buddy Studio**, oyunun verilerini kendi yaptığınız gösterge ve ekranlar
-için sayılara çevirir. Rig Buddy penceresindeki **Studio'yu aç** düğmesiyle
-(ya da simge menüsünden) açılır; yalnızca kendi PC'nizin açabildiği bir web
-sayfasıdır (`http://127.0.0.1:62850`).
-
-- **Kokpit:** her gösterge oyun verisi üzerinde bir formüldür, örneğin
-  `truck.speed.kph * 10` ya da `x.fuelPercent`; aralığı ve canlı ibresi
-  görünür. Sayılar USB seri port üzerinden düz satırlar (`v0,v1,v2`) olarak,
-  saniyede en çok 25 kez gönderilir. Böyle satırları okuyan her kart çalışır.
-- **Kart:** uygun yazılımı olan bir gösterge kartında her motor soketini görüp
-  ayarlayabilir ve ayarları karta kaydedebilirsiniz.
-- **Ekran:** Nextion dokunmatik ekran: sayfalar, dokunma alanları ve her
-  alanda ne yazacağı formüllerle çizilir. Yalnızca değişenler gönderilir.
-- **Bağlantılar** seri portları listeler; **Oyun verileri** oyunun bildirdiği
-  her şeyi canlı gösterir, formülleri buradan kurarsınız.
-
-Aynı COM portunu kullanan başka bir programı (örneğin SimHub) kapatın: bir
-port aynı anda yalnızca tek program tarafından kullanılabilir.
+Düzeneğinizin göstergeleri, LED şeritleri ve Nextion ekranları, kendi kurulum dosyası olan ayrı bir program olan
+**[SimRig Studio](https://github.com/okokbudak/simrig-studio)** ile sürülür. Rig Buddy 0.2.11'e kadar içindeydi; 0.3.0'dan
+itibaren yok (Studio sayfası, seri portlar ve uygulamadaki LED ekranı Rig Buddy'den çıktı). SimRig Studio ilk açılışta
+Studio ayarlarınızı devralır.
 
 ### Kullanırken bilmeniz gerekenler
 
@@ -476,7 +446,6 @@ ayrıntılar için aşağıdaki "Çeviriler" bölümüne bakabilirsiniz.
 | `setup/` | Geliştirme ortamı kurulumu, Node paketleme (`bundle.mjs`) ve sürüm betikleri, Inno Setup kurulum dosyası |
 | `art/` | Uygulama ikonu (`rigbuddy.svg`) ve Android/Windows ikonlarını üreten `MakeIcon.java` |
 | `dev/` | Simülasyon, dağıtım ve protokol testi araçları; `dev/demo/` ekran görüntüleri için Rig Buddy'yi demo verilerle çalıştırır |
-| `hardware/` | Studio'nun sürdüğü gösterge donanımı: Octopus Pro gösterge kartının firmware'i ve dikey Nextion ekran (`hardware/README.md`'ye bakın) |
 
 Kurulum sırasında oluşturulan ve depoya eklenmeyen klasörler: `vendor/`
 (Node, Gradle, tm-maps), `data/` (oyundan üretilen veri), `bin/`

@@ -109,8 +109,6 @@ sealed class TrayApp : ApplicationContext
             modsClear.Enabled = n > 0;
             modsMenu.Enabled = _maps.State is not MapState.Building;
         };
-        var studio = new ToolStripMenuItem(L.T("tray.studio"));
-        studio.Click += (_, _) => OpenStudio();
         var logs = new ToolStripMenuItem(L.T("tray.logs"));
         logs.Click += (_, _) => ShowLogs();
         var theme = Choices(L.T("tray.theme"), Theme.Choices.Select(c => (c.Value, L.T(c.Label))),
@@ -121,7 +119,7 @@ sealed class TrayApp : ApplicationContext
         _autostart.Click += (_, _) => SetAutostart(_autostart.Checked);
         var exit = new ToolStripMenuItem(L.T("tray.exit"));
         exit.Click += (_, _) => Exit();
-        _menu.Items.AddRange([restart, map, game, modsMenu, studio, logs, theme, language, _autostart, new ToolStripSeparator(), exit]);
+        _menu.Items.AddRange([restart, map, game, modsMenu, logs, theme, language, _autostart, new ToolStripSeparator(), exit]);
         _menu.Opening += (_, _) =>
         {
             _autostart.Checked = AutostartEnabled(); // the window may have changed it
@@ -186,13 +184,6 @@ sealed class TrayApp : ApplicationContext
     public void ShowWindow() => _window.ShowInFront();
 
     public void ShowLogs() => _logs.ShowInFront();
-
-    /** Rig Buddy Studio: the agent serves it on the loopback address, in the default browser. */
-    public void OpenStudio()
-    {
-        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("http://127.0.0.1:62850/") { UseShellExecute = true }); }
-        catch (Exception e) { Console.WriteLine($"studio: cannot open the browser: {e.Message}"); }
-    }
 
     /** Runs `action` on the UI thread (for calls from the control port). */
     public void Post(Action action) => _ui.Post(_ => action(), null);
