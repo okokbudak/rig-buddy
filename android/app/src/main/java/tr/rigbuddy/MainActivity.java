@@ -1204,8 +1204,15 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     // the home screen shows the live map in a card, following the truck
     boolean mapShown = "map".equals(screen) || "home".equals(screen);
     if (mapShown) updateSnap(now);
-    double shownLon = snapValid ? snapLon : pose.lon;
-    double shownLat = snapValid ? snapLat : pose.lat;
+    // The correction towards the tarmac is eased in and out (a company yard, a junction, a curve: the nearest road changes
+    // from one query to the next, and a marker that jumps with it looks like stutter).
+    double wantDx = snapValid ? snapDx : 0, wantDy = snapValid ? snapDy : 0;
+    double ease = 1 - Math.exp(-Math.min(200, now - lastEaseMs) / SNAP_EASE_MS);
+    lastEaseMs = now;
+    easeDx += (wantDx - easeDx) * ease;
+    easeDy += (wantDy - easeDy) * ease;
+    double shownLon = pose.lon + easeDx;
+    double shownLat = pose.lat + easeDy;
     if (following && mapShown) {
       double targetZoom = zoomForSpeed(pose.speed * 3.6);
       smoothedZoom += (targetZoom - smoothedZoom) * 0.03;
@@ -1263,11 +1270,15 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
    * (SnapToNearestRoad, ROAD_SNAP_MAX_DISTANCE), which is why its truck never
    * hangs off the road.
    */
-  private static final double SNAP_MAX_M = 450;    // map metres, i.e. ~23 game metres
+  // Only the width of a lane or so: a truck in a company yard is far from any mapped road, and pulling it to the nearest one
+  // (the public road outside) made the marker hop up and down while loading.
+  private static final double SNAP_MAX_M = 130;    // map metres, i.e. ~7 game metres
   private static final long SNAP_INTERVAL_MS = 250;
-  private double snapLon, snapLat;
+  private static final double SNAP_EASE_MS = 220;
+  private double snapDx, snapDy;                   // correction (degrees) found by the last query
+  private double easeDx, easeDy;                   // the correction as drawn, eased
   private boolean snapValid;
-  private long lastSnapMs;
+  private long lastSnapMs, lastEaseMs;
 
   private void updateSnap(long now) {
     if (now - lastSnapMs < SNAP_INTERVAL_MS) return;
@@ -1308,8 +1319,8 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     }
     snapValid = best < SNAP_MAX_M;
     if (snapValid) {
-      snapLon = bestLon;
-      snapLat = bestLat;
+      snapDx = bestLon - pose.lon;
+      snapDy = bestLat - pose.lat;
     }
   }
 
