@@ -151,10 +151,11 @@ export function loadSave(game) {
       distanceKm: num(profile.cached_distance),
     },
     jobs,
-    // Roads and junctions the player has driven: the map items' uids as lowercase hex, the way the map tiles carry them
-    explored: (Array.isArray(economy.discovered_items) ? economy.discovered_items : [])
+    // Roads and junctions the player has driven: the map items' uids as lowercase hex, the way the map tiles carry them.
+    // Each once: the app puts them into a MapLibre "match", which rejects a label that comes twice (no roads drawn at all).
+    explored: [...new Set((Array.isArray(economy.discovered_items) ? economy.discovered_items : [])
       .map(s => { try { return BigInt(s).toString(16); } catch { return ''; } })
-      .filter(Boolean),
+      .filter(Boolean))],
   };
 }
 
