@@ -32,8 +32,9 @@ const TM = path.resolve(opt('--tm') ?? path.join(HERE, '../vendor/tm-maps'));
 const DATA = path.resolve(opt('--data') ?? path.join(HERE, '../data'));
 const WORK = path.resolve(opt('--work') ?? path.join(HERE, '../local/map-build'));
 const PARSER_OUT = path.join(WORK, 'parser');
-// reading ETS2 with every map DLC peaks around 3.5 GB; leave small PCs some air
-const HEAP = `--max-old-space-size=${os.totalmem() >= 24 * 1024 ** 3 ? 16384 : os.totalmem() >= 16 * 1024 ** 3 ? 10240 : 4096}`;
+// reading ETS2 with every map DLC peaks above 4 GB (1.61.1.9 on a PC with 4 GB allowed died with "heap out of memory");
+// the number is a ceiling, not an allocation: node takes only what it needs, a small PC pages the rest
+const HEAP = `--max-old-space-size=${os.totalmem() >= 24 * 1024 ** 3 ? 16384 : os.totalmem() >= 16 * 1024 ** 3 ? 10240 : 7168}`;
 // release layout (setup/bundle.mjs): dist/pipeline next to dist/parser, dist/generator, dist/resources
 const BUNDLED = fs.existsSync(path.join(HERE, '../parser/index.mjs'));
 const RESOURCES = BUNDLED ? path.join(HERE, '../resources') : path.join(TM, 'packages/clis/generator/resources');
