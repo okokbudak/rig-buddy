@@ -217,8 +217,9 @@ public final class MapStyle {
     if (uids.isEmpty()) {
       byUid = new JSONArray().put("to-color").put(c.unexplored);
     } else {
+      // each label once: a "match" with a label twice is invalid, and MapLibre then draws none of the layer
       JSONArray labels = new JSONArray();
-      for (String u : uids) labels.put(u);
+      for (String u : new java.util.LinkedHashSet<>(uids)) labels.put(u);
       byUid = new JSONArray().put("match").put(get("uid")).put(labels).put(c.explored).put(c.unexplored);
     }
     if ("road-surfaces".equals(layerId)) {
