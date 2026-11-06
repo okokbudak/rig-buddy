@@ -3,8 +3,9 @@
 namespace common
 {
     // Rig Buddy sound plugin, based on ts-fmod-plugin 1.61 by Dario Wouters (MIT); "rb1" = Rig Buddy's own changes
-    inline const char* plugin_version = "1.61-rb1";
-    constexpr uint32_t supported_game_version = 61;
+    // (1.62: the truck's control fields, from the flags on, sit 8 bytes higher; see memory_structure.h)
+    inline const char* plugin_version = "1.62-rb1";
+    constexpr uint32_t supported_game_version = 62;
 
     inline FMOD_GUID get_guid(const std::string& s_guid)
     {

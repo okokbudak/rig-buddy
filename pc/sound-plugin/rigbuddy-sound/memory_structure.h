@@ -95,7 +95,10 @@ public:
     float cruise_control_speed; // W 0x0208, L|A 0x0200 (W|L|A 0x04)
     char pad_W_0x020C__LA_0x0204[ 36 ]; // W 0x020C, L|A 0x0204 (W|L|A 0x24)
     uint32_t wiper_setting; // W 0x0230, L|A 0x0228 (W|L|A 0x04)
-    char pad_W_0x0234__LA_0x022C[ 16 ]; // W 0x0234, L|A 0x022C (W|L|A 0x10)
+    // 1.62 (Windows): 8 more bytes here than in 1.61, so everything below sits 8 bytes higher than the "W" offsets in the
+    // comments (flags: 0x244 -> 0x24C, checked in the game's own code; the fields after it by the same shift, which the
+    // plugin's diagnostics (debug.txt in the plugin folder) check against the running game).
+    char pad_W_0x0234__LA_0x022C[ 24 ]; // W 0x0234, L|A 0x022C (W 0x18 in 1.62)
     uint16_t flags; // W 0x0244, L|A 0x023C (W|L|A 0x02) 6 = parking lights, 8 = low beam, 7 = high beam, 5 = beacons, 0 = truck axle lifted, 1 = trailer axle lifted
     char pad_W_0x0246__LA_0x023E[ 4 ]; // W 0x0246, L|A 0x023E (W|L|A 0x04)
     uint16_t additional_illumination; // W 0x024A, L|A 0x0242 (W|L|A 0x02) (flags) 3 = front, 4 = roof
@@ -230,7 +233,7 @@ public:
         return engine_brake_state;
     }
 };
-static_assert( sizeof( game_actor_u ) == 0x1ED10 );
+static_assert( sizeof( game_actor_u ) == 0x1ED18 ); // not the game's size, only this layout's (the plugin reads through a pointer)
 
 
 // Size: 0x0010

@@ -37,6 +37,83 @@ bool is_window_moving = false;
 bool is_left_window_button_active = false;
 bool is_right_window_button_active = false;
 
+// Rig Buddy: the game's objects are read through pointers whose layout can change with a game update. Never read
+// memory that is not mapped: a wrong offset then gives a wrong value, not a crash.
+static bool readable(const void* p, const size_t n)
+{
+    if (p == nullptr) return false;
+    const auto* c = static_cast<const char*>(p);
+    const auto* const end = c + n;
+    MEMORY_BASIC_INFORMATION mbi;
+    while (c < end)
+    {
+        if (VirtualQuery(c, &mbi, sizeof(mbi)) == 0) return false;
+        if (mbi.State != MEM_COMMIT || (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD)) != 0) return false;
+        c = static_cast<const char*>(mbi.BaseAddress) + mbi.RegionSize;
+    }
+    return true;
+}
+
+// Rig Buddy: a file called debug.txt in the plugin's folder (<game>\bin\win_x64\plugins\rigbuddy-sound) switches on a
+// log line every 3 s with the raw floats of the truck's control block and what the plugin makes of them. After a game
+// update this is how the offsets in memory_structure.h are checked against the running game.
+static void debug_dump(const game_actor_u* actor, const sound_library_t* interior)
+{
+    static ULONGLONG next_check = 0;
+    static bool enabled = false;
+    static ULONGLONG next_dump = 0;
+    const auto now = GetTickCount64();
+    if (now >= next_check)
+    {
+        next_check = now + 5000;
+        char dll_path[MAX_PATH] = {};
+        HMODULE module = nullptr;
+        GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCSTR>(&debug_dump), &module);
+        GetModuleFileNameA(module, dll_path, MAX_PATH);
+        std::string path(dll_path);
+        path = path.substr(0, path.find_last_of("\\/") + 1) + "rigbuddy-sound\\debug.txt";
+        enabled = GetFileAttributesA(path.c_str()) != INVALID_FILE_ATTRIBUTES;
+    }
+    if (!enabled || now < next_dump || !readable(actor, 0x480)) return;
+    next_dump = now + 3000;
+
+    const auto* raw = reinterpret_cast<const uint8_t*>(actor);
+    char line[512];
+    for (uint32_t base = 0x370; base < 0x470; base += 0x40)
+    {
+        std::string text;
+        for (uint32_t o = base; o < base + 0x40; o += 4)
+        {
+            float f;
+            memcpy(&f, raw + o, sizeof(f));
+            snprintf(line, sizeof(line), " %03X=%.3f", o, f);
+            text += line;
+        }
+        scs_log(SCS_LOG_TYPE_message, ("[rigbuddy-sound][debug] actor" + text).c_str());
+    }
+    snprintf(line, sizeof(line),
+             "[rigbuddy-sound][debug] engine_state=%u turbo=%.3f lights=%.3f horn=%.3f hazard=%.3f wipers=%.3f "
+             "engine_brake=%.3f | win L dir=%u mov=%u state=%.3f btn=%.3f | R dir=%u mov=%u state=%.3f btn=%.3f | rpm=%.0f gear=%d",
+             actor->get_engine_state(), actor->get_turbo_pressure(), actor->get_light_switch_state(),
+             actor->get_light_horn_state(), actor->get_hazard_warning_state(), actor->get_wipers_state(),
+             actor->get_engine_brake_state(), actor->left_window_moving_direction, actor->is_left_window_moving,
+             actor->left_window_state, actor->left_window_btn_state, actor->right_window_moving_direction,
+             actor->is_right_window_moving, actor->right_window_state, actor->right_window_btn_state,
+             telemetry_data.rpm, telemetry_data.gear);
+    scs_log(SCS_LOG_TYPE_message, line);
+    if (interior != nullptr && readable(interior, 0x1CC8))
+    {
+        snprintf(line, sizeof(line),
+                 "[rigbuddy-sound][debug] sound_library interior_cam=%d camera_inside=%d window_state=(%.3f, %.3f) "
+                 "cabin_out=%.3f cabin_rot=%.3f echo=%u now_playing_nav=%p",
+                 interior->get_is_on_interior_cam(), interior->get_is_camera_inside(), interior->get_window_state().x,
+                 interior->get_window_state().y, interior->cabin_out, interior->get_camera_rotation_in_cabin(),
+                 interior->get_has_echo(), static_cast<const void*>(interior->get_now_playing_navigation_sound()));
+        scs_log(SCS_LOG_TYPE_message, line);
+    }
+}
+
 scs_telemetry_register_for_channel_t register_for_channel = nullptr;
 scs_telemetry_unregister_from_channel_t unregister_from_channel = nullptr;
 #define register_channel(name, index, type, field) register_for_channel(SCS_TELEMETRY_##name, index, SCS_VALUE_TYPE_##type, SCS_TELEMETRY_CHANNEL_FLAG_no_value, telemetry_store_##type, &telemetry_data.field);
@@ -78,8 +155,9 @@ SCSAPI_VOID telemetry_tick(const scs_event_t event, const void* const event_info
             const auto game_actor_ptr = base_ctrl_address + game_actor_offset;
             const auto* game_actor = *reinterpret_cast<game_actor_u**>(game_actor_ptr);
 
-            if (game_actor != nullptr)
+            if (game_actor != nullptr && readable(game_actor, 0x480))
             {
+                debug_dump(game_actor, *reinterpret_cast<sound_library_t**>(sound_system_ptr));
                 const auto turbo_pressure = game_actor->get_turbo_pressure();
                 if (turbo_pressure >= 0 && turbo_pressure <= 1)
                 {
@@ -187,7 +265,7 @@ SCSAPI_VOID telemetry_tick(const scs_event_t event, const void* const event_info
 
         const auto* interior = *reinterpret_cast<sound_library_t**>(sound_system_ptr);
 
-        if (interior != nullptr)
+        if (interior != nullptr && readable(interior, 0x1CC8))
         {
             const auto window_pos = interior->get_window_state();
             if (window_pos.x >= 0 && window_pos.x <= 1)
@@ -227,7 +305,10 @@ SCSAPI_VOID telemetry_tick(const scs_event_t event, const void* const event_info
             fmod_manager_instance->set_global_parameter("surr_type", interior->get_has_echo());
 
             const auto now_playing_navigation_sound = interior->get_now_playing_navigation_sound();
-            if (now_playing_navigation_sound != nullptr && last_played != now_playing_navigation_sound)
+            // (readable: a wrong offset would otherwise hand a wild pointer to get_event_name())
+            if (now_playing_navigation_sound != nullptr && last_played != now_playing_navigation_sound &&
+                readable(now_playing_navigation_sound, sizeof(voice_navigation_sound_t)) &&
+                readable(now_playing_navigation_sound->get_event_name(), 1))
             {
                 fmod_manager_instance->set_event_state(now_playing_navigation_sound->get_event_name(), true, true);
             }

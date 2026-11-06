@@ -51,8 +51,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,61,0,0
- PRODUCTVERSION 1,61,0,0
+ FILEVERSION 1,62,0,0
+ PRODUCTVERSION 1,62,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -69,12 +69,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Rig Buddy"
             VALUE "FileDescription", "Rig Buddy sound plugin for ATS/ETS2 (based on ts-fmod-plugin by Dario Wouters)"
-            VALUE "FileVersion", "1.61.0.0"
+            VALUE "FileVersion", "1.62.0.0"
             VALUE "InternalName", "rigbuddy-sound.dll"
             VALUE "LegalCopyright", "Copyright (C) 2023 Dario Wouters, 2026 Orhan Kokbudak. MIT license."
             VALUE "OriginalFilename", "rigbuddy-sound.dll"
             VALUE "ProductName", "Rig Buddy sound plugin"
-            VALUE "ProductVersion", "1.61.0.0"
+            VALUE "ProductVersion", "1.62.0.0"
         END
     END
     BLOCK "VarFileInfo"
