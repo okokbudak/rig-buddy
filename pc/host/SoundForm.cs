@@ -9,8 +9,18 @@ sealed class SoundForm : Form
     readonly CheckedListBox _list = new() { CheckOnClick = true, Dock = DockStyle.Fill, IntegralHeight = false, BorderStyle = BorderStyle.None };
     readonly Label _hint = new() { Dock = DockStyle.Bottom, Height = 96, Padding = new Padding(12, 6, 12, 6) };
     readonly Label _status = new() { AutoSize = true, Margin = new Padding(12, 9, 0, 0) };
-    readonly FlowLayoutPanel _top = new() { Dock = DockStyle.Top, Height = 48, Padding = new Padding(10, 10, 10, 0), WrapContents = false };
-    readonly FlowLayoutPanel _bar = new() { Dock = DockStyle.Bottom, Height = 48, Padding = new Padding(10, 8, 10, 8) };
+    // Both bars grow with their content: in a narrow window the buttons wrap onto a second row, and a fixed height cut that
+    // row off (Save disappeared below the window's edge).
+    readonly FlowLayoutPanel _top = new()
+    {
+        Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(0, 48),
+        Padding = new Padding(10, 10, 10, 4), WrapContents = true,
+    };
+    readonly FlowLayoutPanel _bar = new()
+    {
+        Dock = DockStyle.Bottom, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, MinimumSize = new Size(0, 48),
+        Padding = new Padding(10, 8, 10, 8), WrapContents = true,
+    };
     readonly List<Button> _buttons = new();
     readonly Action _onThemeChanged;
     List<SoundMods.Game> _games = [];
@@ -21,7 +31,7 @@ sealed class SoundForm : Form
         AutoScaleMode = AutoScaleMode.Dpi;
         Text = L.T("sound.title");
         ClientSize = new Size(640, 760);
-        MinimumSize = new Size(560, 640);
+        MinimumSize = new Size(420, 420); // smaller than the content needs is fine: the list gives way, the buttons stay
         StartPosition = FormStartPosition.CenterScreen;
         Font = new Font("Segoe UI", 9F);
         try { Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!); } catch { }
