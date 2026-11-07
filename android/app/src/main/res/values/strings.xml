@@ -262,4 +262,16 @@
     <string name="sound_has_cabin">Cabin sounds: %1$d</string>
     <string name="sound_has_nav">Navigator: %1$d</string>
     <string name="sound_level_none">The mods that are on have no sound of this kind: this volume changes nothing.</string>
+    <string name="update_title">Rig Buddy update</string>
+    <string name="update_prompt">Rig Buddy %1$s is out (this device has %2$s). Download and install it now?</string>
+    <string name="update_install">Download and install</string>
+    <string name="update_skip">Skip this version</string>
+    <string name="update_later">Later</string>
+    <string name="update_waiting_pc">The PC is getting the update ready…</string>
+    <string name="update_downloading">Downloading… %1$d / %2$d MB</string>
+    <string name="update_need_permission">Android has to allow Rig Buddy to install apps, once. Allow it on the next screen, then come back: the install goes on by itself.</string>
+    <string name="update_open_settings">Open settings</string>
+    <string name="update_bad_hash">the download does not match the file on GitHub; it was not installed</string>
+    <string name="update_failed">The update could not be installed: %1$s</string>
+    <string name="update_no_pc">The update comes from the PC: connect to the PC first.</string>
 </resources>

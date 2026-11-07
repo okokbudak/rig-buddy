@@ -106,6 +106,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private TextView maneuverDistance, maneuverText, tripTime, tripDetail, speedView, speedLimitView, statusView, messageView;
 
   private SharedPreferences prefs;
+  private tr.rigbuddy.update.AppUpdater updater; // "new version" window: download from the PC and install
   private NavClient nav;
   private final TruckTracker tracker = new TruckTracker();
   private final TruckTracker.Pose pose = new TruckTracker.Pose();
@@ -184,6 +185,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     prefs = getSharedPreferences("rigbuddy", MODE_PRIVATE);
+    updater = new tr.rigbuddy.update.AppUpdater(this, prefs, this::host, AgentClient.PORT);
     // theme first: every screen reads Ui's palette while it is built
     Ui.applyTheme(Ui.resolveDark(this, Ui.themeSetting(prefs)));
     // the map follows the app's theme until the game says whether it is day or
@@ -1536,7 +1538,10 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
             loadStyle();
             refreshExplored();
           } else {
-            openUpdatePage();
+            // the "new version" window when the PC can hand out the APK, else the release page
+            String sha = prefs.getString("updateApkSha", "");
+            if (!sha.isEmpty()) updater.show(latest, sha, prefs.getLong("updateApkSize", 0));
+            else openUpdatePage();
           }
         })
         .setNegativeButton(Ui.s(R.string.btn_close), null)
@@ -1555,10 +1560,15 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
       if (json == null) return;
       String latest = json.optString("latest", "");
       if (latest.isEmpty() || !newerThan(latest, BuildConfig.VERSION_NAME)) {
-        prefs.edit().remove("updateLatest").remove("updateUrl").apply();
+        prefs.edit().remove("updateLatest").remove("updateUrl").remove("updateApkSha").remove("updateApkSize").apply();
         return;
       }
-      prefs.edit().putString("updateLatest", latest).putString("updateUrl", json.optString("url", "")).apply();
+      JSONObject apk = json.optJSONObject("apk");
+      String sha = apk != null ? apk.optString("sha256", "") : "";
+      long size = apk != null ? apk.optLong("size", 0) : 0;
+      prefs.edit().putString("updateLatest", latest).putString("updateUrl", json.optString("url", ""))
+          .putString("updateApkSha", sha).putLong("updateApkSize", size).apply();
+      updater.offer(latest, sha, size); // right after the start: the "download and install / skip / later" window
       if (!latest.equals(prefs.getString("updateNotified", ""))) { // once per version
         prefs.edit().putString("updateNotified", latest).apply();
         flashMessage(Ui.s(R.string.update_app_available, latest));
@@ -1745,6 +1755,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     super.onResume();
     mapView.onResume();
     hideSystemUi();
+    updater.onResume(); // back from "allow installing apps": go on with a downloaded update
     frameLoopRunning = true;
     Choreographer.getInstance().postFrameCallback(this);
   }

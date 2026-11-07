@@ -260,4 +260,16 @@
     <string name="sound_has_cabin">Kabin sesleri: %1$d</string>
     <string name="sound_has_nav">Navigasyon: %1$d</string>
     <string name="sound_level_none">Açık modlarda bu türde ses yok: bu kaydırıcı bir şeyi değiştirmez.</string>
+    <string name="update_title">Rig Buddy güncellemesi</string>
+    <string name="update_prompt">Rig Buddy %1$s çıktı (bu cihazda %2$s kurulu). Şimdi indirip kurmak ister misin?</string>
+    <string name="update_install">İndir ve kur</string>
+    <string name="update_skip">Bu sürümü atla</string>
+    <string name="update_later">Sonra</string>
+    <string name="update_waiting_pc">PC güncellemeyi hazırlıyor…</string>
+    <string name="update_downloading">İndiriliyor… %1$d / %2$d MB</string>
+    <string name="update_need_permission">Android\'in Rig Buddy\'ye bir kez uygulama yükleme izni vermesi gerekiyor. Sonraki ekranda izin ver ve geri dön: kurulum kendiliğinden devam eder.</string>
+    <string name="update_open_settings">Ayarları aç</string>
+    <string name="update_bad_hash">indirilen dosya GitHub\'daki dosyayla aynı değil, kurulmadı</string>
+    <string name="update_failed">Güncelleme kurulamadı: %1$s</string>
+    <string name="update_no_pc">Güncelleme PC\'den gelir: önce PC\'ye bağlanın.</string>
 </resources>

@@ -1,7 +1,7 @@
 // The update check (pc/agent/update.mjs): version comparison, and the real GitHub answer for this repository.
 import assert from 'node:assert/strict';
 
-const { isNewer, updateInfo, setupAsset } = await import('../pc/agent/update.mjs');
+const { isNewer, updateInfo, setupAsset, apkFile } = await import('../pc/agent/update.mjs');
 
 // the installer offered to RigBuddy.exe: only this repository's, only with GitHub's SHA-256
 const H = 'ab'.repeat(32);
@@ -36,6 +36,25 @@ if (live.latest) {
   assert.ok(live.url.startsWith('https://github.com/okokbudak/rig-buddy/'));
   assert.equal(live.newer, true, 'an old version has a newer one');
   console.log(`GitHub says: ${live.latest} (${live.url}); installer: ${live.setup ? `${live.setup.url} sha256 ${live.setup.sha256.slice(0, 12)}… ${live.setup.size} B` : 'none offered'}`);
+  // the APK for the apps: fetched once by the PC, checked against GitHub's SHA-256
+  if (live.apk) {
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rb-apk-'));
+    const fake = async () => new Response(new Uint8Array([1, 2, 3]));
+    await assert.rejects(apkFile(dir, fake), /checksum/, 'a download that does not match is refused');
+    assert.ok(!fs.existsSync(path.join(dir, 'update', `RigBuddy-${live.latest}.apk`)), '... and not kept');
+    const a = await apkFile(dir);
+    assert.equal(a.version, live.latest);
+    assert.equal(a.sha256, live.apk.sha256);
+    assert.equal(fs.statSync(a.file).size, live.apk.size);
+    fs.writeFileSync(path.join(dir, 'update', 'RigBuddy-0.0.1.apk'), 'old');
+    const again = await apkFile(dir, () => { throw new Error('must not download again'); });
+    assert.equal(again.file, a.file, 'a good copy is reused');
+    console.log(`APK: ${path.basename(a.file)} ${a.size} B, checksum ok`);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 } else {
   console.log('GitHub not reachable from here: live part skipped');
 }

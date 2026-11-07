@@ -11,6 +11,7 @@
 //                                    answers with the new state (volume, muted, volumeScope: the player's own or the PC's)
 //   GET  /sound           -> {games: [{id, name, mods: [{name, active, guids}]}]}: the sound plugin's mods per game
 //   POST /sound {game, mod, active} -> switches a sound mod on or off (the plugin loads it within a second)
+//   GET  /update/apk      -> the latest release's RigBuddy.apk (this PC fetches it from GitHub and checks its SHA-256)
 //   GET  /tiles           -> {"ets2": {size, version}}: map files the app can download
 //   GET  /tiles/ets2.mbtiles -> the map file itself
 //   GET  /tiles/sprites.json|png -> the map's POI icons ("sprites" in /tiles)
@@ -28,7 +29,7 @@ import { createRadio } from './radio.mjs';
 import { findLatestSave, loadSave } from './save.mjs';
 import { mediaCommand, mediaState } from './media.mjs';
 import { setSoundLevel, setSoundMod, soundState } from './sound.mjs';
-import { updateInfo } from './update.mjs';
+import { apkFile, updateInfo } from './update.mjs';
 
 const PORT = Number(process.env.AGENT_PORT || 62843);
 const TELEMETRY_HZ = 5;
@@ -304,6 +305,20 @@ const server = http.createServer((req, res) => {
     // is there a newer Rig Buddy on GitHub: {latest, url, name, current, newer} (asked at most every 6 hours)
     if (req.method !== 'GET') return send(405, { error: 'method' });
     updateInfo().then(i => send(200, i), () => send(200, { latest: null, newer: false }));
+    return;
+  }
+  if (url.pathname === '/update/apk') {
+    // the latest release's APK, fetched from GitHub by this PC and checked against GitHub's SHA-256 (the app checks again)
+    if (req.method !== 'GET') return send(405, { error: 'method' });
+    apkFile(DATA_DIR).then(a => {
+      res.writeHead(200, {
+        'Content-Type': 'application/vnd.android.package-archive',
+        'Content-Length': fs.statSync(a.file).size,
+        'X-RigBuddy-Version': a.version,
+        'X-RigBuddy-Sha256': a.sha256,
+      });
+      fs.createReadStream(a.file).pipe(res);
+    }, e => send(502, { error: e.message }));
     return;
   }
   if (url.pathname === '/media') {
