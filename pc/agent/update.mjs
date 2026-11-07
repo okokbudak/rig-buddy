@@ -33,10 +33,23 @@ async function fetchLatest() {
   if (!/^\d+(\.\d+)*$/.test(version)) throw new Error('unexpected tag');
   // only a page on this repository is ever offered to open
   const url = typeof j.html_url === 'string' && j.html_url.startsWith(`https://github.com/${REPO}/`) ? j.html_url : `https://github.com/${REPO}/releases/latest`;
-  return { version, url, name: j.name ?? `Rig Buddy ${version}`, publishedAt: j.published_at ?? null };
+  return { version, url, name: j.name ?? `Rig Buddy ${version}`, publishedAt: j.published_at ?? null, setup: setupAsset(j.assets) };
 }
 
-/** { latest, url, name, publishedAt, current, newer }; latest is null while nothing is known (offline, checking is off). */
+/**
+ * The installer of a release, for RigBuddy.exe's "Download and install": { url, sha256, size }, or null. Only a file of
+ * this repository's releases, and only with the SHA-256 GitHub computed for it (the `digest` of the asset): the PC
+ * program checks the download against it before it runs anything.
+ */
+export function setupAsset(assets) {
+  const a = Array.isArray(assets) ? assets.find(x => x?.name === 'RigBuddy-Setup.exe') : null;
+  const url = a?.browser_download_url;
+  const digest = typeof a?.digest === 'string' ? /^sha256:([0-9a-f]{64})$/i.exec(a.digest)?.[1] : null;
+  if (typeof url !== 'string' || !url.startsWith(`https://github.com/${REPO}/releases/download/`) || !digest) return null;
+  return { url, sha256: digest.toLowerCase(), size: Number.isSafeInteger(a.size) ? a.size : null };
+}
+
+/** { latest, url, name, publishedAt, setup, current, newer }; latest is null while nothing is known (offline, checking is off). */
 export async function updateInfo() {
   const current = process.env.RIGBUDDY_VERSION || null;
   if (process.env.RIGBUDDY_UPDATE_CHECK === '0') return { latest: null, current, newer: false, disabled: true };
@@ -52,6 +65,7 @@ export async function updateInfo() {
     url: latest?.url ?? null,
     name: latest?.name ?? null,
     publishedAt: latest?.publishedAt ?? null,
+    setup: latest?.setup ?? null,
     current,
     newer: latest && current ? isNewer(latest.version, current) : false,
   };

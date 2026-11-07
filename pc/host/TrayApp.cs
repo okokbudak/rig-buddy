@@ -26,6 +26,7 @@ sealed class TrayApp : ApplicationContext
     LogForm _logs = null!;
     Color _lastColor = Color.Empty;
     bool _hiddenHintShown;
+    bool _updateAsked; // the "new version" window comes at most once per start
 
     public TrayApp(Supervisor sup, TelemetryBridge bridge, MapBuilder maps, bool quiet)
     {
@@ -54,7 +55,16 @@ sealed class TrayApp : ApplicationContext
         UpdateCheck.Changed += fresh => Post(() =>
         {
             RefreshUpdateItem();
-            if (fresh && UpdateCheck.Available is { } a) Balloon(L.T("update.balloon", a.Version));
+            if (UpdateCheck.Available is not { } a) return;
+            // at start (its first minutes), not over a running game and not for a version the user skipped: ask
+            // (download and install / skip / later); otherwise only the balloon, once per version
+            if (!_updateAsked && DateTime.UtcNow - UpdateCheck.StartedAt < TimeSpan.FromMinutes(10) &&
+                UpdateCheck.SkippedVersion != a.Version && !PluginCheck.GameRunning())
+            {
+                _updateAsked = true;
+                new UpdateForm(a).Show();
+            }
+            else if (fresh) Balloon(L.T("update.balloon", a.Version));
         });
         UpdateCheck.Start();
         Refresh();
@@ -79,9 +89,9 @@ sealed class TrayApp : ApplicationContext
         open.Click += (_, _) => ShowWindow();
         _problem = new ToolStripMenuItem { Visible = false, ForeColor = Color.Firebrick };
         _problem.Click += (_, _) => OpenPath("https://github.com/okokbudak/rig-buddy#readme");
-        // a newer release on GitHub: shown only then; opens its page
+        // a newer release on GitHub: shown only then; opens the "new version" window (download and install / skip / later)
         _update = new ToolStripMenuItem { Visible = false, ForeColor = Color.SeaGreen, Font = new Font(_menu.Font, FontStyle.Bold) };
-        _update.Click += (_, _) => { if (UpdateCheck.Available is { } a) OpenPath(a.Url); };
+        _update.Click += (_, _) => { if (UpdateCheck.Available is { } a) new UpdateForm(a).Show(); };
         _menu.Items.AddRange([open, _problem, _update, new ToolStripSeparator()]);
         _svcItems.Clear();
         foreach (var s in _sup.Services)
