@@ -1,0 +1,63 @@
+From 08a2e0d61c98b4ee9b95e77ed7c0d3652356014d Mon Sep 17 00:00:00 2001
+From: Orhan <spitintomyjar@protonmail.com>
+Date: Wed, 11 Nov 2026 21:04:49 +0300
+Subject: [PATCH] Search data: skip scenery towns in countries this
+ installation does not have
+
+The scenery town list covers the whole game. Without a map DLC (West Balkans brings North Macedonia) the town's country is missing and 'unknown country code: NMK' stopped the map build. Those towns are now skipped with one warning.
+---
+ packages/clis/generator/commands/search.ts | 24 ++++++++++++++--------
+ 1 file changed, 16 insertions(+), 8 deletions(-)
+
+diff --git a/packages/clis/generator/commands/search.ts b/packages/clis/generator/commands/search.ts
+index 5f47d3b..05c5960 100644
+--- a/packages/clis/generator/commands/search.ts
++++ b/packages/clis/generator/commands/search.ts
+@@ -157,21 +157,23 @@ export function handler(args: BuilderArguments<typeof builder>) {
+     cityToSearchFeature(city, context),
+   );
+ 
+-  const scenery = sceneryTowns.features.map(f => {
++  // The scenery towns are a fixed list for the whole game; a town in a country that comes with a map DLC this
++  // installation does not have (e.g. North Macedonia without West Balkans) is skipped, not an error.
++  const skippedScenery = new Map<string, number>();
++  const scenery = sceneryTowns.features.flatMap(f => {
+     let state;
+     if (args.map === 'usa') {
+       const [country, stateCode] = f.properties.country.split('-');
+       if (country !== 'US') {
+         throw new Error();
+       }
+-      state = assertExists(
+-        tsMapData.countries.values().find(c => c.code === stateCode),
+-      );
++      state = tsMapData.countries.values().find(c => c.code === stateCode);
+     } else {
+-      state = assertExists(
+-        tsMapData.countries.values().find(c => c.code === f.properties.country),
+-        'unknown country code: ' + f.properties.country,
+-      );
++      state = tsMapData.countries.values().find(c => c.code === f.properties.country);
++    }
++    if (!state) {
++      skippedScenery.set(f.properties.country, (skippedScenery.get(f.properties.country) ?? 0) + 1);
++      return [];
+     }
+     return point(f.geometry.coordinates, {
+       dlcGuard: assertExists(
+@@ -187,6 +189,12 @@ export function handler(args: BuilderArguments<typeof builder>) {
+       type: 'scenery',
+     });
+   });
++  if (skippedScenery.size) {
++    logger.warn(
++      'scenery towns skipped (their country is not in this installation):',
++      Object.fromEntries(skippedScenery),
++    );
++  }
+ 
+   const normalizeCoords = createNormalizeFeature(args.map, 4);
+   writeGeojsonFile(
+-- 
+2.43.0
+
