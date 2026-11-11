@@ -1,0 +1,67 @@
+From f5ab23dd67bb34d25f276c7b5b3dca2aab7961d9 Mon Sep 17 00:00:00 2001
+From: Orhan <spitintomyjar@protonmail.com>
+Date: Wed, 11 Nov 2026 06:26:35 +0300
+Subject: [PATCH] ETS2 Iceland: DLC guards 26 (Iceland) and 27 (Iceland +
+ Nordic Horizons), dlc_iceland.scs
+
+ETS2 1.62.2 brings Iceland in dlc_iceland.scs. Its cities, companies and ferries now get guard 26, and the Alesund side of the Alesund - Seydisfjordur ferry (guard 27) is no longer an unknown guard, which kept it out of routing.
+---
+ packages/libs/map/constants.ts | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/packages/libs/map/constants.ts b/packages/libs/map/constants.ts
+index 4ad4247..d027223 100644
+--- a/packages/libs/map/constants.ts
++++ b/packages/libs/map/constants.ts
+@@ -248,6 +248,7 @@ enum Ets2Dlc {
+   Feldbinder,
+   Greece,
+   NordicHorizons,
++  Iceland,
+ }
+ export type Ets2SelectableDlc = Exclude<Ets2Dlc, Ets2Dlc.HeartOfRussia>;
+ export const Ets2SelectableDlcs: ReadonlySet<Ets2SelectableDlc> = new Set([
+@@ -261,6 +262,7 @@ export const Ets2SelectableDlcs: ReadonlySet<Ets2SelectableDlc> = new Set([
+   Ets2Dlc.WestBalkans,
+   Ets2Dlc.Greece,
+   Ets2Dlc.NordicHorizons,
++  Ets2Dlc.Iceland,
+   Ets2Dlc.Krone,
+   Ets2Dlc.Feldbinder,
+ ]);
+@@ -279,11 +281,12 @@ export const Ets2DlcInfo: Record<Ets2SelectableDlc, string> = {
+   [Ets2Dlc.WestBalkans]: 'West Balkans',
+   [Ets2Dlc.Greece]: 'Greece',
+   [Ets2Dlc.NordicHorizons]: 'Nordic Horizons',
++  [Ets2Dlc.Iceland]: 'Iceland',
+   [Ets2Dlc.Krone]: 'Krone Trailer Pack',
+   [Ets2Dlc.Feldbinder]: 'Feldbinder Trailer Pack',
+ };
+ 
+-export type Ets2DlcGuard = Range<0, 26>;
++export type Ets2DlcGuard = Range<0, 28>;
+ 
+ export const Ets2DlcGuards: Record<number, ReadonlySet<Ets2Dlc>> = {
+   0: new Set(),
+@@ -312,6 +315,10 @@ export const Ets2DlcGuards: Record<number, ReadonlySet<Ets2Dlc>> = {
+   23: new Set([Ets2Dlc.NordicHorizons]),
+   24: new Set([Ets2Dlc.NordicHorizons, Ets2Dlc.BeyondTheBalticSea]),
+   25: new Set([Ets2Dlc.NordicHorizons, Ets2Dlc.Scandinavia]),
++  // ETS2 1.62.2 (Iceland): 26 marks Iceland's landmarks (its roads come only with dlc_iceland.scs, see
++  // Ets2ScsSourceToDlcGuard); 27 the Ålesund side of the Ålesund - Seyðisfjörður ferry (Nordic Horizons' port)
++  26: new Set([Ets2Dlc.Iceland]),
++  27: new Set([Ets2Dlc.Iceland, Ets2Dlc.NordicHorizons]),
+ };
+ 
+ export const Ets2ScsSourceToDlcGuard: Record<string, Ets2DlcGuard> = {
+@@ -326,6 +333,7 @@ export const Ets2ScsSourceToDlcGuard: Record<string, Ets2DlcGuard> = {
+   'dlc_balkan_w.scs': 16,
+   'dlc_greece.scs': 20,
+   'dlc_polar.scs': 23,
++  'dlc_iceland.scs': 26,
+   // cargo
+   'dlc_feldbinder.scs': 19,
+   'dlc_krone.scs': 15,
+-- 
+2.43.0
+
