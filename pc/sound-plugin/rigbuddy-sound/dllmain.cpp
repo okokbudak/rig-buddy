@@ -114,6 +114,110 @@ static void debug_dump(const game_actor_u* actor, const sound_library_t* interio
     }
 }
 
+// Rig Buddy: the bus DLC's job. The telemetry plugin Rig Buddy reads (scs-sdk-plugin) predates it, and SCS has not
+// documented the "bus_job" configuration's attributes yet (telemetry 1.20: "added bus job related configs, events and
+// channels"). This plugin is a telemetry plugin too: it writes whatever the game sends for "bus_job" to bus_job.json in
+// its folder (for the PC agent) and logs it, with every gameplay event, to the game log.
+static std::string plugin_folder()
+{
+    char dll_path[MAX_PATH] = {};
+    HMODULE module = nullptr;
+    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                       reinterpret_cast<LPCSTR>(&plugin_folder), &module);
+    GetModuleFileNameA(module, dll_path, MAX_PATH);
+    std::string path(dll_path);
+    return path.substr(0, path.find_last_of("\\/") + 1) + "rigbuddy-sound\\";
+}
+
+static std::string value_text(const scs_value_t& v)
+{
+    char b[160];
+    switch (v.type)
+    {
+    case SCS_VALUE_TYPE_bool: return v.value_bool.value ? "true" : "false";
+    case SCS_VALUE_TYPE_s32: return std::to_string(v.value_s32.value);
+    case SCS_VALUE_TYPE_u32: return std::to_string(v.value_u32.value);
+    case SCS_VALUE_TYPE_u64: return std::to_string(v.value_u64.value);
+    case SCS_VALUE_TYPE_s64: return std::to_string(v.value_s64.value);
+    case SCS_VALUE_TYPE_float: snprintf(b, sizeof(b), "%g", v.value_float.value); return b;
+    case SCS_VALUE_TYPE_double: snprintf(b, sizeof(b), "%.10g", v.value_double.value); return b;
+    case SCS_VALUE_TYPE_fvector:
+        snprintf(b, sizeof(b), "%g %g %g", v.value_fvector.x, v.value_fvector.y, v.value_fvector.z); return b;
+    case SCS_VALUE_TYPE_dvector:
+        snprintf(b, sizeof(b), "%.10g %.10g %.10g", v.value_dvector.x, v.value_dvector.y, v.value_dvector.z); return b;
+    case SCS_VALUE_TYPE_fplacement:
+        snprintf(b, sizeof(b), "%g %g %g", v.value_fplacement.position.x, v.value_fplacement.position.y,
+                 v.value_fplacement.position.z); return b;
+    case SCS_VALUE_TYPE_dplacement:
+        snprintf(b, sizeof(b), "%.10g %.10g %.10g", v.value_dplacement.position.x, v.value_dplacement.position.y,
+                 v.value_dplacement.position.z); return b;
+    case SCS_VALUE_TYPE_string: return v.value_string.value ? v.value_string.value : "";
+    default: return "?";
+    }
+}
+
+static std::string json_quote(const std::string& s)
+{
+    std::string out = "\"";
+    for (const char ch : s)
+    {
+        if (ch == '"' || ch == '\\') { out += '\\'; out += ch; }
+        else if (static_cast<unsigned char>(ch) < 0x20) out += ' ';
+        else out += ch;
+    }
+    return out + "\"";
+}
+
+/** "name[3]=value ..." for the log and {"name[3]": "value", ...} for the file. */
+static void describe(const scs_named_value_t* attributes, std::string& text, std::string& json)
+{
+    bool first = true;
+    for (const auto* a = attributes; a != nullptr && a->name != nullptr; ++a)
+    {
+        std::string key = a->name;
+        if (a->index != SCS_U32_NIL) key += "[" + std::to_string(a->index) + "]";
+        const std::string val = value_text(a->value);
+        text += " " + key + "=" + val;
+        json += (first ? "" : ",") + json_quote(key) + ":" + json_quote(val);
+        first = false;
+    }
+}
+
+static void log_long(const std::string& line)
+{
+    for (size_t i = 0; i < line.size(); i += 900) scs_log(SCS_LOG_TYPE_message, line.substr(i, 900).c_str());
+}
+
+SCSAPI_VOID telemetry_configuration(const scs_event_t, const void* const event_info, scs_context_t)
+{
+    const auto* cfg = static_cast<const scs_telemetry_configuration_t*>(event_info);
+    if (cfg == nullptr || cfg->id == nullptr) return;
+    const std::string id = cfg->id;
+    if (id != "bus_job" && id != "job") return;
+    std::string text, json;
+    describe(cfg->attributes, text, json);
+    log_long("[rigbuddy-sound][config " + id + "]" + (text.empty() ? " (empty: no job)" : text));
+    if (id != "bus_job") return;
+    const std::string file = plugin_folder() + "bus_job.json";
+    const std::string tmp = file + ".tmp";
+    if (FILE* f = fopen(tmp.c_str(), "wb"))
+    {
+        const std::string body = "{\"attributes\":{" + json + "}}";
+        fwrite(body.data(), 1, body.size(), f);
+        fclose(f);
+        MoveFileExA(tmp.c_str(), file.c_str(), MOVEFILE_REPLACE_EXISTING);
+    }
+}
+
+SCSAPI_VOID telemetry_gameplay(const scs_event_t, const void* const event_info, scs_context_t)
+{
+    const auto* e = static_cast<const scs_telemetry_gameplay_event_t*>(event_info);
+    if (e == nullptr || e->id == nullptr) return;
+    std::string text, json;
+    describe(e->attributes, text, json);
+    log_long(std::string("[rigbuddy-sound][event ") + e->id + "]" + text);
+}
+
 scs_telemetry_register_for_channel_t register_for_channel = nullptr;
 scs_telemetry_unregister_from_channel_t unregister_from_channel = nullptr;
 #define register_channel(name, index, type, field) register_for_channel(SCS_TELEMETRY_##name, index, SCS_VALUE_TYPE_##type, SCS_TELEMETRY_CHANNEL_FLAG_no_value, telemetry_store_##type, &telemetry_data.field);
@@ -482,6 +586,13 @@ SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_in
     {
         version_params->common.log(SCS_LOG_TYPE_error, "[rigbuddy-sound] Unable to register event callbacks");
         return SCS_RESULT_generic_error;
+    }
+    // Rig Buddy: the bus job and gameplay events (see telemetry_configuration); not needed for the sounds, so a game that
+    // refuses them only loses that
+    if (version_params->register_for_event(SCS_TELEMETRY_EVENT_configuration, telemetry_configuration, nullptr) != SCS_RESULT_ok ||
+        version_params->register_for_event(SCS_TELEMETRY_EVENT_gameplay, telemetry_gameplay, nullptr) != SCS_RESULT_ok)
+    {
+        version_params->common.log(SCS_LOG_TYPE_warning, "[rigbuddy-sound] No configuration / gameplay events: the bus job is not passed on");
     }
     register_for_channel = version_params->register_for_channel;
 
