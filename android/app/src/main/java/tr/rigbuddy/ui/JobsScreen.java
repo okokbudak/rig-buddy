@@ -83,7 +83,7 @@ public final class JobsScreen {
         kind = index;
         updateChips();
         selected = null;
-        this.detail.setVisibility(View.GONE);
+        hideDetail(); // (a method: the final field can't be read here, in the constructor, before it is set)
         load(true);
       });
       kindChips.add(t);
@@ -196,6 +196,10 @@ public final class JobsScreen {
     else cmp = (a, b) -> Double.compare(a.optDouble("pickupKm", 1e9), b.optDouble("pickupKm", 1e9));
     Collections.sort(jobs, cmp);
     adapter.notifyDataSetChanged();
+  }
+
+  private void hideDetail() {
+    detail.setVisibility(View.GONE);
   }
 
   private static boolean isBus(JSONObject j) {
