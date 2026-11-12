@@ -200,7 +200,8 @@ SCSAPI_VOID telemetry_configuration(const scs_event_t, const void* const event_i
     if (id != "bus_job") return;
     const std::string file = plugin_folder() + "bus_job.json";
     const std::string tmp = file + ".tmp";
-    if (FILE* f = fopen(tmp.c_str(), "wb"))
+    FILE* f = nullptr;
+    if (fopen_s(&f, tmp.c_str(), "wb") == 0 && f != nullptr)
     {
         const std::string body = "{\"attributes\":{" + json + "}}";
         fwrite(body.data(), 1, body.size(), f);
