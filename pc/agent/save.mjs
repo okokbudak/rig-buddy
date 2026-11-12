@@ -36,11 +36,19 @@ export function defs(game) {
     companyDefs: new Map(load('companyDefs').map(c => [c.token, c])),
     cargoes: new Map(load('cargoes').map(c => [c.token, c])),
     countries: new Map(load('countries').map(c => [c.token, c])),
-    // city -> its bus station (the one nearest the centre); written by build-map-data since map format 7
+    // city -> where its bus lines stop (the stop nearest the centre); written by build-map-data since map format 7
     busStations: new Map(),
+    // "viewpoints.blkwtirana" -> the stop next to that viewpoint, for tourist lines (map format 8)
+    viewpoints: new Map(),
   };
   try {
-    for (const s of load('busStations')) if (!d.busStations.has(s.city)) d.busStations.set(s.city, s);
+    const list = load('busStations'); // a city's stops nearest the centre first
+    for (const s of list) {
+      if (s.viewpoint) d.viewpoints.set(s.viewpoint, s);
+      else if (s.city && !d.busStations.has(s.city) && !(s.snap > 500)) d.busStations.set(s.city, s);
+    }
+    // a city whose stops are all far from a road node still gets one of them
+    for (const s of list) if (s.city && !d.busStations.has(s.city)) d.busStations.set(s.city, s);
   } catch {
     // a map from before the bus jobs: only the approximate places below
   }
@@ -226,19 +234,47 @@ function toJob(d, game, companyToken, cityToken, o, gameTime) {
 }
 
 /**
- * A bus line offer (line_offer_data of a city's bus_stop): from that city's bus station through one or more cities.
- * The save has no pay for it (the game works it out when the line is taken), so estimatedIncome is null.
+ * A bus line offer (line_offer_data of a city's bus_stop): from that city's stop through one or more stops. A regular
+ * line's stops are cities ("city.X"); a tourist line visits a viewpoint ("viewpoints.X") and comes back to its city.
+ * Each stop is where the game stops the bus - a bus station or a roadside stop (map format 8) - and waypoints lists
+ * their road nodes in order, for a route through all of them. The save has no pay for the line (the game works it
+ * out when the line is taken), so estimatedIncome is null.
  */
 function toBusJob(d, cityToken, o, gameTime) {
   const list = v => (Array.isArray(v) ? v : []);
-  const targets = list(o.saved_targets).map(t => String(t).replace(/^"|"$/g, '').replace(/^city\./, ''));
-  const km = list(o.targets_distances).map(n => num(n));
-  const min = list(o.targets_times).map(n => num(n));
-  const last = targets.at(-1) ?? '';
+  const raw = list(o.saved_targets).map(t => String(t).replace(/^"|"$/g, ''));
+  // the save has each leg's distance and time (Tekirdag > Tirana 867 km, Tirana > Tekirdag 879 km); the app shows
+  // them from the start of the line, so they add up
+  const sums = v => {
+    let total = 0;
+    return list(v).map(n => (total += num(n)));
+  };
+  const km = sums(o.targets_distances);
+  const min = sums(o.targets_times);
   const srcCity = d.cities.get(cityToken);
   const place = city => d.busStations.get(city) ?? d.cityCentreNode.get(city) ?? null;
+  // every stop of the line: its name, city (for a city stop) and where the bus stops; "0" is a target the game
+  // dropped (a DLC no longer there)
+  const stops = [];
+  raw.forEach((t, i) => {
+    if (!t || t === '0' || t === 'null') return;
+    if (t.startsWith('viewpoints.')) {
+      const v = d.viewpoints.get(t);
+      stops.push({ city: v?.name || t.slice(11), viewpoint: true, at: v ?? null, km: km[i] ?? null, min: min[i] ?? null });
+    } else {
+      const token = t.replace(/^city\./, '');
+      stops.push({ token, city: d.cities.get(token)?.name ?? token, at: place(token), km: km[i] ?? null, min: min[i] ?? null });
+    }
+  });
+  const lastStop = stops.at(-1);
+  const last = lastStop?.token ?? '';
   const src = place(cityToken);
-  const dst = place(last);
+  const dst = lastStop?.at ?? null;
+  const waypoints = [];
+  for (const n of [src?.nodeUid, ...stops.map(s => s.at?.nodeUid)]) {
+    if (n != null && waypoints.at(-1) !== String(n)) waypoints.push(String(n));
+  }
+  const targets = raw.map(t => t.replace(/^city\./, ''));
   return {
     kind: 'bus',
     id: `bus>${cityToken}>${targets.join('>')}>${o.departure_time_of_day}>${o.expiration_time}`,
@@ -247,18 +283,25 @@ function toBusJob(d, cityToken, o, gameTime) {
       company: '',
       city: srcCity?.name ?? cityToken,
       nodeUid: src?.nodeUid ?? null,
-      approx: src?.approx === true, // no bus station building: the company entrance nearest the city centre
+      approx: src?.approx === true, // no bus stop known: the company entrance nearest the city centre
       x: src?.x ?? srcCity?.x ?? null,
       y: src?.y ?? srcCity?.y ?? null,
     },
     destination: {
       company: '',
-      city: d.cities.get(last)?.name ?? last,
+      city: lastStop?.city ?? last,
       country: d.countries.get(d.cities.get(last)?.countryToken)?.name ?? '',
       nodeUid: dst?.nodeUid ?? null,
       approx: dst?.approx === true,
     },
-    stops: targets.map((t, i) => ({ city: d.cities.get(t)?.name ?? t, km: km[i] ?? null, min: min[i] ?? null })),
+    stops: stops.map(s => ({
+      city: s.city,
+      ...(s.viewpoint ? { viewpoint: true } : {}),
+      nodeUid: s.at?.nodeUid ?? null,
+      km: s.km,
+      min: s.min,
+    })),
+    waypoints, // source, then every stop: road nodes for a route through the whole line
     distanceKm: km.at(-1) ?? 0,
     durationMin: min.at(-1) ?? null,
     departureMin: num(o.departure_time_of_day), // minutes after midnight, in the game

@@ -280,6 +280,6 @@
     <string name="bus_departs">Kalkış %1$s</string>
     <string name="bus_stops">Duraklar: %1$s</string>
     <string name="bus_takes">yaklaşık %1$s sürer</string>
-    <string name="bus_station">%1$s otogarı</string>
+    <string name="bus_station">%1$s otobüs durağı</string>
     <string name="bus_approx">(merkeze yakın)</string>
 </resources>

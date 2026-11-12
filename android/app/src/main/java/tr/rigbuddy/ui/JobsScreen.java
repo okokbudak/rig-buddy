@@ -25,8 +25,8 @@ import tr.rigbuddy.agent.AgentClient;
 /** Freight-market offers and bus lines (bus DLC) read from the latest save by the PC agent. */
 public final class JobsScreen {
   public interface Actions {
-    /** Route truck -> pickup (-> destination when destNode != null) in the app. */
-    void routeJob(String pickupNode, String destNode, String label);
+    /** Route truck -> nodes[0] (-> nodes[1] -> ...) in the app: a job's pickup and delivery, or a bus line's stops. */
+    void routeJob(List<String> nodes, String label);
   }
 
   private final Context c;
@@ -121,22 +121,29 @@ public final class JobsScreen {
     full.setOnClickListener(v -> {
       if (selected == null) return;
       JSONObject s = selected.optJSONObject("source"), d = selected.optJSONObject("destination");
-      actions.routeJob(s.optString("nodeUid"), d.optString("nodeUid"),
-          (isBus(selected) ? lineLabel(selected) : selected.optString("cargo")) + " → " + d.optString("city"));
+      List<String> nodes = new ArrayList<>();
+      JSONArray via = selected.optJSONArray("waypoints"); // a bus line: its source and every stop, in order
+      if (via != null && via.length() >= 2) {
+        for (int i = 0; i < via.length(); i++) nodes.add(via.optString(i));
+      } else {
+        nodes.add(s.optString("nodeUid"));
+        nodes.add(d.optString("nodeUid"));
+      }
+      actions.routeJob(nodes, (isBus(selected) ? lineLabel(selected) : selected.optString("cargo")) + " → " + d.optString("city"));
     });
     detail.addView(full, Ui.matchWrap());
     TextView pickup = button(Ui.s(R.string.jobs_route_pickup), Ui.TRACK, Ui.TEXT);
     pickup.setOnClickListener(v -> {
       if (selected == null) return;
       JSONObject s = selected.optJSONObject("source");
-      actions.routeJob(s.optString("nodeUid"), null, place(selected, s));
+      actions.routeJob(Collections.singletonList(s.optString("nodeUid")), place(selected, s));
     });
     detail.addView(pickup, Ui.margins(Ui.matchWrap(), c, 0, 10, 0, 0));
     TextView delivery = button(Ui.s(R.string.jobs_route_delivery), Ui.TRACK, Ui.TEXT);
     delivery.setOnClickListener(v -> {
       if (selected == null) return;
       JSONObject d = selected.optJSONObject("destination");
-      actions.routeJob(d.optString("nodeUid"), null, place(selected, d));
+      actions.routeJob(Collections.singletonList(d.optString("nodeUid")), place(selected, d));
     });
     detail.addView(delivery, Ui.margins(Ui.matchWrap(), c, 0, 10, 0, 0));
     detail.setVisibility(View.GONE);
@@ -213,7 +220,7 @@ public final class JobsScreen {
     return bus.isEmpty() ? line : line + "  ·  " + bus;
   }
 
-  /** Where a route goes: a company in its city, or a city's bus station (or, without one, its centre). */
+  /** Where a route goes: a company in its city, or a city's bus stop (or, without one, its centre). */
   private static String place(JSONObject job, JSONObject end) {
     if (!isBus(job)) return end.optString("company") + ", " + end.optString("city");
     return end.optBoolean("approx") ? end.optString("city") + " " + Ui.s(R.string.bus_approx)

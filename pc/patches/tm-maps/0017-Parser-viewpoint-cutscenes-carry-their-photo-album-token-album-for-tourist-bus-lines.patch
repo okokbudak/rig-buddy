@@ -1,0 +1,79 @@
+From faf5c0709a600214553bee2f5b14bf47d64446fc Mon Sep 17 00:00:00 2001
+From: Orhan <spitintomyjar@protonmail.com>
+Date: Fri, 13 Nov 2026 01:10:37 +0300
+Subject: [PATCH] Parser: viewpoint cutscenes carry their photo album token
+ (album), for tourist bus lines
+
+---
+ packages/clis/parser/game-files/def-parser.ts       | 6 +++++-
+ packages/clis/parser/game-files/map-files-parser.ts | 5 ++++-
+ packages/libs/map/types.ts                          | 2 ++
+ 3 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/packages/clis/parser/game-files/def-parser.ts b/packages/clis/parser/game-files/def-parser.ts
+index e6793d3..d6977be 100644
+--- a/packages/clis/parser/game-files/def-parser.ts
++++ b/packages/clis/parser/game-files/def-parser.ts
+@@ -278,6 +278,8 @@ export function parseDefFiles(entries: Entries, application: 'ats' | 'eut2') {
+     entries.directories.get('def/photo_album'),
+   );
+   const viewpoints = new Map<bigint, string>(); // item.uid to l10n token
++  // item.uid to album token without "album." ("viewpoints.blkwtirana"): what a tourist bus line in a save names
++  const albumTokens = new Map<bigint, string>();
+   let itemCount = 0;
+   for (const f of defPhotoAlbum.files) {
+     if (!/^(viewpoints|landmarks)\.sui$/.test(f)) {
+@@ -289,11 +291,12 @@ export function parseDefFiles(entries: Entries, application: 'ats' | 'eut2') {
+       ViewpointsSiiSchema,
+     );
+     const items = json.photoAlbumItem;
+-    for (const val of Object.values(items)) {
++    for (const [key, val] of Object.entries(items)) {
+       itemCount++;
+       for (const uid of val.objectsUid) {
+         const token = val.name.replace(/(^@@)|(@@$)/g, '');
+         viewpoints.set(uid, token);
++        albumTokens.set(uid, key.replace(/^album\./, ''));
+       }
+     }
+   }
+@@ -343,6 +346,7 @@ export function parseDefFiles(entries: Entries, application: 'ats' | 'eut2') {
+     vegetation,
+     mileageTargets,
+     viewpoints,
++    albumTokens,
+   };
+ }
+ 
+diff --git a/packages/clis/parser/game-files/map-files-parser.ts b/packages/clis/parser/game-files/map-files-parser.ts
+index 51a717c..c5e762e 100644
+--- a/packages/clis/parser/game-files/map-files-parser.ts
++++ b/packages/clis/parser/game-files/map-files-parser.ts
+@@ -586,7 +586,10 @@ function postProcess(
+         checkReference(item.nodeUid, nodesByUid, 'nodeUid', item);
+         referencedNodeUids.add(item.nodeUid);
+         poifulItems.push(item);
+-        cutscenes.push(item);
++        {
++          const album = defData.albumTokens.get(item.uid);
++          cutscenes.push(album ? { ...item, album } : item);
++        }
+         break;
+       case ItemType.Trigger:
+         checkReference(item.nodeUids, nodesByUid, 'nodeUids', item);
+diff --git a/packages/libs/map/types.ts b/packages/libs/map/types.ts
+index 43e9a36..6f477c3 100644
+--- a/packages/libs/map/types.ts
++++ b/packages/libs/map/types.ts
+@@ -422,6 +422,8 @@ export type Cutscene = BaseItem &
+     tags: readonly string[];
+     nodeUid: bigint;
+     actionStringParams: readonly string[];
++    // a viewpoint's photo album token without "album." (e.g. "viewpoints.blkwtirana")
++    album?: string;
+   }>;
+ 
+ export type Sign = BaseItem &
+-- 
+2.43.0
+

@@ -8,7 +8,7 @@
 //   dist/parser/index.mjs        game file parser (+ cityhash.node, gdeflate.node)
 //   dist/generator/index.mjs     map/graph/search generator
 //   dist/resources/              generator resources (overrides, labels, places)
-//   dist/pipeline/               build-map-data.mjs, make-tiles.mjs, road-surfaces.mjs, postprocess-geojson.js
+//   dist/pipeline/               build-map-data.mjs, make-tiles.mjs, road-surfaces.mjs, bus-stops.mjs, postprocess-geojson.js
 //   dist/THIRD-PARTY-LICENSES.txt  licenses of everything bundled in
 //
 // usage: vendor\node\node.exe setup\bundle.mjs
@@ -140,6 +140,7 @@ await bundle('pipeline', path.join(ROOT, 'pipeline/build-map-data.mjs'));
 fs.renameSync(path.join(DIST, 'pipeline/index.mjs'), path.join(DIST, 'pipeline/build-map-data.mjs'));
 await build({ ...common, entryPoints: [path.join(ROOT, 'pipeline/make-tiles.mjs')], outfile: path.join(DIST, 'pipeline/make-tiles.mjs') });
 await build({ ...common, entryPoints: [path.join(ROOT, 'pipeline/road-surfaces.mjs')], outfile: path.join(DIST, 'pipeline/road-surfaces.mjs') });
+await build({ ...common, entryPoints: [path.join(ROOT, 'pipeline/bus-stops.mjs')], outfile: path.join(DIST, 'pipeline/bus-stops.mjs') });
 await build({ ...common, format: 'cjs', banner: {}, entryPoints: [path.join(ROOT, 'pipeline/postprocess-geojson.js')], outfile: path.join(DIST, 'pipeline/postprocess-geojson.cjs') });
 
 writeLicenses(path.join(DIST, 'THIRD-PARTY-LICENSES.txt'));

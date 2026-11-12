@@ -657,19 +657,24 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
     if (isMap) hideSystemUi();
   }
 
-  /** From the jobs screen: truck -> pickup (-> destination) as a multi-segment route. */
-  private void routeJob(String pickupNode, String destNode, String label) {
-    if (pickupNode == null || pickupNode.isEmpty()) {
+  /**
+   * From the jobs screen: truck -> nodes[0] (-> nodes[1] -> ...) as a multi-segment route: a job's pickup and
+   * delivery, or a bus line's stops in order. Nodes the map does not have are left out.
+   */
+  private void routeJob(java.util.List<String> nodes, String label) {
+    JSONArray waypoints = new JSONArray();
+    for (String n : nodes) if (n != null && !n.isEmpty() && !"null".equals(n)) waypoints.put(n);
+    if (waypoints.length() == 0) {
       flashMessage(Ui.s(R.string.company_not_on_map));
       return;
     }
     showScreen("map");
     setFollowing(true);
-    if (destNode == null || destNode.isEmpty()) {
-      routeTo(pickupNode);
+    if (waypoints.length() == 1) {
+      routeTo(waypoints.optString(0));
       return;
     }
-    JSONArray waypoints = new JSONArray().put(pickupNode).put(destNode);
+    String destNode = waypoints.optString(waypoints.length() - 1);
     flashMessage(Ui.s(R.string.route_calculating, label));
     nav.query("app.generateRouteFromNodeUids", waypoints, (data, error) -> {
       if (!(data instanceof JSONObject)) {
