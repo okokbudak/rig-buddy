@@ -36,7 +36,24 @@ export function defs(game) {
     companyDefs: new Map(load('companyDefs').map(c => [c.token, c])),
     cargoes: new Map(load('cargoes').map(c => [c.token, c])),
     countries: new Map(load('countries').map(c => [c.token, c])),
+    // city -> its bus station (the one nearest the centre); written by build-map-data since map format 7
+    busStations: new Map(),
   };
+  try {
+    for (const s of load('busStations')) if (!d.busStations.has(s.city)) d.busStations.set(s.city, s);
+  } catch {
+    // a map from before the bus jobs: only the approximate places below
+  }
+  // About half of the cities with a bus stop have no bus station building of their own on the map: for those, the
+  // company entrance nearest the city centre stands in (approx: true), so a route can still be planned to the city.
+  d.cityCentreNode = new Map();
+  for (const c of d.companies.values()) {
+    const city = d.cities.get(c.cityToken);
+    if (!city || c.nodeUid == null || c.x == null) continue;
+    const dist = Math.hypot(c.x - city.x, c.y - city.y);
+    const have = d.cityCentreNode.get(c.cityToken);
+    if (!have || dist < have.dist) d.cityCentreNode.set(c.cityToken, { nodeUid: String(c.nodeUid), x: c.x, y: c.y, dist, approx: true });
+  }
   defsCache[game] = d;
   return d;
 }
@@ -127,6 +144,15 @@ export function loadSave(game) {
       jobs.push(toJob(d, game, companyToken, cityToken, o, gameTime));
     }
   }
+  // bus lines (the bus DLC): every city's bus stop lists its line offers
+  for (const s of ofType(blocks, 'bus_stop')) {
+    const cityToken = s.id.replace(/^bus_stop\.city\./, '');
+    for (const offerId of Array.isArray(s.props.lines_offer) ? s.props.lines_offer : []) {
+      const o = blocks.get(offerId)?.props;
+      if (!o || num(o.expiration_time) <= gameTime) continue;
+      jobs.push(toBusJob(d, cityToken, o, gameTime));
+    }
+  }
 
   return {
     game,
@@ -171,6 +197,7 @@ function toJob(d, game, companyToken, cityToken, o, gameTime) {
   const urgencyMult = [1, 1.15, 1.3][urgency] ?? 1;
   const trailerDef = String(o.trailer_definition || '').split('.');
   return {
+    kind: 'freight',
     id: `${companyToken}.${cityToken}>${o.target}>${cargoToken}>${o.expiration_time}`,
     source: {
       company: d.companyDefs.get(companyToken)?.name ?? companyToken,
@@ -196,6 +223,59 @@ function toJob(d, game, companyToken, cityToken, o, gameTime) {
     // Rough: the game also applies skills/cargo bonuses we can't see here.
     estimatedIncome: cargo ? Math.round(cargo.unitRewardPerKm * units * km * urgencyMult) : null,
   };
+}
+
+/**
+ * A bus line offer (line_offer_data of a city's bus_stop): from that city's bus station through one or more cities.
+ * The save has no pay for it (the game works it out when the line is taken), so estimatedIncome is null.
+ */
+function toBusJob(d, cityToken, o, gameTime) {
+  const list = v => (Array.isArray(v) ? v : []);
+  const targets = list(o.saved_targets).map(t => String(t).replace(/^"|"$/g, '').replace(/^city\./, ''));
+  const km = list(o.targets_distances).map(n => num(n));
+  const min = list(o.targets_times).map(n => num(n));
+  const last = targets.at(-1) ?? '';
+  const srcCity = d.cities.get(cityToken);
+  const place = city => d.busStations.get(city) ?? d.cityCentreNode.get(city) ?? null;
+  const src = place(cityToken);
+  const dst = place(last);
+  return {
+    kind: 'bus',
+    id: `bus>${cityToken}>${targets.join('>')}>${o.departure_time_of_day}>${o.expiration_time}`,
+    line: o.type === 'tourist' ? 'tourist' : 'regular',
+    source: {
+      company: '',
+      city: srcCity?.name ?? cityToken,
+      nodeUid: src?.nodeUid ?? null,
+      approx: src?.approx === true, // no bus station building: the company entrance nearest the city centre
+      x: src?.x ?? srcCity?.x ?? null,
+      y: src?.y ?? srcCity?.y ?? null,
+    },
+    destination: {
+      company: '',
+      city: d.cities.get(last)?.name ?? last,
+      country: d.countries.get(d.cities.get(last)?.countryToken)?.name ?? '',
+      nodeUid: dst?.nodeUid ?? null,
+      approx: dst?.approx === true,
+    },
+    stops: targets.map((t, i) => ({ city: d.cities.get(t)?.name ?? t, km: km[i] ?? null, min: min[i] ?? null })),
+    distanceKm: km.at(-1) ?? 0,
+    durationMin: min.at(-1) ?? null,
+    departureMin: num(o.departure_time_of_day), // minutes after midnight, in the game
+    bus: prettyBus(o.bus_name),
+    expiresInMin: num(o.expiration_time) - gameTime,
+    estimatedIncome: null,
+  };
+}
+
+const BUS_BRANDS = { man: 'MAN', mercedes: 'Mercedes-Benz', setra: 'Setra', volvo: 'Volvo', scania: 'Scania', iveco: 'Iveco', irizar: 'Irizar', neoplan: 'Neoplan', temsa: 'Temsa', vdl: 'VDL', daf: 'DAF' };
+
+/** "man_lions_24_139h6_520" -> "MAN Lions" (brand and model; the rest is engine and year). */
+function prettyBus(name) {
+  const [brand, model] = String(name || '').split('_');
+  if (!brand) return '';
+  const b = BUS_BRANDS[brand] ?? brand.charAt(0).toUpperCase() + brand.slice(1);
+  return model ? `${b} ${model.charAt(0).toUpperCase()}${model.slice(1)}` : b;
 }
 
 function prettyCargo(name) {

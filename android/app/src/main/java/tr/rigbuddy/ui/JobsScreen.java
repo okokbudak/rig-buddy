@@ -22,7 +22,7 @@ import java.util.List;
 
 import tr.rigbuddy.agent.AgentClient;
 
-/** Freight-market offers read from the latest save by the PC agent. */
+/** Freight-market offers and bus lines (bus DLC) read from the latest save by the PC agent. */
 public final class JobsScreen {
   public interface Actions {
     /** Route truck -> pickup (-> destination when destNode != null) in the app. */
@@ -38,8 +38,11 @@ public final class JobsScreen {
   private final List<JSONObject> jobs = new ArrayList<>();
   private final Adapter adapter = new Adapter();
   private final List<TextView> sortChips = new ArrayList<>();
+  private final List<TextView> kindChips = new ArrayList<>();
+  private static final String[] KINDS = {"all", "freight", "bus"};
   private String currency = "€";
   private int sort = 0; // 0 nearest pickup, 1 income, 2 distance
+  private int kind = 0; // index into KINDS
   private JSONObject selected;
   private long lastLoad;
 
@@ -67,7 +70,26 @@ public final class JobsScreen {
     TextView refresh = sortChipView(Ui.s(R.string.jobs_refresh));
     refresh.setOnClickListener(v -> load(true));
     header.addView(refresh, Ui.margins(Ui.wrap(), c, 10, 0, 0, 0));
-    root.addView(header, Ui.margins(Ui.matchWrap(), c, 4, 0, 0, 12));
+    root.addView(header, Ui.margins(Ui.matchWrap(), c, 4, 0, 0, 10));
+
+    // all / freight / bus lines (the bus DLC); each asks the PC for its own list, nearest first
+    LinearLayout kinds = Ui.row(c);
+    int[] kindLabels = {R.string.jobs_filter_all, R.string.jobs_filter_freight, R.string.jobs_filter_bus};
+    for (int i = 0; i < KINDS.length; i++) {
+      final int index = i;
+      TextView t = sortChipView(Ui.s(kindLabels[i]));
+      t.setOnClickListener(v -> {
+        if (kind == index) return;
+        kind = index;
+        updateChips();
+        selected = null;
+        this.detail.setVisibility(View.GONE);
+        load(true);
+      });
+      kindChips.add(t);
+      kinds.addView(t, Ui.margins(Ui.wrap(), c, i == 0 ? 0 : 10, 0, 0, 0));
+    }
+    root.addView(kinds, Ui.margins(Ui.matchWrap(), c, 4, 0, 0, 12));
 
     currentJob = Ui.text(c, 18, Ui.TEXT, false);
     int p = Ui.dp(c, 14);
@@ -100,21 +122,21 @@ public final class JobsScreen {
       if (selected == null) return;
       JSONObject s = selected.optJSONObject("source"), d = selected.optJSONObject("destination");
       actions.routeJob(s.optString("nodeUid"), d.optString("nodeUid"),
-          selected.optString("cargo") + " → " + d.optString("city"));
+          (isBus(selected) ? lineLabel(selected) : selected.optString("cargo")) + " → " + d.optString("city"));
     });
     detail.addView(full, Ui.matchWrap());
     TextView pickup = button(Ui.s(R.string.jobs_route_pickup), Ui.TRACK, Ui.TEXT);
     pickup.setOnClickListener(v -> {
       if (selected == null) return;
       JSONObject s = selected.optJSONObject("source");
-      actions.routeJob(s.optString("nodeUid"), null, s.optString("company") + ", " + s.optString("city"));
+      actions.routeJob(s.optString("nodeUid"), null, place(selected, s));
     });
     detail.addView(pickup, Ui.margins(Ui.matchWrap(), c, 0, 10, 0, 0));
     TextView delivery = button(Ui.s(R.string.jobs_route_delivery), Ui.TRACK, Ui.TEXT);
     delivery.setOnClickListener(v -> {
       if (selected == null) return;
       JSONObject d = selected.optJSONObject("destination");
-      actions.routeJob(d.optString("nodeUid"), null, d.optString("company") + ", " + d.optString("city"));
+      actions.routeJob(d.optString("nodeUid"), null, place(selected, d));
     });
     detail.addView(delivery, Ui.margins(Ui.matchWrap(), c, 0, 10, 0, 0));
     detail.setVisibility(View.GONE);
@@ -151,7 +173,7 @@ public final class JobsScreen {
 
   private void load(boolean manual) {
     status.setText(Ui.s(R.string.loading));
-    agent.get("/jobs?limit=300", (json, error) -> {
+    agent.get("/jobs?limit=300&kind=" + KINDS[kind], (json, error) -> {
       lastLoad = System.currentTimeMillis();
       if (error != null) {
         status.setText(error);
@@ -176,9 +198,58 @@ public final class JobsScreen {
     adapter.notifyDataSetChanged();
   }
 
+  private static boolean isBus(JSONObject j) {
+    return "bus".equals(j.optString("kind"));
+  }
+
+  /** "Bus line · Volvo 9700" / "Tour · MAN Lions". */
+  private static String lineLabel(JSONObject j) {
+    String line = Ui.s("tourist".equals(j.optString("line")) ? R.string.bus_line_tourist : R.string.bus_line_regular);
+    String bus = j.optString("bus");
+    return bus.isEmpty() ? line : line + "  ·  " + bus;
+  }
+
+  /** Where a route goes: a company in its city, or a city's bus station (or, without one, its centre). */
+  private static String place(JSONObject job, JSONObject end) {
+    if (!isBus(job)) return end.optString("company") + ", " + end.optString("city");
+    return end.optBoolean("approx") ? end.optString("city") + " " + Ui.s(R.string.bus_approx)
+        : Ui.s(R.string.bus_station, end.optString("city"));
+  }
+
+  private static String clock(int minutes) {
+    return String.format(java.util.Locale.US, "%02d:%02d", (minutes / 60) % 24, minutes % 60);
+  }
+
+  /** "Edirne (194 km) → Bucharest (426 km) → Hunedoara (445 km)". */
+  private static String stops(JSONObject j, boolean withKm) {
+    JSONArray arr = j.optJSONArray("stops");
+    StringBuilder b = new StringBuilder();
+    for (int i = 0; arr != null && i < arr.length(); i++) {
+      JSONObject s = arr.optJSONObject(i);
+      if (s == null) continue;
+      if (b.length() > 0) b.append(" → ");
+      b.append(s.optString("city"));
+      if (withKm && !s.isNull("km")) b.append(" (").append(Ui.number(s.optInt("km"))).append(" km)");
+    }
+    return b.toString();
+  }
+
   private void select(JSONObject j) {
     selected = j;
     JSONObject s = j.optJSONObject("source"), d = j.optJSONObject("destination");
+    if (isBus(j)) {
+      detailTitle.setText(lineLabel(j));
+      detailLine1.setText(j.has("pickupKm") && !j.isNull("pickupKm")
+          ? Ui.s(R.string.jobs_pickup, place(j, s), Ui.number(j.optInt("pickupKm")))
+          : Ui.s(R.string.jobs_pickup_only, place(j, s)));
+      detailLine2.setText(Ui.s(R.string.bus_stops, stops(j, true)));
+      StringBuilder extra = new StringBuilder(Ui.s(R.string.bus_departs, clock(j.optInt("departureMin"))));
+      if (!j.isNull("durationMin")) extra.append("  ·  ").append(Ui.s(R.string.bus_takes, Ui.duration(j.optLong("durationMin"))));
+      extra.append("  ·  ").append(Ui.s(R.string.jobs_expires, Ui.duration(j.optLong("expiresInMin"))));
+      detailLine3.setText(extra.toString());
+      detail.setVisibility(View.VISIBLE);
+      return;
+    }
     detailTitle.setText(j.optString("cargo") + (j.isNull("cargoMassT") ? "" : "  ·  " + j.optDouble("cargoMassT") + " t"));
     String pickupPlace = s.optString("company") + ", " + s.optString("city");
     detailLine1.setText(j.has("pickupKm") && !j.isNull("pickupKm")
@@ -223,6 +294,11 @@ public final class JobsScreen {
       boolean on = i == sort;
       sortChips.get(i).setBackground(Ui.rounded(on ? Ui.ACCENT : Ui.TRACK, Ui.dp(c, 20)));
       sortChips.get(i).setTextColor(on ? Ui.ON_ACCENT : Ui.TEXT);
+    }
+    for (int i = 0; i < kindChips.size(); i++) {
+      boolean on = i == kind;
+      kindChips.get(i).setBackground(Ui.rounded(on ? Ui.ACCENT : Ui.TRACK, Ui.dp(c, 20)));
+      kindChips.get(i).setTextColor(on ? Ui.ON_ACCENT : Ui.TEXT);
     }
   }
 
@@ -277,6 +353,15 @@ public final class JobsScreen {
       }
       JSONObject j = jobs.get(i);
       JSONObject s = j.optJSONObject("source"), d = j.optJSONObject("destination");
+      if (isBus(j)) {
+        h.cargo.setText(lineLabel(j));
+        h.route.setText(s.optString("city") + "   →   " + stops(j, false));
+        h.income.setText(Ui.s(R.string.bus_departs, clock(j.optInt("departureMin"))));
+        h.meta.setText(j.isNull("pickupKm")
+            ? Ui.s(R.string.km_trip, Ui.number(j.optInt("distanceKm")))
+            : Ui.s(R.string.jobs_row_distance, Ui.number(j.optInt("pickupKm")), Ui.number(j.optInt("distanceKm"))));
+        return convert;
+      }
       h.cargo.setText(j.optString("cargo") + (j.isNull("cargoMassT") ? "" : "  ·  " + j.optDouble("cargoMassT") + " t")
           + (j.optInt("urgency") > 0 ? "  ·  " + Ui.s(R.string.jobs_urgent_lower) : ""));
       h.route.setText(s.optString("city") + " · " + s.optString("company") + "   →   " + d.optString("city") + " · " + d.optString("company"));

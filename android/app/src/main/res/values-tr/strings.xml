@@ -272,4 +272,14 @@
     <string name="update_bad_hash">indirilen dosya GitHub\'daki dosyayla aynı değil, kurulmadı</string>
     <string name="update_failed">Güncelleme kurulamadı: %1$s</string>
     <string name="update_no_pc">Güncelleme PC\'den gelir: önce PC\'ye bağlanın.</string>
+    <string name="jobs_filter_all">Tümü</string>
+    <string name="jobs_filter_freight">Yük</string>
+    <string name="jobs_filter_bus">Otobüs</string>
+    <string name="bus_line_regular">Otobüs hattı</string>
+    <string name="bus_line_tourist">Tur seferi</string>
+    <string name="bus_departs">Kalkış %1$s</string>
+    <string name="bus_stops">Duraklar: %1$s</string>
+    <string name="bus_takes">yaklaşık %1$s sürer</string>
+    <string name="bus_station">%1$s otogarı</string>
+    <string name="bus_approx">(merkeze yakın)</string>
 </resources>

@@ -78,7 +78,7 @@ function fingerprint(dir, mods = []) {
 
 // Bump when the data this pipeline writes changes (new map detail, new fields):
 // the stamp then no longer matches and Rig Buddy offers to rebuild the map.
-const FORMAT = 6;
+const FORMAT = 7; // 7: data/game/<map>-busStations.json (bus jobs)
 const stampFile = g => path.join(DATA, `${g.game}.stamp`);
 const stamp = g => `${fingerprint(g.dir, g.mods)} v${FORMAT}`;
 /** A map built by a NEWER format is kept: an older Rig Buddy must never overwrite it. */
@@ -273,6 +273,7 @@ async function buildGame(g) {
 
   await step('copy', g, async () => {
     for (const n of GAME_JSON) fs.copyFileSync(path.join(PARSER_OUT, `${g.map}-${n}.json`), path.join(DATA, 'game', `${g.map}-${n}.json`));
+    writeBusStations(g);
     fs.writeFileSync(stampFile(g), stamp(g));
   });
   console.log(`${g.name} done in ${Math.round((Date.now() - started) / 1000)} s`);
@@ -282,6 +283,33 @@ async function buildGame(g) {
 
 function progress(pct, key, arg = '') {
   console.log(`@@progress ${pct} ${key}${arg ? ' ' + arg : ''}`);
+}
+
+/**
+ * The bus stations of the map (the bus DLC's prefab2/bus_station/... prefabs), each with the city it belongs to (the
+ * nearest one) and a node to route to, for the app's bus jobs: data/game/<map>-busStations.json, [{ city, nodeUid, x, y }],
+ * the station nearest to the city's centre first. An empty list without the bus DLC.
+ */
+function writeBusStations(g) {
+  const read = n => JSON.parse(fs.readFileSync(path.join(PARSER_OUT, `${g.map}-${n}.json`), 'utf8'));
+  const busPrefabs = new Set(read('prefabDescriptions').filter(d => /\/bus_station\//.test(d.path ?? '')).map(d => d.token));
+  const cities = read('cities');
+  const stations = [];
+  if (busPrefabs.size && cities.length) {
+    for (const p of read('prefabs')) {
+      if (!busPrefabs.has(p.token) || !p.nodeUids?.length) continue;
+      let best = null, bestD = Infinity;
+      for (const c of cities) {
+        const d = (c.x - p.x) ** 2 + (c.y - p.y) ** 2;
+        if (d < bestD) { bestD = d; best = c; }
+      }
+      const nodeUid = String(p.nodeUids[p.originNodeIndex ?? 0] ?? p.nodeUids[0]);
+      stations.push({ city: best.token, nodeUid, x: p.x, y: p.y, fromCentre: Math.round(Math.sqrt(bestD)) });
+    }
+    stations.sort((a, b) => a.city.localeCompare(b.city) || a.fromCentre - b.fromCentre);
+  }
+  fs.writeFileSync(path.join(DATA, 'game', `${g.map}-busStations.json`), JSON.stringify(stations));
+  console.log(`bus stations: ${stations.length} in ${new Set(stations.map(s => s.city)).size} cities`);
 }
 
 function fail(msg) {

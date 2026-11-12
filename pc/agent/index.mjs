@@ -177,10 +177,12 @@ function pollSave() {
   }
 }
 
-function jobsForApp(limit) {
+/** kind: 'freight', 'bus' or anything else for both. */
+function jobsForApp(limit, kind) {
   if (!save) return [];
   const scale = game === 'ats' ? 20 : 19;
   return save.jobs
+    .filter(j => (kind === 'freight' || kind === 'bus' ? j.kind === kind : true))
     .map(j => ({
       ...j,
       pickupKm: rawTruckPos && j.source.x != null
@@ -379,7 +381,10 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/jobs') {
     if (!save) return send(503, { error: saveError || 'nosave' });
     const limit = Math.min(500, Number(url.searchParams.get('limit') || 200));
-    return send(200, { savedAt: save.savedAt, gameTime: save.gameTime, currency: save.currency, jobs: jobsForApp(limit) });
+    // ?kind=freight | bus (bus lines of the bus DLC); without it both, nearest first
+    const kind = url.searchParams.get('kind') || 'all';
+    const counts = { freight: save.jobs.filter(j => j.kind === 'freight').length, bus: save.jobs.filter(j => j.kind === 'bus').length };
+    return send(200, { savedAt: save.savedAt, gameTime: save.gameTime, currency: save.currency, counts, jobs: jobsForApp(limit, kind) });
   }
   if (url.pathname === '/explored') {
     // the roads and junctions the player has driven (from the save), as the uids the map tiles carry; hasUid: this PC's map has them
