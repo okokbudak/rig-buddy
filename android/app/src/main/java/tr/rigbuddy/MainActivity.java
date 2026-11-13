@@ -156,6 +156,7 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   private String requestedDestNode;
   /** Delivery node of the job taken in the game; the map's route button drives there. */
   private String jobDestNode;
+  private String busRoutedNode; // the bus stop the route was last planned to by itself (onBusJob)
   private boolean pickingRoute;
   private boolean jobSeen;         // the PC has reported a job (telemetry)
   private long jobGoneSinceMs;     // since when it reports none
@@ -316,9 +317,11 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
           lastTelemetryAt = SystemClock.uptimeMillis();
           JSONObject truck = t.optJSONObject("truck");
           lastSpeedKph = truck != null ? truck.optDouble("speedKph", 0) : 0;
-          if (t.optJSONObject("job") != null) {
+          JSONObject busJob = t.optJSONObject("busJob");
+          if (t.optJSONObject("job") != null || busJob != null) {
             jobSeen = true;
             jobGoneSinceMs = 0;
+            if (busJob != null) onBusJob(busJob);
           } else if (jobSeen) {
             long nowMs = SystemClock.uptimeMillis();
             if (jobGoneSinceMs == 0) jobGoneSinceMs = nowMs;
@@ -1040,8 +1043,8 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
           String node = ((JSONObject) data).optString("toNodeUid", null);
           jobDestNode = node;
           if (node != null && !node.equals(requestedDestNode)) routeTo(node);
-        } else {
-          onJobGone();
+        } else if (lastTelemetry == null || lastTelemetry.optJSONObject("busJob") == null) {
+          onJobGone(); // (the server knows freight jobs only: a bus line being driven is not gone)
         }
         break;
       case "themeModeUpdate":
@@ -1198,12 +1201,28 @@ public final class MainActivity extends Activity implements NavClient.Listener, 
   }
 
   /**
+   * A bus line being driven (bus DLC; the agent has it from Rig Buddy's telemetry plugin, the navigation server does
+   * not know it): its next stop is the job's destination for the job button, and like a freight job the route goes
+   * there by itself - when the line is taken and again at every stop, once the navigation server is up.
+   */
+  private void onBusJob(JSONObject busJob) {
+    JSONObject next = busJob.optJSONObject("next");
+    String node = next != null && !next.isNull("nodeUid") ? next.optString("nodeUid", null) : null;
+    if (node == null || node.isEmpty()) return;
+    jobDestNode = node;
+    if (node.equals(busRoutedNode) || !serverPositionSeen || pickingRoute) return;
+    busRoutedNode = node;
+    if (!node.equals(requestedDestNode)) routeTo(node);
+  }
+
+  /**
    * The job taken in the game is gone (cancelled). The route to its destination goes with it; a route the user chose
    * himself (search, a pin on the map) stays.
    */
   private void onJobGone() {
     String was = jobDestNode;
     jobDestNode = null;
+    busRoutedNode = null;
     if (was != null && was.equals(requestedDestNode) && route != null) {
       cancelRoute();
       flashMessage(Ui.s(R.string.job_cancelled));

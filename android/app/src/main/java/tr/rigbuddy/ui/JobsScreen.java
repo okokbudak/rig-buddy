@@ -166,6 +166,25 @@ public final class JobsScreen {
   }
 
   public void onTelemetry(JSONObject t) {
+    JSONObject bus = t != null ? t.optJSONObject("busJob") : null;
+    if (bus != null) {
+      // "Active line: Akureyri → Húsavík · next stop Húsavík at 12:25 (26 off) · 1/2 · €1,977"
+      currentJob.setVisibility(View.VISIBLE);
+      StringBuilder b = new StringBuilder(Ui.s(R.string.bus_active, bus.optString("source") + "  →  " + bus.optString("destination")));
+      JSONObject next = bus.optJSONObject("next");
+      if (next != null) {
+        b.append("   ·   ").append(Ui.s(R.string.bus_next_stop, next.optString("name")));
+        if (!next.isNull("arrival")) {
+          b.append(" ").append(clock(next.optInt("arrival")));
+          long left = next.optLong("arrival") - t.optLong("gameTime");
+          b.append(" (").append(Ui.duration(Math.max(0, left))).append(")");
+        }
+      }
+      if (bus.optInt("stages") > 1) b.append("   ·   ").append(Math.min(bus.optInt("stage") + 1, bus.optInt("stages"))).append("/").append(bus.optInt("stages"));
+      if (!bus.isNull("income")) b.append("   ·   ").append(Ui.money(bus.optDouble("income"), HomeScreen.currency(t)));
+      currentJob.setText(b.toString());
+      return;
+    }
     JSONObject job = t != null ? t.optJSONObject("job") : null;
     if (job == null) {
       currentJob.setVisibility(View.GONE);

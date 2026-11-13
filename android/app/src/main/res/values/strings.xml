@@ -283,5 +283,7 @@
     <string name="bus_stops">Stops: %1$s</string>
     <string name="bus_takes">takes about %1$s</string>
     <string name="bus_station">%1$s bus stop</string>
+    <string name="bus_active">Active line:  %1$s</string>
+    <string name="bus_next_stop">next stop %1$s</string>
     <string name="bus_approx">(near the centre)</string>
 </resources>

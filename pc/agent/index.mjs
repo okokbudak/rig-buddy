@@ -26,7 +26,8 @@ import { DatabaseSync } from 'node:sqlite';
 import tst from 'trucksim-telemetry';
 import { WebSocketServer } from 'ws';
 import { createRadio } from './radio.mjs';
-import { findLatestSave, loadSave } from './save.mjs';
+import { busJobFrom, readBusFile } from './busjob.mjs';
+import { defs, findLatestSave, loadSave } from './save.mjs';
 import { mediaCommand, mediaState } from './media.mjs';
 import { setSoundLevel, setSoundMod, soundState } from './sound.mjs';
 import { apkFile, updateInfo } from './update.mjs';
@@ -128,6 +129,25 @@ function summarize(t) {
   };
 }
 
+/**
+ * The bus line being driven (pc/telemetry-plugin via busjob.mjs), or null. The map data for the stops' road nodes
+ * is loaded once per game; without it (no map built yet) the stops come without nodes.
+ */
+function busJobNow(g) {
+  const file = readBusFile(g);
+  if (!file?.active) return null;
+  let d = null;
+  if (Date.now() - (defsFailedAt[g] ?? 0) > 60_000) {
+    try {
+      d = defs(g);
+    } catch {
+      defsFailedAt[g] = Date.now(); // no map data: try again in a minute, not at 5 Hz
+    }
+  }
+  return busJobFrom(file, d);
+}
+const defsFailedAt = {};
+
 const pct = obj => Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, Math.round((v ?? 0) * 1000) / 10]));
 
 function pollTelemetry() {
@@ -152,6 +172,7 @@ function pollTelemetry() {
       lastSaveMtime = 0;
       radio.setGame(g);
     }
+    latest.busJob = busJobNow(g);
     broadcast({ type: 'telemetry', data: latest });
   } catch (e) {
     console.warn('telemetry summarize failed:', e.message);

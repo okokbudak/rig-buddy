@@ -62,6 +62,11 @@ if (-not $SkipInstaller) {
   Copy-Item "$sp\game-files\ATS\master.bank" "$app\plugin\sound\ATS\"
   Copy-Item "$sp\game-files\sound_levels.txt" "$app\plugin\sound\"
   Copy-Item "$sp\LICENSE.md" "$app\licenses\rigbuddy-sound-LICENSE.txt"
+  # Rig Buddy's telemetry plugin for the bus job (pc\telemetry-plugin, built before this script; PluginCheck.cs puts it
+  # into the games next to scs-telemetry.dll)
+  $tp = "$Root\pc\telemetry-plugin\dist\rigbuddy-telemetry.dll"
+  if (-not (Test-Path $tp)) { throw 'pc\telemetry-plugin\dist\rigbuddy-telemetry.dll missing: build pc\telemetry-plugin\rigbuddy-telemetry.sln first (Release|x64)' }
+  Copy-Item $tp "$app\plugin\"
   Set-Content "$app\licenses\rigbuddy-sound-NOTICE.txt" -Encoding UTF8 -Value @(
     'The sound plugin (plugin\sound\rigbuddy-sound.dll) is based on ts-fmod-plugin by Dario Wouters,',
     'https://github.com/dariowouters/ts-fmod-plugin, MIT license (see rigbuddy-sound-LICENSE.txt).',

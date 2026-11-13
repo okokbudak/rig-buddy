@@ -59,6 +59,9 @@ static class Program
         Discovery.Start();
         // the sound plugin that came with this version: back into the games if a game update removed it, and updated
         Task.Run(() => { try { SoundMods.Sync(); } catch (Exception e) { Console.WriteLine($"sound plugin: {e.Message}"); } });
+        // rigbuddy-telemetry.dll (the bus job) the same way, with the user's rights; a game under Program Files gets it
+        // from the installer or the Fix now button
+        Task.Run(() => { try { if (!PluginCheck.GameRunning()) PluginCheck.CopyMissing(); } catch (Exception e) { Console.WriteLine($"telemetry plugin: {e.Message}"); } });
         SaveFormat.Watch(); // the saves must be text (g_save_format "2"): set when a game is not running
 
         var sup = new Supervisor(paths);
@@ -76,7 +79,7 @@ static class Program
         return 0;
     }
 
-    /** plugin\scs-telemetry.dll (next to the exe) -> <game>\bin\win_x64\plugins, for each installed game. */
+    /** plugin\scs-telemetry.dll and rigbuddy-telemetry.dll (next to the exe) -> <game>\bin\win_x64\plugins, for each installed game. */
     static int InstallPlugin()
     {
         string dll = Path.Combine(AppContext.BaseDirectory, @"plugin\scs-telemetry.dll");
@@ -91,6 +94,9 @@ static class Program
                 string dir = Path.Combine(game, @"bin\win_x64\plugins");
                 Directory.CreateDirectory(dir);
                 File.Copy(dll, Path.Combine(dir, "scs-telemetry.dll"), overwrite: true);
+                // Rig Buddy's own telemetry plugin (the bus job), when this version ships it
+                string own = Path.Combine(AppContext.BaseDirectory, @"plugin\rigbuddy-telemetry.dll");
+                if (File.Exists(own)) File.Copy(own, Path.Combine(dir, "rigbuddy-telemetry.dll"), overwrite: true);
             }
             catch (Exception) { failed++; } // game running (dll in use) or no rights
         }

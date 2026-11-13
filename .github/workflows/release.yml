@@ -75,7 +75,7 @@ jobs:
           $v = $env:VERSION_INPUT -replace '^v', ''
           if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "bad version '$env:VERSION_INPUT'" }
           "APP_VERSION=$v" >> $env:GITHUB_ENV
-      - name: sound plugin (rigbuddy-sound.dll, C++)
+      - name: game plugins (rigbuddy-sound.dll, rigbuddy-telemetry.dll; C++)
         shell: pwsh
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -90,6 +90,11 @@ jobs:
           & $msbuild pc/sound-plugin/rigbuddy-sound.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=$toolset /m /v:m /nologo
           if ($LASTEXITCODE -ne 0) { throw "sound plugin build failed ($LASTEXITCODE)" }
           if (-not (Test-Path pc/sound-plugin/dist/rigbuddy-sound.dll)) { throw 'rigbuddy-sound.dll was not built' }
+          # the telemetry plugin for the bus job (rigbuddy-telemetry.dll), same toolset
+          New-Item -ItemType Directory -Force pc/telemetry-plugin/dist | Out-Null
+          & $msbuild pc/telemetry-plugin/rigbuddy-telemetry.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=$toolset /m /v:m /nologo
+          if ($LASTEXITCODE -ne 0) { throw "telemetry plugin build failed ($LASTEXITCODE)" }
+          if (-not (Test-Path pc/telemetry-plugin/dist/rigbuddy-telemetry.dll)) { throw 'rigbuddy-telemetry.dll was not built' }
       - name: setup (Node, Gradle, tm-maps, fonts)
         shell: pwsh
         run: ./setup/setup-pc.ps1 -SkipPlugin -SkipFirewall
